@@ -1,0 +1,385 @@
+# =============================================================================
+# API Gateway - Default Values
+# =============================================================================
+# This file contains default configuration values.
+# Override with values-{env}.yaml for environment-specific settings.
+
+# -----------------------------------------------------------------------------
+# Global Settings
+# -----------------------------------------------------------------------------
+global:
+  # Environment: dev, staging, production
+  environment: dev
+  # Project name used for labeling
+  project: voicecustomer
+  # Container registry
+  imageRegistry: ghcr.io/voicecustomer
+  # Image pull secrets
+  imagePullSecrets: []
+
+# -----------------------------------------------------------------------------
+# Deployment Configuration
+# -----------------------------------------------------------------------------
+replicaCount: 2
+
+image:
+  repository: api-gateway
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+# Pod annotations
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8080"
+  prometheus.io/path: "/metrics"
+
+# Pod labels
+podLabels: {}
+
+# Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+# Container security context
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# -----------------------------------------------------------------------------
+# Service Configuration
+# -----------------------------------------------------------------------------
+service:
+  type: ClusterIP
+  port: 8080
+  targetPort: 8080
+  annotations: {}
+
+# -----------------------------------------------------------------------------
+# Ingress Configuration
+# -----------------------------------------------------------------------------
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    # Rate limiting
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+    nginx.ingress.kubernetes.io/limit-connections: "50"
+  hosts:
+    - host: api.voicecustomer.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: api-gateway-tls
+      hosts:
+        - api.voicecustomer.local
+
+# -----------------------------------------------------------------------------
+# Resources
+# -----------------------------------------------------------------------------
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+# -----------------------------------------------------------------------------
+# Autoscaling
+# -----------------------------------------------------------------------------
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 15
+        - type: Pods
+          value: 4
+          periodSeconds: 15
+      selectPolicy: Max
+
+# -----------------------------------------------------------------------------
+# Pod Disruption Budget
+# -----------------------------------------------------------------------------
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+  # maxUnavailable: 1
+
+# -----------------------------------------------------------------------------
+# Health Probes
+# -----------------------------------------------------------------------------
+livenessProbe:
+  httpGet:
+    path: /health/live
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+  successThreshold: 1
+
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+  successThreshold: 1
+
+startupProbe:
+  httpGet:
+    path: /health/live
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 30
+  successThreshold: 1
+
+# -----------------------------------------------------------------------------
+# Node Selector / Tolerations / Affinity
+# -----------------------------------------------------------------------------
+nodeSelector: {}
+
+tolerations: []
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - api-gateway
+          topologyKey: kubernetes.io/hostname
+
+# -----------------------------------------------------------------------------
+# Service Account
+# -----------------------------------------------------------------------------
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# -----------------------------------------------------------------------------
+# Application Configuration
+# -----------------------------------------------------------------------------
+config:
+  # Server settings
+  server:
+    host: "0.0.0.0"
+    port: 8080
+    readTimeout: 30s
+    writeTimeout: 30s
+    idleTimeout: 120s
+    gracefulShutdownTimeout: 30s
+
+  # Logging
+  logging:
+    level: info
+    format: json
+    output: stdout
+
+  # Authentication
+  auth:
+    jwtIssuer: "https://auth.voicecustomer.local"
+    jwtAudience: "api-gateway"
+    # JWT public key is loaded from secret
+    jwtSecretName: "jwt-public-key"
+
+  # Rate limiting
+  rateLimit:
+    enabled: true
+    requestsPerSecond: 100
+    burst: 200
+    # Redis for distributed rate limiting
+    redis:
+      enabled: true
+      host: "redis-cache.data.svc"
+      port: 6379
+      db: 0
+      # Password from secret
+      secretName: "redis-credentials"
+
+  # Tracing
+  tracing:
+    enabled: true
+    endpoint: "http://tempo.monitoring.svc:4317"
+    samplingRate: 0.1
+
+  # Metrics
+  metrics:
+    enabled: true
+    path: /metrics
+    port: 8080
+
+# -----------------------------------------------------------------------------
+# Database Configuration
+# -----------------------------------------------------------------------------
+database:
+  # Connection settings
+  host: "pg-data-haproxy.data.svc"
+  port: 5432
+  name: "app_db"
+  sslMode: "require"
+  
+  # Connection pool
+  maxOpenConns: 25
+  maxIdleConns: 10
+  connMaxLifetime: 5m
+  connMaxIdleTime: 1m
+  
+  # Credentials from secret (managed by External Secrets Operator)
+  secretName: "database-credentials"
+  usernameKey: "username"
+  passwordKey: "password"
+
+# -----------------------------------------------------------------------------
+# Object Storage (S3/MinIO)
+# -----------------------------------------------------------------------------
+storage:
+  type: "s3"
+  endpoint: "http://minio.data.svc:9000"
+  bucket: "app-data"
+  region: "us-east-1"
+  forcePathStyle: true
+  
+  # Credentials from secret
+  secretName: "minio-credentials"
+  accessKeyKey: "access-key"
+  secretKeyKey: "secret-key"
+
+# -----------------------------------------------------------------------------
+# Kafka Configuration
+# -----------------------------------------------------------------------------
+kafka:
+  enabled: true
+  brokers:
+    - "kafka-broker-01.data.svc:9092"
+    - "kafka-broker-02.data.svc:9092"
+    - "kafka-broker-03.data.svc:9092"
+  
+  # Producer settings
+  producer:
+    acks: "all"
+    retries: 3
+    batchSize: 16384
+    lingerMs: 10
+  
+  # Consumer settings
+  consumer:
+    groupId: "api-gateway"
+    autoOffsetReset: "earliest"
+    enableAutoCommit: false
+  
+  # Topics
+  topics:
+    events: "platform-events"
+    audit: "audit-logs"
+  
+  # Security (SASL/SSL)
+  security:
+    enabled: true
+    protocol: "SASL_SSL"
+    mechanism: "SCRAM-SHA-512"
+    secretName: "kafka-credentials"
+
+# -----------------------------------------------------------------------------
+# External Services
+# -----------------------------------------------------------------------------
+services:
+  # Authentication service
+  auth:
+    url: "http://auth-service.app.svc:8080"
+    timeout: 5s
+  
+  # Tenant management service
+  tenantManagement:
+    url: "http://tenant-management.app.svc:8080"
+    timeout: 5s
+  
+  # Billing service
+  billing:
+    url: "http://billing-service.app.svc:8080"
+    timeout: 10s
+  
+  # Call management service
+  callManagement:
+    url: "http://call-management.app.svc:8080"
+    timeout: 30s
+  
+  # Analytics service
+  analytics:
+    url: "http://analytics-service.app.svc:8080"
+    timeout: 30s
+
+# -----------------------------------------------------------------------------
+# Extra Environment Variables
+# -----------------------------------------------------------------------------
+extraEnv: []
+# - name: CUSTOM_VAR
+#   value: "custom-value"
+
+# Extra environment variables from secrets/configmaps
+extraEnvFrom: []
+# - secretRef:
+#     name: extra-secrets
+# - configMapRef:
+#     name: extra-config
+
+# -----------------------------------------------------------------------------
+# Extra Volumes
+# -----------------------------------------------------------------------------
+extraVolumes: []
+# - name: extra-config
+#   configMap:
+#     name: extra-config
+
+extraVolumeMounts: []
+# - name: extra-config
+#   mountPath: /etc/extra
+#   readOnly: true
+
+# -----------------------------------------------------------------------------
+# Init Containers
+# -----------------------------------------------------------------------------
+initContainers: []
+# - name: wait-for-db
+#   image: busybox:1.36
+#   command: ['sh', '-c', 'until nc -z pg-data-haproxy.data.svc 5432; do sleep 2; done']
+
+# -----------------------------------------------------------------------------
+# Sidecar Containers
+# -----------------------------------------------------------------------------
+sidecars: []

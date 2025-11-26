@@ -1,0 +1,23 @@
+{
+  "name": "serphona",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Multi-tenant Voice of Customer SaaS Platform",
+  "scripts": {
+    "dev": "make dev",
+    "down": "make down",
+    "build": "make build",
+    "test": "make test",
+    "lint": "make lint",
+    "clean": "make clean",
+    "frontend:dev": "cd frontend/console && npm run dev",
+    "frontend:build": "cd frontend/console && npm run build",
+    "frontend:install": "cd frontend/console && npm install"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/serphona.git"
+  },
+  "author": "Serphona Team",
+  "license": "UNLICENSED"
+}

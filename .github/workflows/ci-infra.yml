@@ -1,0 +1,182 @@
+# ==============================================================================
+# CI Infrastructure - Terraform & Helm
+# ==============================================================================
+
+name: CI Infrastructure
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'infra/**'
+      - '.github/workflows/ci-infra.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'infra/**'
+      - '.github/workflows/ci-infra.yml'
+
+env:
+  TERRAFORM_VERSION: '1.6'
+
+jobs:
+  # ============================================================================
+  # Terraform Validate
+  # ============================================================================
+  terraform-validate:
+    name: Terraform Validate
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        env: [dev, staging, prod]
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+      
+      - name: Terraform Format Check
+        working-directory: infra/terraform/envs/${{ matrix.env }}
+        run: terraform fmt -check -recursive
+      
+      - name: Terraform Init
+        working-directory: infra/terraform/envs/${{ matrix.env }}
+        run: terraform init -backend=false
+      
+      - name: Terraform Validate
+        working-directory: infra/terraform/envs/${{ matrix.env }}
+        run: terraform validate
+
+  # ============================================================================
+  # Terraform Plan (only on PR)
+  # ============================================================================
+  terraform-plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    needs: terraform-validate
+    if: github.event_name == 'pull_request'
+    environment: ${{ github.base_ref == 'main' && 'production' || 'staging' }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+      
+      - name: Terraform Init
+        working-directory: infra/terraform/envs/dev
+        run: terraform init
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      
+      - name: Terraform Plan
+        working-directory: infra/terraform/envs/dev
+        run: terraform plan -no-color -out=tfplan
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      
+      - name: Comment PR with Plan
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('infra/terraform/envs/dev/tfplan', 'utf8');
+            const output = `#### Terraform Plan 📖
+            
+            \`\`\`terraform
+            ${plan.substring(0, 60000)}
+            \`\`\`
+            
+            *Pushed by: @${{ github.actor }}*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+  # ============================================================================
+  # Helm Lint
+  # ============================================================================
+  helm-lint:
+    name: Helm Lint
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.13.0'
+      
+      - name: Lint all charts
+        run: |
+          for chart in infra/helm/*/; do
+            echo "Linting $chart..."
+            helm lint "$chart" || exit 1
+          done
+
+  # ============================================================================
+  # Helm Template (validate rendering)
+  # ============================================================================
+  helm-template:
+    name: Helm Template
+    runs-on: ubuntu-latest
+    needs: helm-lint
+    strategy:
+      matrix:
+        chart:
+          - agent-orchestrator
+          - tools-gateway
+          - tenant-manager
+          - analytics-query-service
+          - analytics-processor-service
+          - billing-service
+          - frontend-console
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.13.0'
+      
+      - name: Template chart
+        run: |
+          helm template ${{ matrix.chart }} infra/helm/${{ matrix.chart }} \
+            --set image.tag=test \
+            --set ingress.enabled=true
+
+  # ============================================================================
+  # Security Scan
+  # ============================================================================
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: infra/
+          framework: terraform,helm
+          output_format: sarif
+          output_file_path: results.sarif
+      
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: results.sarif
+        if: always()

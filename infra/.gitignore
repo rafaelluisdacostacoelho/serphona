@@ -1,0 +1,42 @@
+# Infrastructure - Terraform & Helm
+
+# ==== Terraform ====
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+*.tfplan
+
+# ==== Helm ====
+**/charts/*.tgz
+**/charts/*/charts/
+*.tgz
+
+# ==== Secrets ====
+*.pem
+*.key
+*.crt
+secrets/
+.secrets/
+**/secrets.yaml
+**/secrets.yml
+
+# ==== Environment ====
+.env
+.env.*
+
+# ==== IDE ====
+.idea/
+.vscode/
+
+# ==== OS ====
+.DS_Store

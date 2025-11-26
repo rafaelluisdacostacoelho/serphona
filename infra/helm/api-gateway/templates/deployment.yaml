@@ -1,0 +1,245 @@
+{{- $fullName := include "api-gateway.fullname" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullName }}
+  labels:
+    {{- include "api-gateway.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "api-gateway.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "api-gateway.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "api-gateway.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.initContainers }}
+      initContainers:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.global.imageRegistry }}/{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.config.server.port }}
+              protocol: TCP
+          env:
+            # Server configuration
+            - name: SERVER_HOST
+              value: {{ .Values.config.server.host | quote }}
+            - name: SERVER_PORT
+              value: {{ .Values.config.server.port | quote }}
+            - name: SERVER_READ_TIMEOUT
+              value: {{ .Values.config.server.readTimeout | quote }}
+            - name: SERVER_WRITE_TIMEOUT
+              value: {{ .Values.config.server.writeTimeout | quote }}
+            - name: SERVER_IDLE_TIMEOUT
+              value: {{ .Values.config.server.idleTimeout | quote }}
+            - name: SERVER_GRACEFUL_SHUTDOWN_TIMEOUT
+              value: {{ .Values.config.server.gracefulShutdownTimeout | quote }}
+            
+            # Logging
+            - name: LOG_LEVEL
+              value: {{ .Values.config.logging.level | quote }}
+            - name: LOG_FORMAT
+              value: {{ .Values.config.logging.format | quote }}
+            
+            # Environment
+            - name: ENVIRONMENT
+              value: {{ .Values.global.environment | quote }}
+            
+            # Database configuration
+            - name: DB_HOST
+              value: {{ .Values.database.host | quote }}
+            - name: DB_PORT
+              value: {{ .Values.database.port | quote }}
+            - name: DB_NAME
+              value: {{ .Values.database.name | quote }}
+            - name: DB_SSL_MODE
+              value: {{ .Values.database.sslMode | quote }}
+            - name: DB_MAX_OPEN_CONNS
+              value: {{ .Values.database.maxOpenConns | quote }}
+            - name: DB_MAX_IDLE_CONNS
+              value: {{ .Values.database.maxIdleConns | quote }}
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.secretName }}
+                  key: {{ .Values.database.usernameKey }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.secretName }}
+                  key: {{ .Values.database.passwordKey }}
+            
+            # Storage configuration
+            - name: STORAGE_TYPE
+              value: {{ .Values.storage.type | quote }}
+            - name: STORAGE_ENDPOINT
+              value: {{ .Values.storage.endpoint | quote }}
+            - name: STORAGE_BUCKET
+              value: {{ .Values.storage.bucket | quote }}
+            - name: STORAGE_REGION
+              value: {{ .Values.storage.region | quote }}
+            - name: STORAGE_FORCE_PATH_STYLE
+              value: {{ .Values.storage.forcePathStyle | quote }}
+            - name: STORAGE_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.storage.secretName }}
+                  key: {{ .Values.storage.accessKeyKey }}
+            - name: STORAGE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.storage.secretName }}
+                  key: {{ .Values.storage.secretKeyKey }}
+            
+            {{- if .Values.kafka.enabled }}
+            # Kafka configuration
+            - name: KAFKA_BROKERS
+              value: {{ .Values.kafka.brokers | join "," | quote }}
+            - name: KAFKA_EVENTS_TOPIC
+              value: {{ .Values.kafka.topics.events | quote }}
+            - name: KAFKA_AUDIT_TOPIC
+              value: {{ .Values.kafka.topics.audit | quote }}
+            {{- if .Values.kafka.security.enabled }}
+            - name: KAFKA_SECURITY_PROTOCOL
+              value: {{ .Values.kafka.security.protocol | quote }}
+            - name: KAFKA_SASL_MECHANISM
+              value: {{ .Values.kafka.security.mechanism | quote }}
+            - name: KAFKA_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.kafka.security.secretName }}
+                  key: username
+            - name: KAFKA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.kafka.security.secretName }}
+                  key: password
+            {{- end }}
+            {{- end }}
+            
+            {{- if .Values.config.rateLimit.redis.enabled }}
+            # Redis configuration
+            - name: REDIS_HOST
+              value: {{ .Values.config.rateLimit.redis.host | quote }}
+            - name: REDIS_PORT
+              value: {{ .Values.config.rateLimit.redis.port | quote }}
+            - name: REDIS_DB
+              value: {{ .Values.config.rateLimit.redis.db | quote }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.config.rateLimit.redis.secretName }}
+                  key: password
+            {{- end }}
+            
+            # Tracing
+            {{- if .Values.config.tracing.enabled }}
+            - name: TRACING_ENABLED
+              value: "true"
+            - name: TRACING_ENDPOINT
+              value: {{ .Values.config.tracing.endpoint | quote }}
+            - name: TRACING_SAMPLING_RATE
+              value: {{ .Values.config.tracing.samplingRate | quote }}
+            {{- end }}
+            
+            # Authentication
+            - name: AUTH_JWT_ISSUER
+              value: {{ .Values.config.auth.jwtIssuer | quote }}
+            - name: AUTH_JWT_AUDIENCE
+              value: {{ .Values.config.auth.jwtAudience | quote }}
+            
+            # Service URLs
+            - name: AUTH_SERVICE_URL
+              value: {{ .Values.services.auth.url | quote }}
+            - name: TENANT_SERVICE_URL
+              value: {{ .Values.services.tenantManagement.url | quote }}
+            - name: BILLING_SERVICE_URL
+              value: {{ .Values.services.billing.url | quote }}
+            - name: CALL_SERVICE_URL
+              value: {{ .Values.services.callManagement.url | quote }}
+            - name: ANALYTICS_SERVICE_URL
+              value: {{ .Values.services.analytics.url | quote }}
+            
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          
+          {{- with .Values.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          {{- if .Values.startupProbe }}
+          startupProbe:
+            {{- toYaml .Values.startupProbe | nindent 12 }}
+          {{- end }}
+          
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: config
+              mountPath: /etc/api-gateway
+              readOnly: true
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        
+        {{- with .Values.sidecars }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: {{ $fullName }}-config
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

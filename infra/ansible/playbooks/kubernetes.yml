@@ -1,0 +1,542 @@
+---
+# =============================================================================
+# Kubernetes Cluster Deployment Playbook
+# =============================================================================
+# This playbook deploys a production-ready Kubernetes cluster using kubeadm
+# with HA control plane, containerd runtime, and Calico CNI.
+#
+# Usage:
+#   ansible-playbook -i inventories/production/hosts.yml playbooks/kubernetes.yml
+#
+# Tags:
+#   - prereqs: Install prerequisites only
+#   - control-plane: Deploy control plane nodes
+#   - workers: Join worker nodes
+#   - addons: Install cluster addons
+# =============================================================================
+
+- name: Kubernetes Cluster Prerequisites
+  hosts: kubernetes
+  become: true
+  tags:
+    - prereqs
+  vars:
+    kubernetes_version: "1.29"
+    containerd_version: "1.7"
+    calico_version: "3.27"
+  
+  tasks:
+    # =========================================================================
+    # System Prerequisites
+    # =========================================================================
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      when: ansible_os_family == "Debian"
+
+    - name: Install required packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+          - software-properties-common
+          - nfs-common
+          - open-iscsi
+          - jq
+          - htop
+          - iotop
+          - net-tools
+          - ipvsadm
+          - ipset
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Disable swap
+      command: swapoff -a
+      changed_when: false
+
+    - name: Remove swap from fstab
+      lineinfile:
+        path: /etc/fstab
+        regexp: '.*swap.*'
+        state: absent
+
+    - name: Load required kernel modules
+      modprobe:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - overlay
+        - br_netfilter
+        - ip_vs
+        - ip_vs_rr
+        - ip_vs_wrr
+        - ip_vs_sh
+        - nf_conntrack
+
+    - name: Persist kernel modules
+      copy:
+        content: |
+          overlay
+          br_netfilter
+          ip_vs
+          ip_vs_rr
+          ip_vs_wrr
+          ip_vs_sh
+          nf_conntrack
+        dest: /etc/modules-load.d/kubernetes.conf
+        mode: '0644'
+
+    - name: Configure sysctl for Kubernetes
+      sysctl:
+        name: "{{ item.name }}"
+        value: "{{ item.value }}"
+        state: present
+        sysctl_file: /etc/sysctl.d/99-kubernetes.conf
+        reload: yes
+      loop:
+        - { name: 'net.bridge.bridge-nf-call-iptables', value: '1' }
+        - { name: 'net.bridge.bridge-nf-call-ip6tables', value: '1' }
+        - { name: 'net.ipv4.ip_forward', value: '1' }
+        - { name: 'net.ipv4.conf.all.forwarding', value: '1' }
+        - { name: 'net.ipv6.conf.all.forwarding', value: '1' }
+        - { name: 'net.ipv4.tcp_keepalive_time', value: '600' }
+        - { name: 'net.ipv4.tcp_keepalive_intvl', value: '60' }
+        - { name: 'net.ipv4.tcp_keepalive_probes', value: '3' }
+        - { name: 'vm.max_map_count', value: '262144' }
+        - { name: 'fs.inotify.max_user_watches', value: '524288' }
+        - { name: 'fs.inotify.max_user_instances', value: '8192' }
+
+    # =========================================================================
+    # Containerd Installation
+    # =========================================================================
+    - name: Add Docker GPG key (for containerd)
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+        filename: docker
+      when: ansible_os_family == "Debian"
+
+    - name: Install containerd
+      apt:
+        name: containerd.io
+        state: present
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Create containerd config directory
+      file:
+        path: /etc/containerd
+        state: directory
+        mode: '0755'
+
+    - name: Generate default containerd config
+      shell: containerd config default > /etc/containerd/config.toml
+      args:
+        creates: /etc/containerd/config.toml
+
+    - name: Configure containerd to use systemd cgroup driver
+      lineinfile:
+        path: /etc/containerd/config.toml
+        regexp: '(\s+)SystemdCgroup = false'
+        line: '\1SystemdCgroup = true'
+        backrefs: yes
+      notify: restart containerd
+
+    - name: Enable and start containerd
+      systemd:
+        name: containerd
+        state: started
+        enabled: yes
+        daemon_reload: yes
+
+    # =========================================================================
+    # Kubernetes Installation
+    # =========================================================================
+    - name: Add Kubernetes GPG key
+      apt_key:
+        url: https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version }}/deb/Release.key
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Add Kubernetes repository
+      apt_repository:
+        repo: "deb https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version }}/deb/ /"
+        state: present
+        filename: kubernetes
+      when: ansible_os_family == "Debian"
+
+    - name: Install Kubernetes packages
+      apt:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        state: present
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Hold Kubernetes packages
+      dpkg_selections:
+        name: "{{ item }}"
+        selection: hold
+      loop:
+        - kubelet
+        - kubeadm
+        - kubectl
+      when: ansible_os_family == "Debian"
+
+    - name: Enable kubelet service
+      systemd:
+        name: kubelet
+        enabled: yes
+
+  handlers:
+    - name: restart containerd
+      systemd:
+        name: containerd
+        state: restarted
+
+# =============================================================================
+# Control Plane Initialization (First Master)
+# =============================================================================
+- name: Initialize First Control Plane Node
+  hosts: k8s_masters[0]
+  become: true
+  tags:
+    - control-plane
+  vars:
+    pod_network_cidr: "10.244.0.0/16"
+    service_cidr: "10.96.0.0/12"
+    cluster_name: "voicecustomer-k8s"
+    control_plane_endpoint: "{{ hostvars[groups['k8s_lb'][0]]['ansible_host'] }}:6443"
+  
+  tasks:
+    - name: Check if cluster is already initialized
+      stat:
+        path: /etc/kubernetes/admin.conf
+      register: kubeadm_init
+
+    - name: Create kubeadm config
+      template:
+        src: templates/kubeadm-config.yaml.j2
+        dest: /tmp/kubeadm-config.yaml
+        mode: '0644'
+      when: not kubeadm_init.stat.exists
+
+    - name: Initialize Kubernetes cluster
+      command: >
+        kubeadm init
+        --config=/tmp/kubeadm-config.yaml
+        --upload-certs
+      register: kubeadm_init_result
+      when: not kubeadm_init.stat.exists
+
+    - name: Create .kube directory for root
+      file:
+        path: /root/.kube
+        state: directory
+        mode: '0700'
+
+    - name: Copy admin.conf to root's .kube directory
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /root/.kube/config
+        remote_src: yes
+        mode: '0600'
+
+    - name: Generate certificate key for control plane join
+      command: kubeadm init phase upload-certs --upload-certs
+      register: certificate_key
+      changed_when: false
+
+    - name: Generate join command for control plane nodes
+      command: kubeadm token create --print-join-command --certificate-key {{ certificate_key.stdout_lines[-1] }}
+      register: control_plane_join_command
+      changed_when: false
+
+    - name: Generate join command for worker nodes
+      command: kubeadm token create --print-join-command
+      register: worker_join_command
+      changed_when: false
+
+    - name: Save join commands to local files
+      copy:
+        content: "{{ item.content }}"
+        dest: "{{ item.dest }}"
+        mode: '0600'
+      delegate_to: localhost
+      become: false
+      loop:
+        - { content: "{{ control_plane_join_command.stdout }}", dest: "/tmp/control_plane_join.sh" }
+        - { content: "{{ worker_join_command.stdout }}", dest: "/tmp/worker_join.sh" }
+
+# =============================================================================
+# Join Additional Control Plane Nodes
+# =============================================================================
+- name: Join Additional Control Plane Nodes
+  hosts: k8s_masters[1:]
+  become: true
+  serial: 1
+  tags:
+    - control-plane
+  
+  tasks:
+    - name: Check if node is already joined
+      stat:
+        path: /etc/kubernetes/kubelet.conf
+      register: kubelet_conf
+
+    - name: Read control plane join command
+      slurp:
+        src: /tmp/control_plane_join.sh
+      delegate_to: localhost
+      become: false
+      register: join_command_file
+      when: not kubelet_conf.stat.exists
+
+    - name: Join control plane node to cluster
+      command: "{{ join_command_file.content | b64decode }}"
+      when: not kubelet_conf.stat.exists
+
+    - name: Create .kube directory for root
+      file:
+        path: /root/.kube
+        state: directory
+        mode: '0700'
+
+    - name: Copy admin.conf to root's .kube directory
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /root/.kube/config
+        remote_src: yes
+        mode: '0600'
+
+# =============================================================================
+# Join Worker Nodes
+# =============================================================================
+- name: Join Worker Nodes
+  hosts: k8s_workers
+  become: true
+  tags:
+    - workers
+  
+  tasks:
+    - name: Check if node is already joined
+      stat:
+        path: /etc/kubernetes/kubelet.conf
+      register: kubelet_conf
+
+    - name: Read worker join command
+      slurp:
+        src: /tmp/worker_join.sh
+      delegate_to: localhost
+      become: false
+      register: join_command_file
+      when: not kubelet_conf.stat.exists
+
+    - name: Join worker node to cluster
+      command: "{{ join_command_file.content | b64decode }}"
+      when: not kubelet_conf.stat.exists
+
+    - name: Label worker nodes
+      command: "kubectl label node {{ inventory_hostname }} node-role.kubernetes.io/worker=worker --overwrite"
+      delegate_to: "{{ groups['k8s_masters'][0] }}"
+      changed_when: false
+
+    - name: Label ML worker nodes
+      command: "kubectl label node {{ inventory_hostname }} workload-type=ml --overwrite"
+      delegate_to: "{{ groups['k8s_masters'][0] }}"
+      when: "'k8s_workers_ml' in group_names"
+      changed_when: false
+
+# =============================================================================
+# Install Cluster Addons
+# =============================================================================
+- name: Install Cluster Addons
+  hosts: k8s_masters[0]
+  become: true
+  tags:
+    - addons
+  vars:
+    calico_version: "3.27.0"
+    metallb_version: "0.14.3"
+    ingress_nginx_version: "4.9.0"
+    cert_manager_version: "1.14.0"
+  
+  tasks:
+    # =========================================================================
+    # Calico CNI
+    # =========================================================================
+    - name: Install Calico operator
+      command: kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v{{ calico_version }}/manifests/tigera-operator.yaml
+      register: calico_operator
+      changed_when: calico_operator.rc == 0
+      failed_when: calico_operator.rc != 0 and 'AlreadyExists' not in calico_operator.stderr
+
+    - name: Create Calico installation manifest
+      copy:
+        content: |
+          apiVersion: operator.tigera.io/v1
+          kind: Installation
+          metadata:
+            name: default
+          spec:
+            calicoNetwork:
+              ipPools:
+              - blockSize: 26
+                cidr: 10.244.0.0/16
+                encapsulation: VXLANCrossSubnet
+                natOutgoing: Enabled
+                nodeSelector: all()
+        dest: /tmp/calico-installation.yaml
+        mode: '0644'
+
+    - name: Apply Calico installation
+      command: kubectl apply -f /tmp/calico-installation.yaml
+
+    - name: Wait for Calico to be ready
+      command: kubectl wait --for=condition=Ready pods -l k8s-app=calico-node -n calico-system --timeout=300s
+      retries: 5
+      delay: 30
+      register: calico_ready
+      until: calico_ready.rc == 0
+
+    # =========================================================================
+    # MetalLB (for bare metal load balancing)
+    # =========================================================================
+    - name: Install MetalLB
+      command: kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v{{ metallb_version }}/config/manifests/metallb-native.yaml
+      register: metallb_install
+      changed_when: metallb_install.rc == 0
+      failed_when: metallb_install.rc != 0 and 'AlreadyExists' not in metallb_install.stderr
+
+    - name: Wait for MetalLB to be ready
+      command: kubectl wait --for=condition=Ready pods -l app=metallb -n metallb-system --timeout=300s
+      retries: 5
+      delay: 30
+
+    - name: Create MetalLB IP pool
+      copy:
+        content: |
+          apiVersion: metallb.io/v1beta1
+          kind: IPAddressPool
+          metadata:
+            name: default-pool
+            namespace: metallb-system
+          spec:
+            addresses:
+            - 10.2.0.200-10.2.0.250
+          ---
+          apiVersion: metallb.io/v1beta1
+          kind: L2Advertisement
+          metadata:
+            name: default
+            namespace: metallb-system
+        dest: /tmp/metallb-config.yaml
+        mode: '0644'
+
+    - name: Apply MetalLB configuration
+      command: kubectl apply -f /tmp/metallb-config.yaml
+
+    # =========================================================================
+    # Ingress NGINX
+    # =========================================================================
+    - name: Add ingress-nginx Helm repository
+      command: helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+      changed_when: false
+
+    - name: Update Helm repositories
+      command: helm repo update
+      changed_when: false
+
+    - name: Install ingress-nginx
+      command: >
+        helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx
+        --namespace ingress-system
+        --create-namespace
+        --version {{ ingress_nginx_version }}
+        --set controller.replicaCount=2
+        --set controller.nodeSelector."kubernetes\.io/os"=linux
+        --set controller.admissionWebhooks.patch.nodeSelector."kubernetes\.io/os"=linux
+        --set defaultBackend.nodeSelector."kubernetes\.io/os"=linux
+        --set controller.service.type=LoadBalancer
+        --set controller.metrics.enabled=true
+        --set controller.metrics.serviceMonitor.enabled=true
+
+    # =========================================================================
+    # Cert-Manager
+    # =========================================================================
+    - name: Add cert-manager Helm repository
+      command: helm repo add jetstack https://charts.jetstack.io
+      changed_when: false
+
+    - name: Install cert-manager CRDs
+      command: kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v{{ cert_manager_version }}/cert-manager.crds.yaml
+
+    - name: Install cert-manager
+      command: >
+        helm upgrade --install cert-manager jetstack/cert-manager
+        --namespace cert-manager
+        --create-namespace
+        --version v{{ cert_manager_version }}
+        --set prometheus.enabled=true
+        --set prometheus.servicemonitor.enabled=true
+
+    # =========================================================================
+    # Metrics Server
+    # =========================================================================
+    - name: Install metrics-server
+      command: >
+        kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+
+    # =========================================================================
+    # Create Namespaces
+    # =========================================================================
+    - name: Create application namespaces
+      command: kubectl create namespace {{ item }} --dry-run=client -o yaml | kubectl apply -f -
+      loop:
+        - app
+        - data
+        - monitoring
+        - vault
+        - bi
+        - external-secrets
+
+    - name: Label namespaces
+      command: kubectl label namespace {{ item.namespace }} {{ item.label }} --overwrite
+      loop:
+        - { namespace: 'app', label: 'istio-injection=enabled' }
+        - { namespace: 'monitoring', label: 'monitoring=true' }
+      changed_when: false
+
+    # =========================================================================
+    # Verify Cluster Health
+    # =========================================================================
+    - name: Get cluster nodes
+      command: kubectl get nodes -o wide
+      register: cluster_nodes
+      changed_when: false
+
+    - name: Display cluster nodes
+      debug:
+        var: cluster_nodes.stdout_lines
+
+    - name: Get all pods in kube-system
+      command: kubectl get pods -n kube-system -o wide
+      register: kube_system_pods
+      changed_when: false
+
+    - name: Display kube-system pods
+      debug:
+        var: kube_system_pods.stdout_lines

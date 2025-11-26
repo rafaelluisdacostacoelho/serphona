@@ -1,0 +1,21 @@
+apiVersion: v2
+name: api-gateway
+description: API Gateway for Voice of Customer Platform
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+
+keywords:
+  - api-gateway
+  - voip
+  - microservices
+
+maintainers:
+  - name: Platform Team
+    email: platform@voicecustomer.io
+
+dependencies:
+  - name: common
+    version: "1.x.x"
+    repository: "file://../common"
+    condition: common.enabled

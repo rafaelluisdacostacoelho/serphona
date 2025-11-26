@@ -1,0 +1,174 @@
+# ============================================================================
+# SERPHONA MONOREPO - GLOBAL GITIGNORE
+# ============================================================================
+
+# ==== Go ====
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+bin/
+vendor/
+go.work.sum
+
+# ==== Python ====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+.venv/
+*.egg-info/
+.eggs/
+dist/
+build/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ==== Node/Frontend ====
+node_modules/
+dist/
+.cache/
+*.tsbuildinfo
+
+# ==== OS Generated Files ====
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# ==== IDE / Editor ====
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.sublime-workspace
+*.sublime-project
+
+# ==== Environment Variables ====
+.env
+.env.local
+.env.*.local
+.env.development
+.env.test
+.env.production
+*.env
+
+# ==== Logs ====
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ==== Dependencies ====
+node_modules/
+vendor/
+.pnp
+.pnp.js
+
+# ==== Build Outputs ====
+dist/
+build/
+out/
+*.out
+target/
+
+# ==== Test / Coverage ====
+coverage/
+.nyc_output/
+*.lcov
+.coverage
+htmlcov/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ==== Python ====
+*.egg-info/
+.eggs/
+*.egg
+venv/
+ENV/
+env/
+.venv/
+pip-wheel-metadata/
+.mypy_cache/
+.ruff_cache/
+
+# ==== Go ====
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+
+# ==== Terraform ====
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# ==== Kubernetes ====
+kubeconfig
+*.kubeconfig
+
+# ==== Docker ====
+docker-compose.override.yml
+
+# ==== Secrets (NEVER COMMIT) ====
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+secrets/
+.secrets/
+**/secrets.yaml
+**/secrets.yml
+
+# ==== Temporary Files ====
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# ==== Package Locks (keep only one per project) ====
+# Uncomment if you want to ignore lock files
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# ==== Misc ====
+*.pid
+*.seed
+*.pid.lock
+.cache/
