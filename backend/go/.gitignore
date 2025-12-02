@@ -35,4 +35,3 @@ vendor/
 .DS_Store
 
 # Air (live reload)
-tmp/

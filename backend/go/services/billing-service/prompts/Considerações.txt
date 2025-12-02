@@ -1,0 +1,159 @@
+1. Coisas importantes que vale você considerar
+
+Além do que você já falou, eu adicionaria:
+
+Multi-tenant / isolamento de clientes
+
+Cada cliente da sua plataforma Serphona deve ter:
+
+customer_id do Stripe
+
+possivelmente múltiplos meios de pagamento
+
+configurações próprias de planos e limites.
+
+Pense logo em tenant_id em tudo (tabelas, eventos, tokens etc).
+
+Modelagem clara de “assinatura” x “créditos”
+
+Assinaturas:
+
+recorrentes (mensal/anual)
+
+atreladas a cartão de crédito / método de pagamento do Stripe.
+
+Créditos:
+
+wallet com saldo em USD
+
+consumo por uso (request, tokens, minutos, chamadas etc.)
+
+regras de expiração, bônus, promoções, travas mínimas.
+
+Webhooks do Stripe como fonte da verdade
+
+Nunca confie só na chamada síncrona da API.
+
+Eventos críticos:
+
+invoice.paid, invoice.payment_failed
+
+customer.subscription.created/updated/deleted
+
+charge.succeeded, charge.refunded
+
+Idempotência rígida: use idempotency_key e registre event_id do Stripe para não aplicar o mesmo evento duas vezes.
+
+Sincronização de roles via eventos
+
+Assinatura → gera eventos de domínio:
+
+SubscriptionActivated, SubscriptionCancelled
+
+O microserviço de billing emite para uma fila (ex: subscriptions-events).
+
+Um serviço de IAM/Identity consome e aplica:
+
+role_granted, role_revoked por usuário/tenant.
+
+Esquema de permissões / products / features
+
+Mapear planos e features para roles:
+
+plan: "pro" → roles: ["feature:analytics", "feature:agents", "feature:priority-support"].
+
+Permitir múltiplas assinaturas simultâneas no mesmo cliente, cada uma habilitando um conjunto de features.
+
+Conversão de moeda e impostos
+
+Sua wallet é em dólar, mas você é brasileiro:
+
+Conversão BRL ⇄ USD (fonte de câmbio, spread, caching).
+
+Impostos:
+
+ISS/PIS/COFINS/IOF e eventualmente VAT/IVA se atender cliente fora.
+
+Pelo menos deixar “hook” na arquitetura pra isso, mesmo se não implementar tudo agora.
+
+Fraude / risco básico
+
+Mesmo usando Stripe Radar, considerar:
+
+Travas de volume por cliente
+
+Limites diários/mensais
+
+Flag de conta suspeita.
+
+Auditoria e trilha de eventos
+
+Registrar tudo:
+
+who, what, when, correlation_id, stripe_payment_intent_id, etc.
+
+Isso ajuda muito em disputa de chargeback e debug de problema.
+
+Idempotência, retries e consistência eventual
+
+Para:
+
+criação de pagamento
+
+cancelamento
+
+estorno
+
+Use um padrão tipo:
+
+command → outbox → publisher → consumidor pra evitar “paguei no Stripe mas não persistiu no banco”.
+
+Painel administrativo
+
+Ajuste manual de:
+
+saldo de wallet
+
+travar/destravar conta
+
+reprocessar webhooks
+
+reemitir invoice / disparar cobrança.
+
+Na minha opinião, se você já entrar com:
+
+domínio bem definido (subscription + wallet),
+
+eventos de domínio + filas para roles,
+
+adapter Stripe desacoplado (interface de PaymentProvider),
+
+você monta algo que escala pra vários gateways sem refatorar tudo depois.
+
+2. Premissas para os prompts
+
+Nome do sistema: Serphona Payments Service (microserviço).
+
+Stack principal:
+
+Go (backend)
+
+Stripe (gateway inicial)
+
+Mensageria (Kafka/Rabbit/SQS – você define depois)
+
+Banco relacional (PostgreSQL) para billing + wallet.
+
+Conceitos chave:
+
+Tenant/Client
+
+User
+
+Plan / Subscription
+
+Wallet / WalletTransaction
+
+PaymentProvider / StripeAdapter
+
+Events para roles.

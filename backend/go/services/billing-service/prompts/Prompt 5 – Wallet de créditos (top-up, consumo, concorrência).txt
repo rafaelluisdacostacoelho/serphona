@@ -1,0 +1,45 @@
+You are a senior backend engineer focusing on financial ledger and wallet systems.
+
+I need you to design the wallet/credits subsystem for the “Serphona Payments Service”.
+
+Requirements:
+- Each tenant has a wallet in USD.
+- Supported operations:
+  - TopUp (add credits) – usually initiated after a successful Stripe payment.
+  - Consume (deduct credits) – called by other services when they want to charge per usage.
+  - Optional Reserve/Confirm flow, if useful:
+    - Reserve credits before an operation
+    - Confirm or Release reservation afterward.
+  - Manual adjustments by admins (with full audit).
+
+Constraints:
+- Strong consistency for wallet balance within a single tenant.
+- High concurrency: multiple parallel requests may attempt to consume credits.
+- Need a full audit log: every change to balance must be recorded as a transaction row.
+
+Please:
+
+1. Propose a wallet domain model:
+   - Wallet aggregate, WalletTransaction entity.
+   - Transaction types: TOP_UP, CONSUME, REFUND, ADJUSTMENT, maybe RESERVATION.
+   - Invariants: no negative balance, atomicity of operations.
+
+2. Describe how to implement wallet operations safely in PostgreSQL:
+   - using transactions
+   - row-level locking or SELECT … FOR UPDATE
+   - optimistic locking with a version column (if you recommend it).
+
+3. Provide Go use case/service function signatures:
+   - TopUpWallet(ctx, tenantID, amount, source, referenceIDs…)
+   - ConsumeCredits(ctx, tenantID, amount, reason, referenceIDs…)
+   - (Optional) ReserveCredits / ConfirmReservation / ReleaseReservation.
+
+4. Show a pseudo-code or Go-style implementation sketch:
+   - how to update the balance and insert a WalletTransaction atomically.
+   - how to handle race conditions and retries.
+
+5. Explain how to connect this to Stripe:
+   - Stripe payment_intent succeeded → call TopUpWallet
+   - Stripe refund → create a corresponding WalletTransaction (e.g. REFUND).
+
+6. Suggest monitoring and alerting metrics for the wallet subsystem (e.g., number of failed consumptions due to insufficient funds, balance anomalies).

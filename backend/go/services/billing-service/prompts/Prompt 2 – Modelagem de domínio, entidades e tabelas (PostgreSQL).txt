@@ -1,0 +1,49 @@
+You are a senior domain-driven design (DDD) practitioner and database designer.
+
+For the “Serphona Payments Service” described earlier, I want to define a clean domain model and a relational schema (PostgreSQL) that supports:
+
+- Tenants/clients (multi-tenant)
+- Users (linked to tenants)
+- Products and Plans (what can be subscribed to)
+- Subscriptions (per tenant, potentially multiple at the same time)
+- Wallets (per tenant)
+- WalletTransactions (top-ups, consumption, refunds, adjustments)
+- Payment methods metadata (Stripe payment methods mapped to tenants)
+- Audit logs and webhook logs
+
+Constraints and requirements:
+- Every relevant record must be scoped by tenant ID (or equivalent).
+- Subscriptions may enable a set of “features” or “entitlements” that correspond to roles granted to users.
+- The wallet is denominated in USD and supports:
+  - top-ups via Stripe
+  - consumption by usage (external services will call this microservice to reserve or deduct credits)
+  - optional manual adjustments by admins.
+- I need to store Stripe identifiers:
+  - customer IDs
+  - subscription IDs
+  - payment intent IDs
+  - invoice IDs
+  - charge IDs
+- I want to keep a clear audit trail of every financial-relevant operation.
+
+Please:
+
+1. Propose a domain model with entities and aggregates:
+   - Name each aggregate root and its main invariants.
+   - Show relationships between aggregates (only conceptually, not UML-heavy).
+
+2. Design PostgreSQL tables for this domain:
+   - Table names, primary keys, foreign keys.
+   - Important columns and their types (use reasonable PostgreSQL types).
+   - Index suggestions for typical queries (e.g., by tenant, by subscription status, by Stripe ID).
+
+3. Show how to represent:
+   - plan-to-features mapping (which roles/entitlements each plan grants)
+   - subscription status/state machine (active, cancelled, past_due, trialing, etc.)
+   - wallet balance and preventing race conditions when updating it.
+
+4. Explain which operations must be done in transactions and where optimistic locking or row-level locking is recommended.
+
+5. Return the answer in two parts:
+   - Part A: domain model description (plain text).
+   - Part B: SQL-like schema (CREATE TABLE style, but you can omit minor details if needed) with key indexes.

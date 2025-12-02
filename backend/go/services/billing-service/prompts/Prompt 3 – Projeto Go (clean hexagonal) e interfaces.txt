@@ -1,0 +1,44 @@
+Act as a senior Go engineer using clean/hexagonal architecture to implement the “Serphona Payments Service”.
+
+Based on the previously defined architecture and domain model, I need a concrete Go project layout and key interfaces.
+
+Requirements:
+- Go modules, version Go 1.22+.
+- Separation of:
+  - domain (entities, value objects, domain services)
+  - application/use cases (or service layer)
+  - adapters (HTTP handlers, Stripe adapter, message broker adapter, DB adapters)
+  - infrastructure (PostgreSQL, config, logging, migrations).
+- Plug-and-play payment providers (Stripe first, others later) via interfaces.
+- Plug-and-play message brokers via interfaces.
+- HTTP API using a popular router (chi/gin/echo, you can choose one and justify).
+
+Please:
+
+1. Propose a concrete Go folder structure:
+   - show a tree-like layout (e.g., /cmd, /internal, /pkg, etc.).
+   - explicitly list main packages (e.g., internal/domain/subscriptions, internal/app/wallet, internal/adapters/http, internal/adapters/stripe, internal/adapters/broker, internal/infra/db, etc.).
+
+2. Define key Go interfaces:
+   - PaymentProvider (for Stripe and others)
+   - SubscriptionRepository
+   - WalletRepository
+   - TenantRepository
+   - EventPublisher (for sending events to a broker)
+   - WebhookEventStore / AuditLogRepository
+
+3. Provide example Go interfaces and structs:
+   - PaymentProvider interface with methods for creating customers, creating subscriptions, canceling subscriptions, creating payment intents, handling refunds.
+   - WalletService or WalletUseCase with methods like:
+     - TopUpWallet
+     - ReserveCredits
+     - ConsumeCredits
+     - ReleaseReservation (if using reservations).
+
+4. Suggest patterns for:
+   - dependency injection / wiring in main.go
+   - configuration (env-based with defaults)
+   - logging (structured logging)
+   - error handling (wrapping, classification, mapping to HTTP errors).
+
+5. Output a detailed explanation plus code snippets of key interfaces and a simplified main.go wiring sketch.

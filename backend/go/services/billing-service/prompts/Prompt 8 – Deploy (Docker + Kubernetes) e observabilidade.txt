@@ -1,0 +1,39 @@
+Act as a senior DevOps / SRE engineer.
+
+I want to deploy the “Serphona Payments Service” written in Go using Docker and Kubernetes, with production-ready concerns.
+
+Requirements:
+- Containerized Go service.
+- Stateless app containers (state in PostgreSQL, Redis if needed, and message broker).
+- Environment-specific configuration (dev, staging, prod).
+- Basic observability:
+  - structured logs
+  - metrics (Prometheus)
+  - health checks
+  - readiness/liveness probes.
+
+Please:
+
+1. Propose a Dockerfile for the Go service:
+   - multi-stage build
+   - small final image
+   - non-root user.
+
+2. Propose basic Kubernetes manifests:
+   - Deployment
+   - Service (ClusterIP)
+   - ConfigMap/Secret examples (for Stripe keys, DB credentials, etc.)
+   - HorizontalPodAutoscaler suggestion.
+
+3. Suggest:
+   - readiness and liveness probes (HTTP endpoints and configuration).
+   - logging approach compatible with centralized log aggregation.
+   - metrics endpoints (Prometheus) and example metrics to expose.
+
+4. Explain how to handle:
+   - migrations (e.g., using a Job or initContainer)
+   - environment-specific values (Helm or Kustomize).
+
+5. Provide example YAML snippets for:
+   - Deployment with env vars for STRIPE_API_KEY, DB_CONN_STRING, etc.
+   - Service and probes.

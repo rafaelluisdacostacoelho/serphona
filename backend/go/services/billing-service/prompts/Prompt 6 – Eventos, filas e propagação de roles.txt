@@ -1,0 +1,43 @@
+Act as a senior distributed systems engineer.
+
+I want to design the event-driven integration between the “Serphona Payments Service” and an IAM/roles service.
+
+Goal:
+- When a tenant subscribes to a plan, the tenant’s users get roles that enable access to specific tools/features.
+- When a subscription is cancelled, these roles are revoked.
+- Events are transported via a message broker (Kafka, RabbitMQ, AWS SQS/SNS style).
+
+Requirements:
+- Payment/Subscription service is the source of truth for subscription state.
+- IAM/roles service subscribes to events and manages user roles.
+- Events should be well-structured and versioned.
+- We want at-least-once delivery semantics, with idempotent consumers.
+
+Please:
+
+1. Define the main domain events to publish:
+   - SubscriptionActivated
+   - SubscriptionCancelled
+   - SubscriptionUpdated (for plan changes/upgrades)
+   - WalletTopUpCompleted
+   - WalletLowBalanceWarning (optional).
+
+2. For each event type, propose a JSON schema:
+   - fields like: event_id, event_type, event_version, occurred_at, tenant_id, subscription_id, plan_code, affected_roles, metadata, correlation_id, etc.
+
+3. Propose a Go interface for an EventPublisher:
+   - e.g., Publish(ctx, topic string, event Event) error
+   - and an Event struct or interface describing structured events.
+
+4. Describe how IAM/roles service should consume Subscription events and:
+   - map plan_code to a set of roles
+   - grant/revoke roles for users of that tenant
+   - remain idempotent (processing the same event twice should have no harmful effect).
+
+5. Explain options for:
+   - message broker choices and trade-offs
+   - dead-letter queues and retry policies.
+
+6. Give code snippets (in Go) to illustrate:
+   - constructing a SubscriptionActivated event from domain code
+   - publishing it via an EventPublisher interface implementation.
