@@ -1,0 +1,37 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'voice-gateway'
+    replica: 'prometheus-01'
+
+scrape_configs:
+  # Voice Gateway metrics
+  - job_name: 'voice-gateway'
+    static_configs:
+      - targets: ['voice-gateway:9091']
+        labels:
+          service: 'voice-gateway'
+          environment: 'production'
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  # Kafka metrics (optional)
+  - job_name: 'kafka'
+    static_configs:
+      - targets: ['kafka:9101']
+        labels:
+          service: 'kafka'
+    scrape_interval: 30s
+
+  # Redis metrics (if redis_exporter is added)
+  # - job_name: 'redis'
+  #   static_configs:
+  #     - targets: ['redis-exporter:9121']
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
