@@ -13,7 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"tenant-management/internal/domain/tenant"
+	"tenant-manager/internal/domain/tenant"
 )
 
 // TenantRepository implements tenant.Repository using PostgreSQL.

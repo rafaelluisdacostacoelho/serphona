@@ -326,7 +326,7 @@ services:
   
   # Tenant management service
   tenantManagement:
-    url: "http://tenant-management.app.svc:8080"
+    url: "http://tenant-manager.app.svc:8080"
     timeout: 5s
   
   # Billing service

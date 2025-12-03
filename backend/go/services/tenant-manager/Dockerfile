@@ -1,8 +1,8 @@
 # =============================================================================
 # Tenant Management Service - Multi-stage Dockerfile
 # =============================================================================
-# Build: docker build -t tenant-management:latest .
-# Run:   docker run -p 8080:8080 -p 9090:9090 tenant-management:latest
+# Build: docker build -t tenant-manager:latest .
+# Run:   docker run -p 8080:8080 -p 9090:9090 tenant-manager:latest
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -33,7 +33,7 @@ ARG BUILD_TIME=unknown
 # Build the binary
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags="-s -w -X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME}" \
-    -o /build/bin/tenant-management \
+    -o /build/bin/tenant-manager \
     ./cmd/server
 
 # -----------------------------------------------------------------------------
@@ -47,7 +47,7 @@ COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /etc/passwd /etc/passwd
 
 # Copy binary
-COPY --from=builder /build/bin/tenant-management /app/tenant-management
+COPY --from=builder /build/bin/tenant-manager /app/tenant-manager
 
 # Copy migrations (if running migrations from container)
 COPY --from=builder /build/migrations /app/migrations
@@ -66,7 +66,7 @@ EXPOSE 8080 9090 9091
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD ["/app/tenant-management", "healthcheck"] || exit 1
+    CMD ["/app/tenant-manager", "healthcheck"] || exit 1
 
 # Default environment variables
 ENV SERVER_HOST=0.0.0.0 \
@@ -77,4 +77,4 @@ ENV SERVER_HOST=0.0.0.0 \
     ENVIRONMENT=production
 
 # Run the binary
-ENTRYPOINT ["/app/tenant-management"]
+ENTRYPOINT ["/app/tenant-manager"]

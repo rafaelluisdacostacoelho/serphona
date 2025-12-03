@@ -13,8 +13,9 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"tenant-management/internal/application/tenant"
-	apperrors "tenant-management/pkg/errors"
+	apperrors "tenant-manager/pkg/errors"
+
+	"tenant-manager/internal/application/tenant"
 )
 
 // TenantHandler handles tenant-related HTTP requests.

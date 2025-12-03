@@ -3,7 +3,7 @@
 # =============================================================================
 
 # Variables
-SERVICE_NAME := tenant-management
+SERVICE_NAME := tenant-manager
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 BUILD_TIME := $(shell date -u '+%Y-%m-%d_%H:%M:%S')
 GO_VERSION := $(shell go version | cut -d' ' -f3)

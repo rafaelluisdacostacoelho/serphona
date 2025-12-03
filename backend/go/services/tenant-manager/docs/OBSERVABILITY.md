@@ -198,7 +198,7 @@ import (
     "strconv"
     "time"
     
-    "tenant-management/pkg/metrics"
+    "tenant-manager/pkg/metrics"
 )
 
 func MetricsMiddleware(next http.Handler) http.Handler {
@@ -307,7 +307,7 @@ func InitTracer(ctx context.Context, serviceName, environment, otlpEndpoint stri
 
 // StartSpan starts a new span with common attributes.
 func StartSpan(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
-    tracer := otel.Tracer("tenant-management")
+    tracer := otel.Tracer("tenant-manager")
     return tracer.Start(ctx, name, opts...)
 }
 
@@ -638,19 +638,19 @@ func CorrelationMiddleware(next http.Handler) http.Handler {
 
 ```promql
 # Request Rate by Tenant
-sum(rate(http_requests_total{service="tenant-management"}[5m])) by (tenant_id)
+sum(rate(http_requests_total{service="tenant-manager"}[5m])) by (tenant_id)
 
 # Error Rate
-sum(rate(http_requests_total{service="tenant-management",status=~"5.."}[5m])) 
-/ sum(rate(http_requests_total{service="tenant-management"}[5m])) * 100
+sum(rate(http_requests_total{service="tenant-manager",status=~"5.."}[5m])) 
+/ sum(rate(http_requests_total{service="tenant-manager"}[5m])) * 100
 
 # P99 Latency
 histogram_quantile(0.99, 
-  sum(rate(http_request_duration_seconds_bucket{service="tenant-management"}[5m])) by (le)
+  sum(rate(http_request_duration_seconds_bucket{service="tenant-manager"}[5m])) by (le)
 )
 
 # Database Connection Pool
-db_connections_open{service="tenant-management"}
+db_connections_open{service="tenant-manager"}
 
 # Tenant Growth
 increase(tenants_created_total[24h])
@@ -660,31 +660,31 @@ increase(tenants_created_total[24h])
 
 ```yaml
 groups:
-  - name: tenant-management-alerts
+  - name: tenant-manager-alerts
     rules:
       - alert: HighErrorRate
         expr: |
-          sum(rate(http_requests_total{service="tenant-management",status=~"5.."}[5m])) 
-          / sum(rate(http_requests_total{service="tenant-management"}[5m])) > 0.05
+          sum(rate(http_requests_total{service="tenant-manager",status=~"5.."}[5m])) 
+          / sum(rate(http_requests_total{service="tenant-manager"}[5m])) > 0.05
         for: 5m
         labels:
           severity: critical
         annotations:
-          summary: High error rate in tenant-management service
+          summary: High error rate in tenant-manager service
           
       - alert: HighLatency
         expr: |
           histogram_quantile(0.99, 
-            sum(rate(http_request_duration_seconds_bucket{service="tenant-management"}[5m])) by (le)
+            sum(rate(http_request_duration_seconds_bucket{service="tenant-manager"}[5m])) by (le)
           ) > 1
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: High latency in tenant-management service
+          summary: High latency in tenant-manager service
           
       - alert: DatabaseConnectionExhausted
-        expr: db_connections_open{service="tenant-management"} > 20
+        expr: db_connections_open{service="tenant-manager"} > 20
         for: 5m
         labels:
           severity: critical
