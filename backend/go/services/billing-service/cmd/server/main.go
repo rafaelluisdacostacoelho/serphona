@@ -9,6 +9,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -18,27 +19,47 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/serphona/serphona/backend/go/services/billing-service/internal/config"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 func main() {
 	log.Println("Starting Billing Service...")
 
-	router := setupRouter()
+	// Load configuration
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("Failed to load configuration: %v", err)
+	}
 
+	// Initialize database
+	db, err := initDatabase(cfg)
+	if err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
+
+	// Setup router
+	router := setupRouter(cfg, db)
+
+	// Setup server
+	addr := fmt.Sprintf("%s:%s", cfg.Server.Host, cfg.Server.Port)
 	srv := &http.Server{
-		Addr:         getEnv("HTTP_ADDR", ":8083"),
+		Addr:         addr,
 		Handler:      router,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
 
+	// Start server
 	go func() {
-		log.Printf("Server listening on %s", srv.Addr)
+		log.Printf("Server listening on %s", addr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Failed to start server: %v", err)
 		}
 	}()
 
+	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
@@ -54,7 +75,25 @@ func main() {
 	log.Println("Server exited")
 }
 
-func setupRouter() *gin.Engine {
+func initDatabase(cfg *config.Config) (*gorm.DB, error) {
+	db, err := gorm.Open(postgres.Open(cfg.Database.URL), &gorm.Config{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get database instance: %w", err)
+	}
+
+	sqlDB.SetMaxOpenConns(cfg.Database.MaxOpenConns)
+	sqlDB.SetMaxIdleConns(cfg.Database.MaxIdleConns)
+
+	log.Println("Database connection established")
+	return db, nil
+}
+
+func setupRouter(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	router := gin.Default()
 
 	router.GET("/health", func(c *gin.Context) {
