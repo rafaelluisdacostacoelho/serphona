@@ -1,11 +1,11 @@
-# {{PROJECT_NAME}} Infrastructure
+# Serphona Infrastructure
 
 This repository contains the Infrastructure-as-Code (IaC) for the Voice of Customer SaaS platform.
 
 ## 📁 Directory Structure
 
 ```
-infrastructure/
+infra/
 ├── README.md                           # This file
 ├── docs/
 │   └── infrastructure/
