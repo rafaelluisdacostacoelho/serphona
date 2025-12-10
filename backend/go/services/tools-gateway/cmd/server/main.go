@@ -2,8 +2,6 @@
 // Tools Gateway Service
 // ==============================================================================
 // Manages registration and execution of Tools (external APIs).
-// Abstracts GET/POST/PUT/DELETE with input/output schema.
-// Per-tenant and per-tool authentication. Logging for analytics.
 
 package main
 
@@ -17,15 +15,42 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/serphona/serphona/backend/go/services/tools-gateway/internal/adapter/http/handler"
+	"github.com/serphona/serphona/backend/go/services/tools-gateway/internal/domain/service"
+	postgresrepo "github.com/serphona/serphona/backend/go/services/tools-gateway/internal/infrastructure/repository/postgres"
+	"github.com/serphona/serphona/backend/go/services/tools-gateway/internal/usecase"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 func main() {
 	log.Println("Starting Tools Gateway Service...")
 
-	router := setupRouter()
+	// Initialize database
+	db, err := initDB()
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+
+	// Initialize dependencies
+	toolRepo := postgresrepo.NewToolRepository(db)
+	tenantToolRepo := postgresrepo.NewTenantToolRepository(db)
+	executionRepo := postgresrepo.NewToolExecutionRepository(db)
+
+	validator := service.NewSchemaValidator()
+	httpClient := service.NewHTTPClient(30 * time.Second)
+
+	toolService := usecase.NewToolService(toolRepo, validator)
+	executorService := usecase.NewToolExecutorService(toolRepo, tenantToolRepo, executionRepo, validator, httpClient)
+
+	// Initialize handlers
+	toolHandler := handler.NewToolHandler(toolService, executorService)
+
+	router := setupRouter(toolHandler)
 
 	srv := &http.Server{
-		Addr:         getEnv("HTTP_ADDR", ":8081"),
+		Addr:         getEnv("HTTP_ADDR", ":8085"),
 		Handler:      router,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
@@ -53,117 +78,40 @@ func main() {
 	log.Println("Server exited")
 }
 
-func setupRouter() *gin.Engine {
+func initDB() (*gorm.DB, error) {
+	dsn := getEnv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/serphona_tools?sslmode=disable")
+	return gorm.Open(postgres.Open(dsn), &gorm.Config{})
+}
+
+func setupRouter(toolHandler *handler.ToolHandler) *gin.Engine {
 	router := gin.Default()
 
+	// Health check
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "healthy", "service": "tools-gateway"})
 	})
+
+	// Mock auth middleware (replace with real auth later)
+	authMiddleware := func(c *gin.Context) {
+		// Mock tenant and user IDs for development
+		c.Set("tenant_id", uuid.New())
+		c.Set("user_id", uuid.New())
+		c.Next()
+	}
 
 	v1 := router.Group("/api/v1")
 	{
 		// Tool management
 		tools := v1.Group("/tools")
 		{
-			tools.GET("", listTools)
-			tools.POST("", createTool)
-			tools.GET("/:id", getTool)
-			tools.PUT("/:id", updateTool)
-			tools.DELETE("/:id", deleteTool)
+			tools.GET("", toolHandler.ListTools)
+			tools.POST("", toolHandler.CreateTool)
+			tools.GET("/:id", toolHandler.GetTool)
+			tools.POST("/:id/execute", authMiddleware, toolHandler.ExecuteTool)
 		}
-
-		// Tool execution
-		v1.POST("/tools/:id/execute", executeTool)
-
-		// Tool schemas
-		v1.GET("/tools/:id/schema", getToolSchema)
 	}
 
 	return router
-}
-
-// ==============================================================================
-// Tool Management Handlers
-// ==============================================================================
-
-func listTools(c *gin.Context) {
-	// TODO: List tools for tenant (from tenant_id in JWT)
-	c.JSON(http.StatusOK, gin.H{
-		"tools": []gin.H{},
-		"total": 0,
-	})
-}
-
-func createTool(c *gin.Context) {
-	// TODO: Create new tool
-	// - Validate schema
-	// - Store in DB
-	// - Associate with tenant
-	c.JSON(http.StatusCreated, gin.H{
-		"id":      "tool_placeholder",
-		"message": "Tool created",
-	})
-}
-
-func getTool(c *gin.Context) {
-	toolID := c.Param("id")
-	c.JSON(http.StatusOK, gin.H{
-		"id":     toolID,
-		"name":   "Example Tool",
-		"method": "GET",
-		"url":    "https://api.example.com/endpoint",
-	})
-}
-
-func updateTool(c *gin.Context) {
-	toolID := c.Param("id")
-	c.JSON(http.StatusOK, gin.H{
-		"id":      toolID,
-		"message": "Tool updated",
-	})
-}
-
-func deleteTool(c *gin.Context) {
-	toolID := c.Param("id")
-	c.JSON(http.StatusOK, gin.H{
-		"id":      toolID,
-		"message": "Tool deleted",
-	})
-}
-
-// ==============================================================================
-// Tool Execution Handlers
-// ==============================================================================
-
-func executeTool(c *gin.Context) {
-	toolID := c.Param("id")
-	// TODO: Execute tool
-	// - Fetch tool config from DB
-	// - Validate input against schema
-	// - Make HTTP request
-	// - Log execution for analytics (Kafka)
-	// - Return response
-	c.JSON(http.StatusOK, gin.H{
-		"tool_id":    toolID,
-		"status":     "executed",
-		"response":   gin.H{},
-		"latency_ms": 0,
-	})
-}
-
-func getToolSchema(c *gin.Context) {
-	toolID := c.Param("id")
-	c.JSON(http.StatusOK, gin.H{
-		"tool_id": toolID,
-		"input_schema": gin.H{
-			"type":       "object",
-			"properties": gin.H{},
-		},
-		"output_schema": gin.H{
-			"type":       "object",
-			"properties": gin.H{},
-		},
-	})
 }
 
 func getEnv(key, fallback string) string {
