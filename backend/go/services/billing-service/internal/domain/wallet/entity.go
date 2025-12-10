@@ -33,7 +33,7 @@ type Wallet struct {
 }
 
 // TableName specifies the table name for Wallet
-func (Wallet) TableName() string {
+func (*Wallet) TableName() string {
 	return "wallets"
 }
 
@@ -109,7 +109,7 @@ type WalletTransaction struct {
 }
 
 // TableName specifies the table name for WalletTransaction
-func (WalletTransaction) TableName() string {
+func (*WalletTransaction) TableName() string {
 	return "wallet_transactions"
 }
 
