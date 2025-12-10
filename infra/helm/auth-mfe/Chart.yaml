@@ -1,0 +1,16 @@
+apiVersion: v2
+name: auth-mfe
+description: Authentication Microfrontend for Serphona Platform
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+
+keywords:
+  - frontend
+  - microfrontend
+  - authentication
+  - react
+
+maintainers:
+  - name: Platform Team
+    email: platform@serphona.io

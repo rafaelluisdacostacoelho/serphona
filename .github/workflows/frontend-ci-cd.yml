@@ -1,0 +1,348 @@
+name: Frontend CI/CD
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-ci-cd.yml'
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'frontend/**'
+
+env:
+  REGISTRY: ghcr.io
+  REGISTRY_USER: ${{ github.actor }}
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      auth-mfe: ${{ steps.filter.outputs.auth-mfe }}
+      billing-mfe: ${{ steps.filter.outputs.billing-mfe }}
+      console: ${{ steps.filter.outputs.console }}
+      website: ${{ steps.filter.outputs.website }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            auth-mfe:
+              - 'frontend/auth-mfe/**'
+            billing-mfe:
+              - 'frontend/billing-mfe/**'
+            console:
+              - 'frontend/console/**'
+            website:
+              - 'frontend/website/**'
+
+  build-auth-mfe:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.auth-mfe == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ env.REGISTRY_USER }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/auth-mfe
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+      
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend/auth-mfe
+          file: ./frontend/auth-mfe/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-billing-mfe:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.billing-mfe == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ env.REGISTRY_USER }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/billing-mfe
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+      
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend/billing-mfe
+          file: ./frontend/billing-mfe/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-console:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.console == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ env.REGISTRY_USER }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/console
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+      
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend/console
+          file: ./frontend/console/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-website:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.website == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ env.REGISTRY_USER }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/website
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+      
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend/website
+          file: ./frontend/website/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-staging:
+    needs: [build-auth-mfe, build-billing-mfe, build-console, build-website]
+    if: |
+      always() && 
+      github.event_name == 'push' && 
+      github.ref == 'refs/heads/develop' &&
+      (needs.build-auth-mfe.result == 'success' || needs.build-auth-mfe.result == 'skipped') &&
+      (needs.build-billing-mfe.result == 'success' || needs.build-billing-mfe.result == 'skipped') &&
+      (needs.build-console.result == 'success' || needs.build-console.result == 'skipped') &&
+      (needs.build-website.result == 'success' || needs.build-website.result == 'skipped')
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Kubectl
+        uses: azure/setup-kubectl@v3
+      
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.12.0'
+      
+      - name: Configure Kubernetes
+        run: |
+          echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > kubeconfig
+          export KUBECONFIG=./kubeconfig
+      
+      - name: Deploy to Staging
+        run: |
+          export KUBECONFIG=./kubeconfig
+          
+          # Deploy each frontend if it was built
+          if [ "${{ needs.detect-changes.outputs.auth-mfe }}" == "true" ]; then
+            helm upgrade --install auth-mfe ./infra/helm/auth-mfe \
+              --namespace staging \
+              --create-namespace \
+              --set image.tag=${{ github.sha }} \
+              --set ingress.hosts[0].host=auth-staging.serphona.io \
+              --wait
+          fi
+          
+          if [ "${{ needs.detect-changes.outputs.billing-mfe }}" == "true" ]; then
+            helm upgrade --install billing-mfe ./infra/helm/billing-mfe \
+              --namespace staging \
+              --create-namespace \
+              --set image.tag=${{ github.sha }} \
+              --wait
+          fi
+          
+          if [ "${{ needs.detect-changes.outputs.console }}" == "true" ]; then
+            helm upgrade --install console ./infra/helm/console \
+              --namespace staging \
+              --create-namespace \
+              --set image.tag=${{ github.sha }} \
+              --wait
+          fi
+          
+          if [ "${{ needs.detect-changes.outputs.website }}" == "true" ]; then
+            helm upgrade --install website ./infra/helm/website \
+              --namespace staging \
+              --create-namespace \
+              --set image.tag=${{ github.sha }} \
+              --wait
+          fi
+
+  deploy-production:
+    needs: [build-auth-mfe, build-billing-mfe, build-console, build-website]
+    if: |
+      always() && 
+      github.event_name == 'push' && 
+      github.ref == 'refs/heads/main' &&
+      (needs.build-auth-mfe.result == 'success' || needs.build-auth-mfe.result == 'skipped') &&
+      (needs.build-billing-mfe.result == 'success' || needs.build-billing-mfe.result == 'skipped') &&
+      (needs.build-console.result == 'success' || needs.build-console.result == 'skipped') &&
+      (needs.build-website.result == 'success' || needs.build-website.result == 'skipped')
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Kubectl
+        uses: azure/setup-kubectl@v3
+      
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.12.0'
+      
+      - name: Configure Kubernetes
+        run: |
+          echo "${{ secrets.KUBE_CONFIG_PROD }}" | base64 -d > kubeconfig
+          export KUBECONFIG=./kubeconfig
+      
+      - name: Deploy to Production
+        run: |
+          export KUBECONFIG=./kubeconfig
+          
+          # Deploy each frontend if it was built
+          if [ "${{ needs.detect-changes.outputs.auth-mfe }}" == "true" ]; then
+            helm upgrade --install auth-mfe ./infra/helm/auth-mfe \
+              --namespace production \
+              --create-namespace \
+              --set image.tag=${{ github.sha }} \
+              --set ingress.hosts[0].host=auth.serphona.io \
+              --wait
+          fi
+          
+          if [ "${{ needs.detect-changes.outputs.billing-mfe }}" == "true" ]; then
+            helm upgrade --install billing-mfe ./infra/helm/billing-mfe \
+              --namespace production \
+              --create-namespace \
+              --set image.tag=${{ github.sha }} \
+              --wait
+          fi
+          
+          if [ "${{ needs.detect-changes.outputs.console }}" == "true" ]; then
+            helm upgrade --install console ./infra/helm/console \
+              --namespace production \
+              --create-namespace \
+              --set image.tag=${{ github.sha }} \
+              --wait
+          fi
+          
+          if [ "${{ needs.detect-changes.outputs.website }}" == "true" ]; then
+            helm upgrade --install website ./infra/helm/website \
+              --namespace production \
+              --create-namespace \
+              --set image.tag=${{ github.sha }} \
+              --wait
+          fi

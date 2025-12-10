@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import 'react/jsx-runtime';
 
 export const LoginForm: React.FC = () => {
   const { login } = useAuth();
