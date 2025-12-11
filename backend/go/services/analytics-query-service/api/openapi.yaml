@@ -1,0 +1,731 @@
+openapi: 3.0.3
+info:
+  title: Analytics Query Service API
+  description: |
+    Enterprise-grade analytics query service for the Serphona platform.
+    
+    Features:
+    - Dashboard overview metrics
+    - Call analytics and sentiment analysis
+    - Topic extraction and agent performance
+    - Time series data (hourly/daily/weekly)
+    - Event search with advanced filters
+    - Redis caching for high performance
+    - Rate limiting (60 req/min by default)
+    
+    All endpoints require multi-tenant filtering via `tenant_id`.
+  version: 1.0.0
+  contact:
+    name: Serphona Team
+    url: https://github.com/rafaelluisdacostacoelho/serphona
+
+servers:
+  - url: http://localhost:8084
+    description: Local development
+  - url: https://analytics-api.serphona.com
+    description: Production
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Dashboard Metrics
+    description: High-level dashboard metrics
+  - name: Time Series
+    description: Time series analytics data
+  - name: Aggregations
+    description: Aggregated analytics data
+  - name: Search
+    description: Event search and filtering
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Returns the health status of the service
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  service:
+                    type: string
+                    example: analytics-query-service
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /ready:
+    get:
+      tags:
+        - Health
+      summary: Readiness check
+      description: Returns readiness status with dependency checks
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ready
+                  checks:
+                    type: object
+                    properties:
+                      clickhouse:
+                        type: string
+                        example: ok
+
+  /api/v1/metrics/overview:
+    get:
+      tags:
+        - Dashboard Metrics
+      summary: Get overview metrics
+      description: Returns high-level dashboard metrics for the specified time range
+      parameters:
+        - $ref: '#/components/parameters/TenantID'
+        - $ref: '#/components/parameters/StartTime'
+        - $ref: '#/components/parameters/EndTime'
+      responses:
+        '200':
+          description: Overview metrics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OverviewMetrics'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/metrics/calls:
+    get:
+      tags:
+        - Dashboard Metrics
+      summary: Get call metrics
+      description: Returns call-specific metrics including total, completed, and abandoned calls
+      parameters:
+        - $ref: '#/components/parameters/TenantID'
+        - $ref: '#/components/parameters/StartTime'
+        - $ref: '#/components/parameters/EndTime'
+      responses:
+        '200':
+          description: Call metrics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CallMetrics'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/metrics/sentiment:
+    get:
+      tags:
+        - Dashboard Metrics
+      summary: Get sentiment metrics
+      description: Returns sentiment distribution (positive, neutral, negative)
+      parameters:
+        - $ref: '#/components/parameters/TenantID'
+        - $ref: '#/components/parameters/StartTime'
+        - $ref: '#/components/parameters/EndTime'
+      responses:
+        '200':
+          description: Sentiment metrics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SentimentMetrics'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/metrics/topics:
+    get:
+      tags:
+        - Dashboard Metrics
+      summary: Get topic metrics
+      description: Returns most common topics from conversations
+      parameters:
+        - $ref: '#/components/parameters/TenantID'
+        - $ref: '#/components/parameters/StartTime'
+        - $ref: '#/components/parameters/EndTime'
+        - name: limit
+          in: query
+          description: Maximum number of topics to return
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Topic metrics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  topics:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TopicMetric'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/metrics/agents:
+    get:
+      tags:
+        - Dashboard Metrics
+      summary: Get agent metrics
+      description: Returns performance metrics for all agents
+      parameters:
+        - $ref: '#/components/parameters/TenantID'
+        - $ref: '#/components/parameters/StartTime'
+        - $ref: '#/components/parameters/EndTime'
+      responses:
+        '200':
+          description: Agent metrics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  agents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AgentMetric'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/timeseries/calls:
+    get:
+      tags:
+        - Time Series
+      summary: Get call time series
+      description: Returns call volume over time
+      parameters:
+        - $ref: '#/components/parameters/TenantID'
+        - $ref: '#/components/parameters/StartTime'
+        - $ref: '#/components/parameters/EndTime'
+        - $ref: '#/components/parameters/Granularity'
+      responses:
+        '200':
+          description: Time series data retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeSeriesData'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/timeseries/sentiment:
+    get:
+      tags:
+        - Time Series
+      summary: Get sentiment time series
+      description: Returns sentiment trends over time
+      parameters:
+        - $ref: '#/components/parameters/TenantID'
+        - $ref: '#/components/parameters/StartTime'
+        - $ref: '#/components/parameters/EndTime'
+        - $ref: '#/components/parameters/Granularity'
+      responses:
+        '200':
+          description: Time series data retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeSeriesData'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/aggregations/hourly:
+    get:
+      tags:
+        - Aggregations
+      summary: Get hourly aggregations
+      description: Returns hourly aggregated analytics data
+      parameters:
+        - $ref: '#/components/parameters/TenantID'
+        - $ref: '#/components/parameters/StartTime'
+        - $ref: '#/components/parameters/EndTime'
+      responses:
+        '200':
+          description: Aggregations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  aggregations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AggregationResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/aggregations/daily:
+    get:
+      tags:
+        - Aggregations
+      summary: Get daily aggregations
+      description: Returns daily aggregated analytics data
+      parameters:
+        - $ref: '#/components/parameters/TenantID'
+        - $ref: '#/components/parameters/StartTime'
+        - $ref: '#/components/parameters/EndTime'
+      responses:
+        '200':
+          description: Aggregations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  aggregations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AggregationResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/search/events:
+    post:
+      tags:
+        - Search
+      summary: Search events
+      description: Search and filter analytics events
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryFilters'
+      responses:
+        '200':
+          description: Events retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AnalyticsEvent'
+                  total:
+                    type: integer
+                    example: 1543
+                  page:
+                    type: integer
+                    example: 1
+                  limit:
+                    type: integer
+                    example: 50
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  parameters:
+    TenantID:
+      name: tenant_id
+      in: query
+      required: true
+      description: Tenant identifier for multi-tenant filtering
+      schema:
+        type: string
+        format: uuid
+        example: "550e8400-e29b-41d4-a716-446655440000"
+
+    StartTime:
+      name: start_time
+      in: query
+      description: Start of time range (RFC3339 format). Defaults to 7 days ago.
+      schema:
+        type: string
+        format: date-time
+        example: "2024-01-01T00:00:00Z"
+
+    EndTime:
+      name: end_time
+      in: query
+      description: End of time range (RFC3339 format). Defaults to now.
+      schema:
+        type: string
+        format: date-time
+        example: "2024-01-31T23:59:59Z"
+
+    Granularity:
+      name: granularity
+      in: query
+      description: Time bucket granularity
+      schema:
+        type: string
+        enum: [hourly, daily, weekly]
+        default: hourly
+
+  schemas:
+    OverviewMetrics:
+      type: object
+      properties:
+        total_calls:
+          type: integer
+          example: 15432
+        total_duration:
+          type: integer
+          description: Total duration in seconds
+          example: 3456789
+        avg_sentiment:
+          type: number
+          format: float
+          example: 0.75
+        resolution_rate:
+          type: number
+          format: float
+          example: 0.87
+        active_agents:
+          type: integer
+          example: 12
+        period:
+          type: string
+          example: "2024-01-01 to 2024-01-31"
+        comparison:
+          $ref: '#/components/schemas/PeriodComparison'
+
+    PeriodComparison:
+      type: object
+      properties:
+        calls_change_percent:
+          type: number
+          example: 15.5
+        duration_change_percent:
+          type: number
+          example: -5.2
+        sentiment_change_percent:
+          type: number
+          example: 3.1
+        resolution_change_percent:
+          type: number
+          example: 8.7
+
+    CallMetrics:
+      type: object
+      properties:
+        total:
+          type: integer
+          example: 15432
+        completed:
+          type: integer
+          example: 13877
+        abandoned:
+          type: integer
+          example: 1555
+        avg_duration:
+          type: number
+          format: float
+          description: Average duration in seconds
+          example: 224.5
+        avg_wait_time:
+          type: number
+          format: float
+          description: Average wait time in seconds
+          example: 15.3
+        peak_hour:
+          type: string
+          example: "14:00"
+
+    SentimentMetrics:
+      type: object
+      properties:
+        positive:
+          type: integer
+          example: 8765
+        neutral:
+          type: integer
+          example: 4321
+        negative:
+          type: integer
+          example: 2346
+        avg_score:
+          type: number
+          format: float
+          example: 0.65
+        total:
+          type: integer
+          example: 15432
+
+    TopicMetric:
+      type: object
+      properties:
+        topic:
+          type: string
+          example: "billing"
+        count:
+          type: integer
+          example: 1234
+        percentage:
+          type: number
+          format: float
+          example: 8.0
+        avg_score:
+          type: number
+          format: float
+          example: 0.72
+
+    AgentMetric:
+      type: object
+      properties:
+        agent_id:
+          type: string
+          format: uuid
+          example: "770e8400-e29b-41d4-a716-446655440000"
+        agent_name:
+          type: string
+          example: "Support Agent Alpha"
+        total_calls:
+          type: integer
+          example: 543
+        avg_duration:
+          type: number
+          format: float
+          example: 210.5
+        avg_sentiment:
+          type: number
+          format: float
+          example: 0.82
+        resolution_rate:
+          type: number
+          format: float
+          example: 0.91
+        utilization:
+          type: number
+          format: float
+          description: Utilization percentage
+          example: 75.5
+
+    TimeSeriesData:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeSeriesPoint'
+        granularity:
+          type: string
+          enum: [hourly, daily, weekly]
+          example: hourly
+        metric:
+          type: string
+          example: calls
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+
+    TimeSeriesPoint:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-01-15T14:00:00Z"
+        value:
+          type: number
+          format: float
+          example: 123.5
+        label:
+          type: string
+          example: "14:00"
+
+    AggregationResult:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        total_calls:
+          type: integer
+          example: 543
+        avg_duration:
+          type: number
+          format: float
+          example: 215.3
+        avg_sentiment:
+          type: number
+          format: float
+          example: 0.76
+        top_topics:
+          type: array
+          items:
+            type: string
+          example: ["billing", "support", "technical"]
+        metadata:
+          type: object
+          additionalProperties: true
+
+    AnalyticsEvent:
+      type: object
+      properties:
+        event_id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        session_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        agent_id:
+          type: string
+          format: uuid
+        event_type:
+          type: string
+          example: "call"
+        timestamp:
+          type: string
+          format: date-time
+        duration:
+          type: integer
+          description: Duration in seconds
+        sentiment:
+          type: number
+          format: float
+        topics:
+          type: array
+          items:
+            type: string
+        metadata:
+          type: object
+          additionalProperties: true
+
+    QueryFilters:
+      type: object
+      required:
+        - tenant_id
+        - start_time
+        - end_time
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+        agent_id:
+          type: string
+          format: uuid
+        event_type:
+          type: string
+        min_score:
+          type: number
+          format: float
+        max_score:
+          type: number
+          format: float
+        topics:
+          type: array
+          items:
+            type: string
+        limit:
+          type: integer
+          default: 50
+          minimum: 1
+          maximum: 1000
+        offset:
+          type: integer
+          default: 0
+          minimum: 0
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Bad Request"
+        message:
+          type: string
+          example: "Invalid time range"
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    RateLimited:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "Rate limit exceeded"
+              message:
+                type: string
+                example: "Too many requests. Please try again later."
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
