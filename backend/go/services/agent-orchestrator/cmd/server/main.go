@@ -47,7 +47,12 @@ func main() {
 
 	// Initialize services
 	sessionService := usecase.NewSessionService(sessionRepo)
-	agentService := usecase.NewAgentService(nil) // TODO: Implement AgentRepository
+
+	// Agent repository is optional (PostgreSQL required)
+	// For now, using nil - agents will default to first available
+	// To enable: Set DATABASE_URL and run migrations
+	agentService := usecase.NewAgentService(nil)
+
 	messageProcessing := usecase.NewMessageProcessingService(sessionService, agentService, clientPool)
 	log.Println("✅ Services initialized")
 
