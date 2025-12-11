@@ -1,0 +1,485 @@
+openapi: 3.0.3
+info:
+  title: Agent Orchestrator API
+  description: |
+    Agent Orchestrator service manages conversational AI sessions with LLM integration and tool calling capabilities.
+    
+    ## Features
+    - Session management with Redis
+    - Agent configuration with PostgreSQL
+    - LLM integration (OpenAI GPT-4/3.5)
+    - Function calling / Tool execution
+    - Multi-tenant support
+  version: 1.0.0
+  contact:
+    name: Serphona Team
+    url: https://github.com/rafaelluisdacostacoelho/serphona
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+  - url: https://api.serphona.com
+    description: Production
+
+tags:
+  - name: Sessions
+    description: Session management operations
+  - name: Agents
+    description: Agent configuration operations
+  - name: Health
+    description: Health check endpoints
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      description: Returns service health status
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  service:
+                    type: string
+                    example: agent-orchestrator
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /ready:
+    get:
+      tags: [Health]
+      summary: Readiness check
+      description: Returns service readiness status
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ready
+                  checks:
+                    type: object
+
+  /api/v1/sessions:
+    post:
+      tags: [Sessions]
+      summary: Create session
+      description: Creates a new conversation session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id, user_id, channel_type]
+              properties:
+                tenant_id:
+                  type: string
+                  format: uuid
+                user_id:
+                  type: string
+                  format: uuid
+                channel_type:
+                  type: string
+                  enum: [voice, text, api]
+                channel_id:
+                  type: string
+      responses:
+        '201':
+          description: Session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/sessions/{id}:
+    get:
+      tags: [Sessions]
+      summary: Get session
+      description: Retrieves a session by ID
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Session found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Sessions]
+      summary: End session
+      description: Ends an active session
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '204':
+          description: Session ended
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/sessions/{id}/messages:
+    post:
+      tags: [Sessions]
+      summary: Send message
+      description: Sends a message and gets AI response
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content, user_id]
+              properties:
+                content:
+                  type: string
+                  example: "Find me flights from NYC to LAX"
+                user_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Message processed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    get:
+      tags: [Sessions]
+      summary: Get messages
+      description: Retrieves messages for a session
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Messages retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Message'
+
+  /api/v1/agents:
+    post:
+      tags: [Agents]
+      summary: Create agent
+      description: Creates a new AI agent configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentCreate'
+      responses:
+        '201':
+          description: Agent created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Agent'
+
+    get:
+      tags: [Agents]
+      summary: List agents
+      description: Lists all agents for a tenant
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Agents retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Agent'
+
+  /api/v1/agents/{id}:
+    get:
+      tags: [Agents]
+      summary: Get agent
+      description: Retrieves an agent by ID
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+      responses:
+        '200':
+          description: Agent found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Agent'
+
+    put:
+      tags: [Agents]
+      summary: Update agent
+      description: Updates an agent configuration
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentUpdate'
+      responses:
+        '200':
+          description: Agent updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Agent'
+
+    delete:
+      tags: [Agents]
+      summary: Delete agent
+      description: Deletes an agent
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+      responses:
+        '204':
+          description: Agent deleted
+
+  /api/v1/agents/{id}/activate:
+    post:
+      tags: [Agents]
+      summary: Activate agent
+      description: Activates an agent
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+      responses:
+        '200':
+          description: Agent activated
+
+  /api/v1/agents/{id}/deactivate:
+    post:
+      tags: [Agents]
+      summary: Deactivate agent
+      description: Deactivates an agent
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+      responses:
+        '200':
+          description: Agent deactivated
+
+components:
+  parameters:
+    SessionId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    AgentId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    Session:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        channel_type:
+          type: string
+          enum: [voice, text, api]
+        channel_id:
+          type: string
+        status:
+          type: string
+          enum: [active, ended, expired]
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        session_id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [user, assistant, system, tool]
+        content:
+          type: string
+        tool_calls:
+          type: array
+          items:
+            type: object
+        metadata:
+          type: object
+          properties:
+            agent:
+              type: string
+            model:
+              type: string
+            tokens:
+              type: integer
+            latency_ms:
+              type: integer
+            cost:
+              type: number
+        created_at:
+          type: string
+          format: date-time
+
+    Agent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        display_name:
+          type: string
+        system_prompt:
+          type: string
+        model:
+          type: string
+        temperature:
+          type: number
+        max_tokens:
+          type: integer
+        tools:
+          type: array
+          items:
+            type: string
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    AgentCreate:
+      type: object
+      required: [tenant_id, name, system_prompt, model]
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        display_name:
+          type: string
+        system_prompt:
+          type: string
+        model:
+          type: string
+          enum: [gpt-4-turbo, gpt-4, gpt-3.5-turbo]
+        temperature:
+          type: number
+          minimum: 0
+          maximum: 2
+          default: 0.7
+        max_tokens:
+          type: integer
+          default: 1000
+        tools:
+          type: array
+          items:
+            type: string
+
+    AgentUpdate:
+      type: object
+      properties:
+        display_name:
+          type: string
+        system_prompt:
+          type: string
+        model:
+          type: string
+        temperature:
+          type: number
+        max_tokens:
+          type: integer
+        tools:
+          type: array
+          items:
+            type: string
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
