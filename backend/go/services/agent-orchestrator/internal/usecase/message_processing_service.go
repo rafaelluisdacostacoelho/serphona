@@ -36,6 +36,7 @@ type messageProcessingServiceImpl struct {
 	sessionService SessionService
 	agentService   AgentService
 	clientPool     service.LLMClientPool
+	toolsClient    service.ToolsClient
 }
 
 // NewMessageProcessingService creates a new MessageProcessingService
@@ -43,11 +44,13 @@ func NewMessageProcessingService(
 	sessionService SessionService,
 	agentService AgentService,
 	clientPool service.LLMClientPool,
+	toolsClient service.ToolsClient,
 ) MessageProcessingService {
 	return &messageProcessingServiceImpl{
 		sessionService: sessionService,
 		agentService:   agentService,
 		clientPool:     clientPool,
+		toolsClient:    toolsClient,
 	}
 }
 

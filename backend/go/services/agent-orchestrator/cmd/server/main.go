@@ -15,6 +15,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/adapter/http/handler"
 	"github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/domain/repository"
+	toolsHTTP "github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/infrastructure/http"
 	"github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/infrastructure/llm"
 	postgresRepo "github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/infrastructure/repository/postgres"
 	redisRepo "github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/infrastructure/repository/redis"
@@ -66,6 +67,15 @@ func main() {
 		agentRepo = nil
 	}
 
+	// Initialize Tools Gateway HTTP Client (optional)
+	var toolsClient = toolsHTTP.NewToolsClient(config.ToolsGatewayURL)
+	if config.ToolsGatewayURL != "" {
+		log.Printf("✅ Tools Gateway client initialized (%s)", config.ToolsGatewayURL)
+	} else {
+		log.Println("⚠️  Tools Gateway not configured - tool execution disabled")
+		log.Println("   Set TOOLS_GATEWAY_URL to enable tool integration")
+	}
+
 	// Initialize LLM Client Pool
 	clientPool := llm.SetupDefaultClients(config.OpenAIAPIKey)
 	log.Println("✅ LLM Client Pool initialized")
@@ -77,7 +87,7 @@ func main() {
 	// Initialize services
 	sessionService := usecase.NewSessionService(sessionRepo)
 	agentService := usecase.NewAgentService(agentRepo)
-	messageProcessing := usecase.NewMessageProcessingService(sessionService, agentService, clientPool)
+	messageProcessing := usecase.NewMessageProcessingService(sessionService, agentService, clientPool, toolsClient)
 	log.Println("✅ Services initialized")
 
 	// Initialize handlers
@@ -135,6 +145,7 @@ func main() {
 type Config struct {
 	HTTPAddr        string
 	DatabaseURL     string
+	ToolsGatewayURL string
 	RedisAddr       string
 	RedisPassword   string
 	RedisDB         int
@@ -147,6 +158,7 @@ func loadConfig() Config {
 	return Config{
 		HTTPAddr:        getEnv("HTTP_ADDR", ":8080"),
 		DatabaseURL:     getEnv("DATABASE_URL", ""),
+		ToolsGatewayURL: getEnv("TOOLS_GATEWAY_URL", ""),
 		RedisAddr:       getEnv("REDIS_ADDR", "localhost:6379"),
 		RedisPassword:   getEnv("REDIS_PASSWORD", ""),
 		RedisDB:         0,
