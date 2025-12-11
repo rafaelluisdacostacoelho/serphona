@@ -16,6 +16,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/serphona/serphona/backend/go/services/analytics-query-service/internal/adapter/http/handler"
 	"github.com/serphona/serphona/backend/go/services/analytics-query-service/internal/domain/repository"
+	"github.com/serphona/serphona/backend/go/services/analytics-query-service/internal/infrastructure/middleware"
 	"github.com/serphona/serphona/backend/go/services/analytics-query-service/internal/infrastructure/repository/cached"
 	"github.com/serphona/serphona/backend/go/services/analytics-query-service/internal/infrastructure/repository/clickhouse"
 	"github.com/serphona/serphona/backend/go/services/analytics-query-service/internal/usecase"
@@ -81,7 +82,7 @@ func main() {
 	log.Println("✅ Handlers initialized")
 
 	// Setup HTTP router
-	router := setupRouter(analyticsHandler)
+	router := setupRouter(analyticsHandler, config)
 
 	// Server configuration
 	srv := &http.Server{
@@ -129,6 +130,8 @@ type Config struct {
 	RedisPassword string
 	RedisDB       int
 	CacheTTL      time.Duration
+	RateLimit     int
+	RateBurst     int
 }
 
 func loadConfig() Config {
@@ -159,6 +162,10 @@ func loadConfig() Config {
 		cacheTTL = 5 * time.Minute
 	}
 
+	// Rate limiting (default 60 req/min, burst 10)
+	rateLimit, _ := strconv.Atoi(getEnv("RATE_LIMIT", "60"))
+	rateBurst, _ := strconv.Atoi(getEnv("RATE_BURST", "10"))
+
 	return Config{
 		HTTPAddr:      getEnv("HTTP_ADDR", ":8084"),
 		ClickHouseURL: clickhouseURL,
@@ -166,10 +173,12 @@ func loadConfig() Config {
 		RedisPassword: redisPassword,
 		RedisDB:       redisDB,
 		CacheTTL:      cacheTTL,
+		RateLimit:     rateLimit,
+		RateBurst:     rateBurst,
 	}
 }
 
-func setupRouter(analyticsHandler *handler.AnalyticsHandler) *gin.Engine {
+func setupRouter(analyticsHandler *handler.AnalyticsHandler, config Config) *gin.Engine {
 	if getEnv("GIN_MODE", "debug") == "release" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -178,6 +187,11 @@ func setupRouter(analyticsHandler *handler.AnalyticsHandler) *gin.Engine {
 
 	// Middleware
 	router.Use(corsMiddleware())
+
+	// Rate limiting
+	rateLimiter := middleware.NewRateLimiter(config.RateLimit, config.RateBurst)
+	router.Use(rateLimiter.Middleware())
+	log.Printf("✅ Rate limiting enabled: %d req/min, burst %d", config.RateLimit, config.RateBurst)
 
 	// Health check
 	router.GET("/health", healthCheckHandler)
