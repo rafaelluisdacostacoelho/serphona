@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-orchestrator-config
+  namespace: serphona
+data:
+  redis_addr: "redis-service:6379"
+  tools_gateway_url: "http://tools-gateway:8085"

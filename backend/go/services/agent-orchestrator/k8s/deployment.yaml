@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-orchestrator
+  namespace: serphona
+  labels:
+    app: agent-orchestrator
+    version: v1
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: agent-orchestrator
+  template:
+    metadata:
+      labels:
+        app: agent-orchestrator
+        version: v1
+    spec:
+      containers:
+      - name: agent-orchestrator
+        image: serphona/agent-orchestrator:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        env:
+        - name: HTTP_ADDR
+          value: ":8080"
+        - name: REDIS_ADDR
+          valueFrom:
+            configMapKeyRef:
+              name: agent-orchestrator-config
+              key: redis_addr
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: agent-orchestrator-secret
+              key: redis_password
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: agent-orchestrator-secret
+              key: database_url
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: agent-orchestrator-secret
+              key: openai_api_key
+        - name: TOOLS_GATEWAY_URL
+          valueFrom:
+            configMapKeyRef:
+              name: agent-orchestrator-config
+              key: tools_gateway_url
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      restartPolicy: Always
