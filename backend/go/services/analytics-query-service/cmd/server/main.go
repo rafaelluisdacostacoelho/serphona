@@ -7,12 +7,16 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
 	_ "github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"github.com/serphona/serphona/backend/go/services/analytics-query-service/internal/adapter/http/handler"
+	"github.com/serphona/serphona/backend/go/services/analytics-query-service/internal/domain/repository"
+	"github.com/serphona/serphona/backend/go/services/analytics-query-service/internal/infrastructure/repository/cached"
 	"github.com/serphona/serphona/backend/go/services/analytics-query-service/internal/infrastructure/repository/clickhouse"
 	"github.com/serphona/serphona/backend/go/services/analytics-query-service/internal/usecase"
 )
@@ -22,6 +26,27 @@ func main() {
 
 	// Load configuration
 	config := loadConfig()
+
+	// Initialize Redis (optional, for caching)
+	var analyticsRepo repository.AnalyticsRepository
+	var redisClient *redis.Client
+
+	if config.RedisAddr != "" {
+		redisClient = redis.NewClient(&redis.Options{
+			Addr:     config.RedisAddr,
+			Password: config.RedisPassword,
+			DB:       config.RedisDB,
+		})
+
+		// Test Redis connection
+		ctx := context.Background()
+		if err := redisClient.Ping(ctx).Err(); err != nil {
+			log.Printf("⚠️  Redis connection failed: %v (continuing without cache)", err)
+			redisClient = nil
+		} else {
+			log.Println("✅ Connected to Redis")
+		}
+	}
 
 	// Initialize ClickHouse
 	db, err := sql.Open("clickhouse", config.ClickHouseURL)
@@ -35,8 +60,19 @@ func main() {
 	}
 	log.Println("✅ Connected to ClickHouse")
 
-	// Initialize repository and service
-	analyticsRepo := clickhouse.NewAnalyticsRepository(db)
+	// Initialize repository (with or without cache)
+	clickhouseRepo := clickhouse.NewAnalyticsRepository(db)
+
+	if redisClient != nil {
+		// Wrap with cache layer
+		analyticsRepo = cached.NewCachedAnalyticsRepository(clickhouseRepo, redisClient, config.CacheTTL)
+		log.Println("✅ Repository initialized with Redis caching")
+	} else {
+		analyticsRepo = clickhouseRepo
+		log.Println("✅ Repository initialized (no cache)")
+	}
+
+	// Initialize service
 	analyticsService := usecase.NewAnalyticsService(analyticsRepo)
 	log.Println("✅ Services initialized")
 
@@ -76,15 +112,27 @@ func main() {
 		log.Fatalf("❌ Server forced to shutdown: %v", err)
 	}
 
+	// Close Redis
+	if redisClient != nil {
+		if err := redisClient.Close(); err != nil {
+			log.Printf("⚠️  Failed to close Redis connection: %v", err)
+		}
+	}
+
 	log.Println("👋 Server exited gracefully")
 }
 
 type Config struct {
 	HTTPAddr      string
 	ClickHouseURL string
+	RedisAddr     string
+	RedisPassword string
+	RedisDB       int
+	CacheTTL      time.Duration
 }
 
 func loadConfig() Config {
+	// ClickHouse config
 	clickhouseHost := getEnv("CLICKHOUSE_HOST", "localhost")
 	clickhousePort := getEnv("CLICKHOUSE_PORT", "9000")
 	clickhouseDB := getEnv("CLICKHOUSE_DATABASE", "serphona_analytics")
@@ -99,9 +147,25 @@ func loadConfig() Config {
 		}
 	}
 
+	// Redis config
+	redisAddr := getEnv("REDIS_ADDR", "")
+	redisPassword := getEnv("REDIS_PASSWORD", "")
+	redisDB, _ := strconv.Atoi(getEnv("REDIS_DB", "3"))
+
+	// Cache TTL (default 5 minutes)
+	cacheTTLStr := getEnv("CACHE_TTL", "5m")
+	cacheTTL, err := time.ParseDuration(cacheTTLStr)
+	if err != nil {
+		cacheTTL = 5 * time.Minute
+	}
+
 	return Config{
 		HTTPAddr:      getEnv("HTTP_ADDR", ":8084"),
 		ClickHouseURL: clickhouseURL,
+		RedisAddr:     redisAddr,
+		RedisPassword: redisPassword,
+		RedisDB:       redisDB,
+		CacheTTL:      cacheTTL,
 	}
 }
 
