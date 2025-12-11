@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"log"
 	"net/http"
 	"os"
@@ -10,9 +11,12 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	_ "github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
 	"github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/adapter/http/handler"
+	"github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/domain/repository"
 	"github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/infrastructure/llm"
+	postgresRepo "github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/infrastructure/repository/postgres"
 	redisRepo "github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/infrastructure/repository/redis"
 	"github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/usecase"
 )
@@ -37,6 +41,31 @@ func main() {
 	}
 	log.Println("✅ Connected to Redis")
 
+	// Initialize PostgreSQL (optional)
+	var db *sql.DB
+	var agentRepo repository.AgentRepository
+	if config.DatabaseURL != "" {
+		var err error
+		db, err = sql.Open("postgres", config.DatabaseURL)
+		if err != nil {
+			log.Fatalf("❌ Failed to connect to PostgreSQL: %v", err)
+		}
+
+		// Test database connection
+		if err := db.PingContext(ctx); err != nil {
+			log.Fatalf("❌ Failed to ping PostgreSQL: %v", err)
+		}
+		log.Println("✅ Connected to PostgreSQL")
+
+		// Create agent repository
+		agentRepo = postgresRepo.NewAgentRepository(db)
+		log.Println("✅ Agent Repository initialized (PostgreSQL)")
+	} else {
+		log.Println("⚠️  PostgreSQL not configured - agents will use default behavior")
+		log.Println("   Set DATABASE_URL to enable agent persistence")
+		agentRepo = nil
+	}
+
 	// Initialize LLM Client Pool
 	clientPool := llm.SetupDefaultClients(config.OpenAIAPIKey)
 	log.Println("✅ LLM Client Pool initialized")
@@ -47,12 +76,7 @@ func main() {
 
 	// Initialize services
 	sessionService := usecase.NewSessionService(sessionRepo)
-
-	// Agent repository is optional (PostgreSQL required)
-	// For now, using nil - agents will default to first available
-	// To enable: Set DATABASE_URL and run migrations
-	agentService := usecase.NewAgentService(nil)
-
+	agentService := usecase.NewAgentService(agentRepo)
 	messageProcessing := usecase.NewMessageProcessingService(sessionService, agentService, clientPool)
 	log.Println("✅ Services initialized")
 
@@ -92,7 +116,13 @@ func main() {
 		log.Fatalf("❌ Server forced to shutdown: %v", err)
 	}
 
-	// Close Redis connection
+	// Close connections
+	if db != nil {
+		if err := db.Close(); err != nil {
+			log.Printf("⚠️  Failed to close PostgreSQL connection: %v", err)
+		}
+	}
+
 	if err := redisClient.Close(); err != nil {
 		log.Printf("⚠️  Failed to close Redis connection: %v", err)
 	}
@@ -103,6 +133,7 @@ func main() {
 // Config holds application configuration
 type Config struct {
 	HTTPAddr        string
+	DatabaseURL     string
 	RedisAddr       string
 	RedisPassword   string
 	RedisDB         int
@@ -114,6 +145,7 @@ type Config struct {
 func loadConfig() Config {
 	return Config{
 		HTTPAddr:        getEnv("HTTP_ADDR", ":8080"),
+		DatabaseURL:     getEnv("DATABASE_URL", ""),
 		RedisAddr:       getEnv("REDIS_ADDR", "localhost:6379"),
 		RedisPassword:   getEnv("REDIS_PASSWORD", ""),
 		RedisDB:         0,
