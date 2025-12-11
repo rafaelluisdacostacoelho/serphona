@@ -82,10 +82,11 @@ func main() {
 
 	// Initialize handlers
 	sessionHandler := handler.NewSessionHandler(sessionService, messageProcessing)
+	agentHandler := handler.NewAgentHandler(agentService)
 	log.Println("✅ Handlers initialized")
 
 	// Setup HTTP router
-	router := setupRouter(sessionHandler)
+	router := setupRouter(sessionHandler, agentHandler)
 
 	// Server configuration
 	srv := &http.Server{
@@ -155,7 +156,7 @@ func loadConfig() Config {
 }
 
 // setupRouter configures HTTP routes
-func setupRouter(sessionHandler *handler.SessionHandler) *gin.Engine {
+func setupRouter(sessionHandler *handler.SessionHandler, agentHandler *handler.AgentHandler) *gin.Engine {
 	// Set Gin mode
 	if getEnv("GIN_MODE", "debug") == "release" {
 		gin.SetMode(gin.ReleaseMode)
@@ -184,14 +185,17 @@ func setupRouter(sessionHandler *handler.SessionHandler) *gin.Engine {
 			sessions.GET("/:id/messages", sessionHandler.GetMessages)
 		}
 
-		// TODO: Agent management endpoints
-		// agents := v1.Group("/agents")
-		// {
-		// 	agents.POST("", agentHandler.CreateAgent)
-		// 	agents.GET("/:id", agentHandler.GetAgent)
-		// 	agents.PUT("/:id", agentHandler.UpdateAgent)
-		// 	agents.DELETE("/:id", agentHandler.DeleteAgent)
-		// }
+		// Agent management
+		agents := v1.Group("/agents")
+		{
+			agents.POST("", agentHandler.CreateAgent)
+			agents.GET("", agentHandler.ListAgents)
+			agents.GET("/:id", agentHandler.GetAgent)
+			agents.PUT("/:id", agentHandler.UpdateAgent)
+			agents.DELETE("/:id", agentHandler.DeleteAgent)
+			agents.POST("/:id/activate", agentHandler.ActivateAgent)
+			agents.POST("/:id/deactivate", agentHandler.DeactivateAgent)
+		}
 	}
 
 	return router
