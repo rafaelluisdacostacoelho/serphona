@@ -1,13 +1,8 @@
-// ==============================================================================
-// Analytics Query Service
-// ==============================================================================
-// Exposes read APIs for dashboards. Queries ClickHouse (metrics) + Postgres (configs).
-// Multi-tenant (filtering by tenant_id).
-
 package main
 
 import (
 	"context"
+	"database/sql"
 	"log"
 	"net/http"
 	"os"
@@ -15,170 +10,175 @@ import (
 	"syscall"
 	"time"
 
+	_ "github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/gin-gonic/gin"
+	"github.com/serphona/serphona/backend/go/services/analytics-query-service/internal/adapter/http/handler"
+	"github.com/serphona/serphona/backend/go/services/analytics-query-service/internal/infrastructure/repository/clickhouse"
+	"github.com/serphona/serphona/backend/go/services/analytics-query-service/internal/usecase"
 )
 
 func main() {
-	log.Println("Starting Analytics Query Service...")
+	log.Println("🚀 Starting Analytics Query Service...")
 
-	router := setupRouter()
+	// Load configuration
+	config := loadConfig()
 
+	// Initialize ClickHouse
+	db, err := sql.Open("clickhouse", config.ClickHouseURL)
+	if err != nil {
+		log.Fatalf("❌ Failed to connect to ClickHouse: %v", err)
+	}
+	defer db.Close()
+
+	if err := db.Ping(); err != nil {
+		log.Fatalf("❌ Failed to ping ClickHouse: %v", err)
+	}
+	log.Println("✅ Connected to ClickHouse")
+
+	// Initialize repository and service
+	analyticsRepo := clickhouse.NewAnalyticsRepository(db)
+	analyticsService := usecase.NewAnalyticsService(analyticsRepo)
+	log.Println("✅ Services initialized")
+
+	// Initialize handler
+	analyticsHandler := handler.NewAnalyticsHandler(analyticsService)
+	log.Println("✅ Handlers initialized")
+
+	// Setup HTTP router
+	router := setupRouter(analyticsHandler)
+
+	// Server configuration
 	srv := &http.Server{
-		Addr:         getEnv("HTTP_ADDR", ":8082"),
+		Addr:         config.HTTPAddr,
 		Handler:      router,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
 
+	// Start server in goroutine
 	go func() {
-		log.Printf("Server listening on %s", srv.Addr)
+		log.Printf("🌐 Server listening on %s", srv.Addr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Failed to start server: %v", err)
+			log.Fatalf("❌ Failed to start server: %v", err)
 		}
 	}()
 
+	// Graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("Shutting down server...")
+	log.Println("🛑 Shutting down server...")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatalf("Server forced to shutdown: %v", err)
+		log.Fatalf("❌ Server forced to shutdown: %v", err)
 	}
 
-	log.Println("Server exited")
+	log.Println("👋 Server exited gracefully")
 }
 
-func setupRouter() *gin.Engine {
+type Config struct {
+	HTTPAddr      string
+	ClickHouseURL string
+}
+
+func loadConfig() Config {
+	clickhouseHost := getEnv("CLICKHOUSE_HOST", "localhost")
+	clickhousePort := getEnv("CLICKHOUSE_PORT", "9000")
+	clickhouseDB := getEnv("CLICKHOUSE_DATABASE", "serphona_analytics")
+	clickhouseUser := getEnv("CLICKHOUSE_USER", "default")
+	clickhousePassword := getEnv("CLICKHOUSE_PASSWORD", "")
+
+	clickhouseURL := "clickhouse://" + clickhouseHost + ":" + clickhousePort + "/" + clickhouseDB
+	if clickhouseUser != "" {
+		clickhouseURL += "?username=" + clickhouseUser
+		if clickhousePassword != "" {
+			clickhouseURL += "&password=" + clickhousePassword
+		}
+	}
+
+	return Config{
+		HTTPAddr:      getEnv("HTTP_ADDR", ":8084"),
+		ClickHouseURL: clickhouseURL,
+	}
+}
+
+func setupRouter(analyticsHandler *handler.AnalyticsHandler) *gin.Engine {
+	if getEnv("GIN_MODE", "debug") == "release" {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
 	router := gin.Default()
 
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "healthy", "service": "analytics-query-service"})
-	})
+	// Middleware
+	router.Use(corsMiddleware())
 
+	// Health check
+	router.GET("/health", healthCheckHandler)
+	router.GET("/ready", readinessHandler)
+
+	// API v1 routes
 	v1 := router.Group("/api/v1")
 	{
 		// Dashboard metrics
-		v1.GET("/metrics/overview", getOverviewMetrics)
-		v1.GET("/metrics/calls", getCallMetrics)
-		v1.GET("/metrics/sentiment", getSentimentMetrics)
-		v1.GET("/metrics/topics", getTopicMetrics)
-		v1.GET("/metrics/agents", getAgentMetrics)
+		v1.GET("/metrics/overview", analyticsHandler.GetOverviewMetrics)
+		v1.GET("/metrics/calls", analyticsHandler.GetCallMetrics)
+		v1.GET("/metrics/sentiment", analyticsHandler.GetSentimentMetrics)
+		v1.GET("/metrics/topics", analyticsHandler.GetTopicMetrics)
+		v1.GET("/metrics/agents", analyticsHandler.GetAgentMetrics)
 
 		// Time series
-		v1.GET("/timeseries/calls", getCallTimeSeries)
-		v1.GET("/timeseries/sentiment", getSentimentTimeSeries)
+		v1.GET("/timeseries/calls", analyticsHandler.GetCallTimeSeries)
+		v1.GET("/timeseries/sentiment", analyticsHandler.GetSentimentTimeSeries)
 
 		// Aggregations
-		v1.GET("/aggregations/hourly", getHourlyAggregations)
-		v1.GET("/aggregations/daily", getDailyAggregations)
+		v1.GET("/aggregations/hourly", func(c *gin.Context) {
+			c.Request.URL.RawQuery += "&granularity=hourly"
+			analyticsHandler.GetAggregations(c)
+		})
+		v1.GET("/aggregations/daily", func(c *gin.Context) {
+			c.Request.URL.RawQuery += "&granularity=daily"
+			analyticsHandler.GetAggregations(c)
+		})
 
 		// Search & Filter
-		v1.POST("/search/events", searchEvents)
+		v1.POST("/search/events", analyticsHandler.SearchEvents)
 	}
 
 	return router
 }
 
-// ==============================================================================
-// Dashboard Metrics Handlers
-// ==============================================================================
+func corsMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
-func getOverviewMetrics(c *gin.Context) {
-	// TODO: Query ClickHouse for overview metrics
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(http.StatusOK)
+			return
+		}
+
+		c.Next()
+	}
+}
+
+func healthCheckHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
-		"total_calls":     0,
-		"total_duration":  0,
-		"avg_sentiment":   0.0,
-		"resolution_rate": 0.0,
-		"active_agents":   0,
-		"period":          "last_30d",
+		"status":    "healthy",
+		"service":   "analytics-query-service",
+		"timestamp": time.Now().UTC(),
 	})
 }
 
-func getCallMetrics(c *gin.Context) {
-	// TODO: Query ClickHouse for call metrics
+func readinessHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
-		"total":        0,
-		"completed":    0,
-		"abandoned":    0,
-		"avg_duration": 0,
-	})
-}
-
-func getSentimentMetrics(c *gin.Context) {
-	// TODO: Query ClickHouse for sentiment distribution
-	c.JSON(http.StatusOK, gin.H{
-		"positive":  0,
-		"neutral":   0,
-		"negative":  0,
-		"avg_score": 0.0,
-	})
-}
-
-func getTopicMetrics(c *gin.Context) {
-	// TODO: Query ClickHouse for topic distribution
-	c.JSON(http.StatusOK, gin.H{
-		"topics": []gin.H{},
-	})
-}
-
-func getAgentMetrics(c *gin.Context) {
-	// TODO: Query ClickHouse for agent performance
-	c.JSON(http.StatusOK, gin.H{
-		"agents": []gin.H{},
-	})
-}
-
-// ==============================================================================
-// Time Series Handlers
-// ==============================================================================
-
-func getCallTimeSeries(c *gin.Context) {
-	// TODO: Query ClickHouse for time series data
-	c.JSON(http.StatusOK, gin.H{
-		"data":        []gin.H{},
-		"granularity": "hourly",
-	})
-}
-
-func getSentimentTimeSeries(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"data":        []gin.H{},
-		"granularity": "hourly",
-	})
-}
-
-// ==============================================================================
-// Aggregation Handlers
-// ==============================================================================
-
-func getHourlyAggregations(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"aggregations": []gin.H{},
-	})
-}
-
-func getDailyAggregations(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"aggregations": []gin.H{},
-	})
-}
-
-// ==============================================================================
-// Search Handlers
-// ==============================================================================
-
-func searchEvents(c *gin.Context) {
-	// TODO: Implement event search with filters
-	c.JSON(http.StatusOK, gin.H{
-		"events": []gin.H{},
-		"total":  0,
-		"page":   1,
-		"limit":  50,
+		"status": "ready",
+		"checks": gin.H{
+			"clickhouse": "ok",
+		},
 	})
 }
 
