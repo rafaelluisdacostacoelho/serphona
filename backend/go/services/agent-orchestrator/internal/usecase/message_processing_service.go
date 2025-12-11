@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -113,10 +114,58 @@ func (s *messageProcessingServiceImpl) ProcessMessage(
 		return nil, fmt.Errorf("failed to call LLM: %w", err)
 	}
 
-	// 8. Create assistant message
+	// 8. Process tool calls if present
+	if len(llmResponse.ToolCalls) > 0 && s.toolsClient != nil {
+		// Create assistant message with tool calls
+		assistantMessage := entity.NewAssistantMessage(request.SessionID, llmResponse.Content)
+		for _, tc := range llmResponse.ToolCalls {
+			assistantMessage.AddToolCall(tc)
+		}
+
+		// Add to session
+		if err := s.sessionService.AddMessage(ctx, request.SessionID, assistantMessage); err != nil {
+			return nil, fmt.Errorf("failed to add assistant message with tool calls: %w", err)
+		}
+
+		// Execute tools
+		toolResults, err := s.processToolCalls(ctx, session, llmResponse.ToolCalls)
+		if err != nil {
+			return nil, fmt.Errorf("failed to process tool calls: %w", err)
+		}
+
+		// Add tool result messages to session
+		for _, toolResult := range toolResults {
+			toolMsg := entity.NewToolMessage(request.SessionID, toolResult.ToolCallID, toolResult.Content)
+			if err := s.sessionService.AddMessage(ctx, request.SessionID, toolMsg); err != nil {
+				return nil, fmt.Errorf("failed to add tool result message: %w", err)
+			}
+		}
+
+		// Get updated messages for second LLM call
+		updatedMessages, err := s.sessionService.GetMessages(ctx, request.SessionID, 50, 0)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get updated messages: %w", err)
+		}
+
+		// Second LLM call with tool results
+		secondRequest := &service.ChatRequest{
+			Messages:    s.convertMessages(updatedMessages, agent.SystemPrompt),
+			Temperature: agent.Temperature,
+			MaxTokens:   agent.MaxTokens,
+			Tools:       s.convertTools(agent.Tools),
+			ToolChoice:  "auto",
+		}
+
+		llmResponse, err = s.clientPool.Chat(ctx, agent.Model, secondRequest)
+		if err != nil {
+			return nil, fmt.Errorf("failed to call LLM with tool results: %w", err)
+		}
+	}
+
+	// 9. Create final assistant message
 	assistantMessage := entity.NewAssistantMessage(request.SessionID, llmResponse.Content)
 
-	// Add tool calls if present
+	// Add tool calls if present (shouldn't happen on second call)
 	if len(llmResponse.ToolCalls) > 0 {
 		for _, tc := range llmResponse.ToolCalls {
 			assistantMessage.AddToolCall(tc)
@@ -138,12 +187,12 @@ func (s *messageProcessingServiceImpl) ProcessMessage(
 	assistantMessage.SetMetadata(metadata)
 	assistantMessage.CalculateCost()
 
-	// 9. Add assistant message to session
+	// 10. Add final assistant message to session
 	if err := s.sessionService.AddMessage(ctx, request.SessionID, assistantMessage); err != nil {
 		return nil, fmt.Errorf("failed to add assistant message: %w", err)
 	}
 
-	// 10. Build response
+	// 11. Build response
 	response := &ProcessMessageResponse{
 		MessageID: assistantMessage.ID,
 		Content:   assistantMessage.Content,
@@ -189,4 +238,72 @@ func (s *messageProcessingServiceImpl) convertTools(toolNames []string) []servic
 	// - Append to tools array
 
 	return tools
+}
+
+// ToolResult represents the result of tool execution
+type ToolResult struct {
+	ToolCallID string
+	Content    string
+}
+
+// processToolCalls executes tool calls via Tools Gateway
+func (s *messageProcessingServiceImpl) processToolCalls(
+	ctx context.Context,
+	session *entity.Session,
+	toolCalls []entity.ToolCall,
+) ([]ToolResult, error) {
+	results := make([]ToolResult, 0, len(toolCalls))
+
+	for _, toolCall := range toolCalls {
+		// Parse tool arguments
+		var params map[string]interface{}
+		if err := json.Unmarshal(toolCall.Arguments, &params); err != nil {
+			// If can't parse, create error result
+			results = append(results, ToolResult{
+				ToolCallID: toolCall.ID,
+				Content:    fmt.Sprintf("Error: failed to parse tool arguments: %v", err),
+			})
+			continue
+		}
+
+		// Execute tool via Tools Gateway
+		toolRequest := &service.ToolExecutionRequest{
+			ToolName:   toolCall.ToolName,
+			Parameters: params,
+			TenantID:   session.TenantID,
+			UserID:     session.UserID.String(),
+		}
+
+		toolResponse, err := s.toolsClient.ExecuteTool(ctx, toolRequest)
+		if err != nil {
+			// Create error result
+			results = append(results, ToolResult{
+				ToolCallID: toolCall.ID,
+				Content:    fmt.Sprintf("Error executing tool %s: %v", toolCall.ToolName, err),
+			})
+			continue
+		}
+
+		// Convert tool result to string
+		var resultContent string
+		if toolResponse.Status == "success" {
+			// Convert result map to JSON string
+			resultJSON, err := json.Marshal(toolResponse.Result)
+			if err != nil {
+				resultContent = fmt.Sprintf("Error: failed to marshal tool result: %v", err)
+			} else {
+				resultContent = string(resultJSON)
+			}
+		} else {
+			// Tool execution failed
+			resultContent = fmt.Sprintf("Tool execution failed: %s", toolResponse.Error)
+		}
+
+		results = append(results, ToolResult{
+			ToolCallID: toolCall.ID,
+			Content:    resultContent,
+		})
+	}
+
+	return results, nil
 }

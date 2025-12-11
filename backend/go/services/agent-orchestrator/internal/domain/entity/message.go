@@ -83,6 +83,14 @@ func NewSystemMessage(sessionID uuid.UUID, content string) *Message {
 	return NewMessage(sessionID, MessageRoleSystem, content)
 }
 
+// NewToolMessage creates a new tool result message
+func NewToolMessage(sessionID uuid.UUID, toolCallID, content string) *Message {
+	msg := NewMessage(sessionID, MessageRoleTool, content)
+	// Store tool call ID in a tool call for reference
+	msg.ToolCalls = []ToolCall{{ID: toolCallID}}
+	return msg
+}
+
 // AddToolCall adds a tool call to the message
 func (m *Message) AddToolCall(toolCall ToolCall) {
 	m.ToolCalls = append(m.ToolCalls, toolCall)
