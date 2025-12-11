@@ -1,0 +1,34 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: analytics-query-service
+  namespace: serphona
+spec:
+  hosts:
+  - analytics-query-service
+  - analytics-query-service.serphona.svc.cluster.local
+  http:
+  - match:
+    - uri:
+        prefix: /api/v1
+    - uri:
+        exact: /health
+    - uri:
+        exact: /ready
+    route:
+    - destination:
+        host: analytics-query-service
+        port:
+          number: 8084
+        subset: v1
+      weight: 100
+    timeout: 30s
+    retries:
+      attempts: 3
+      perTryTimeout: 10s
+      retryOn: gateway-error,connect-failure,refused-stream,unavailable,cancelled,resource-exhausted,retriable-status-codes
+    fault:
+      delay:
+        percentage:
+          value: 0.1
+        fixedDelay: 5s

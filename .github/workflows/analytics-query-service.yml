@@ -1,0 +1,195 @@
+name: Analytics Query Service CI/CD
+
+on:
+  push:
+    branches: [ master, develop ]
+    paths:
+      - 'backend/go/services/analytics-query-service/**'
+      - '.github/workflows/analytics-query-service.yml'
+  pull_request:
+    branches: [ master, develop ]
+    paths:
+      - 'backend/go/services/analytics-query-service/**'
+
+env:
+  SERVICE_NAME: analytics-query-service
+  SERVICE_PATH: backend/go/services/analytics-query-service
+  GO_VERSION: '1.21'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/analytics-query-service
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: ${{ env.SERVICE_PATH }}/go.sum
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: latest
+          working-directory: ${{ env.SERVICE_PATH }}
+          args: --timeout=5m
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: ${{ env.SERVICE_PATH }}/go.sum
+
+      - name: Download dependencies
+        working-directory: ${{ env.SERVICE_PATH }}
+        run: go mod download
+
+      - name: Build
+        working-directory: ${{ env.SERVICE_PATH }}
+        run: go build -v -o bin/analytics-query-service ./cmd/server/main.go
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: analytics-query-service
+          path: ${{ env.SERVICE_PATH }}/bin/analytics-query-service
+          retention-days: 1
+
+  docker:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ env.SERVICE_PATH }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: docker
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    environment:
+      name: staging
+      url: https://staging-analytics-api.serphona.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure kubectl
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG_STAGING }}
+        run: |
+          mkdir -p ~/.kube
+          echo "$KUBE_CONFIG" | base64 -d > ~/.kube/config
+
+      - name: Deploy to Kubernetes
+        working-directory: ${{ env.SERVICE_PATH }}
+        run: |
+          kubectl apply -f k8s/configmap.yaml -n serphona-staging
+          kubectl apply -f k8s/deployment.yaml -n serphona-staging
+          kubectl rollout status deployment/analytics-query-service -n serphona-staging --timeout=5m
+
+      - name: Verify deployment
+        run: |
+          kubectl get pods -n serphona-staging -l app=analytics-query-service
+          kubectl get svc -n serphona-staging analytics-query-service
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: docker
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    environment:
+      name: production
+      url: https://analytics-api.serphona.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure kubectl
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG_PRODUCTION }}
+        run: |
+          mkdir -p ~/.kube
+          echo "$KUBE_CONFIG" | base64 -d > ~/.kube/config
+
+      - name: Deploy to Kubernetes
+        working-directory: ${{ env.SERVICE_PATH }}
+        run: |
+          kubectl apply -f k8s/configmap.yaml -n serphona
+          kubectl apply -f k8s/deployment.yaml -n serphona
+          kubectl apply -f k8s/istio/ -n serphona
+          kubectl rollout status deployment/analytics-query-service -n serphona --timeout=5m
+
+      - name: Verify deployment
+        run: |
+          kubectl get pods -n serphona -l app=analytics-query-service
+          kubectl get svc -n serphona analytics-query-service
+          kubectl get virtualservice -n serphona analytics-query-service
+          kubectl get destinationrule -n serphona analytics-query-service
+
+      - name: Run smoke tests
+        run: |
+          SERVICE_URL="https://analytics-api.serphona.com"
+          
+          # Health check
+          curl -f $SERVICE_URL/health || exit 1
+          
+          # Readiness check
+          curl -f $SERVICE_URL/ready || exit 1
+          
+          echo "✅ Smoke tests passed"
