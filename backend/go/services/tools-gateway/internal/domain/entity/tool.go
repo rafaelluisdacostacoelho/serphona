@@ -54,15 +54,6 @@ func (Tool) TableName() string {
 	return "tools"
 }
 
-// AuthType constants
-const (
-	AuthTypeNone   = "none"
-	AuthTypeAPIKey = "api_key"
-	AuthTypeBearer = "bearer"
-	AuthTypeBasic  = "basic"
-	AuthTypeOAuth2 = "oauth2"
-)
-
 // HTTPMethod constants
 const (
 	HTTPMethodGET    = "GET"

@@ -98,7 +98,7 @@ func (v *schemaValidatorImpl) formatValidationErrors(result *gojsonschema.Result
 		errMsg += fmt.Sprintf("\n  - %s: %s", err.Field(), err.Description())
 	}
 
-	return fmt.Errorf(errMsg)
+	return fmt.Errorf("%s", errMsg)
 }
 
 // ValidationError represents a validation error

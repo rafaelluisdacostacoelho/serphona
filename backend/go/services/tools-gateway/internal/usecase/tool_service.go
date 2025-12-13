@@ -168,11 +168,11 @@ func (s *toolServiceImpl) ListToolsByCategory(ctx context.Context, category stri
 
 func isValidAuthType(authType string) bool {
 	validTypes := []string{
-		entity.AuthTypeNone,
-		entity.AuthTypeAPIKey,
-		entity.AuthTypeBearer,
-		entity.AuthTypeBasic,
-		entity.AuthTypeOAuth2,
+		entity.AuthTypeNone.String(),
+		entity.AuthTypeAPIKey.String(),
+		entity.AuthTypeBearer.String(),
+		entity.AuthTypeBasic.String(),
+		entity.AuthTypeOAuth2.String(),
 	}
 
 	for _, valid := range validTypes {

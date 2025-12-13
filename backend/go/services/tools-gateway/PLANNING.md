@@ -24,32 +24,32 @@ O **Tools Gateway** é um microserviço responsável por gerenciar e executar fe
 ### Componentes Principais
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     Tools Gateway Service                    │
-│                                                              │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ Tool Registry│  │   Executor   │  │  Validator   │     │
-│  │              │  │              │  │              │     │
-│  │ • CRUD Tools │  │ • HTTP Client│  │ • JSON Schema│     │
-│  │ • Schemas    │  │ • Retry Logic│  │ • Input/Out  │     │
-│  │ • Auth Cfg   │  │ • Timeouts   │  │ • Rate Limit │     │
-│  └──────────────┘  └──────────────┘  └──────────────┘     │
-│                                                              │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ Auth Manager │  │ Rate Limiter │  │   Analytics  │     │
-│  │              │  │              │  │              │     │
-│  │ • Per-Tool   │  │ • Redis Based│  │ • Kafka Pub  │     │
-│  │ • Per-Tenant │  │ • Token Bucket│ │ • Latency    │     │
-│  │ • OAuth Flow │  │ • Per Tenant │  │ • Success    │     │
-│  └──────────────┘  └──────────────┘  └──────────────┘     │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│                  Tools Gateway Service                  │
+│                                                         │
+│  ┌──────────────┐  ┌───────────────┐  ┌──────────────┐  │
+│  │ Tool Registry│  │   Executor    │  │  Validator   │  │
+│  │              │  │               │  │              │  │
+│  │ • CRUD Tools │  │ • HTTP Client │  │ • JSON Schema│  │
+│  │ • Schemas    │  │ • Retry Logic │  │ • Input/Out  │  │
+│  │ • Auth Cfg   │  │ • Timeouts    │  │ • Rate Limit │  │
+│  └──────────────┘  └───────────────┘  └──────────────┘  │
+│                                                         │
+│  ┌──────────────┐  ┌───────────────┐  ┌──────────────┐  │
+│  │ Auth Manager │  │ Rate Limiter  │  │   Analytics  │  │
+│  │              │  │               │  │              │  │
+│  │ • Per-Tool   │  │ • Redis Based │  │ • Kafka Pub  │  │
+│  │ • Per-Tenant │  │ • Token Bucket│  │ • Latency    │  │
+│  │ • OAuth Flow │  │ • Per Tenant  │  │ • Success    │  │
+│  └──────────────┘  └───────────────┘  └──────────────┘  │
+└─────────────────────────────────────────────────────────┘
          │                    │                    │
          ▼                    ▼                    ▼
-   ┌─────────┐         ┌──────────┐        ┌───────────┐
-   │PostgreSQL│         │  Redis   │        │   Kafka   │
-   │         │         │          │        │           │
-   │Tools DB │         │Rate Limit│        │ Analytics │
-   └─────────┘         └──────────┘        └───────────┘
+   ┌────────────┐       ┌────────────┐       ┌───────────┐
+   │ PostgreSQL │       │   Redis    │       │   Kafka   │
+   │            │       │            │       │           │
+   │  Tools DB  │       │ Rate Limit │       │ Analytics │
+   └────────────┘       └────────────┘       └───────────┘
 ```
 
 ### Fluxo de Execução

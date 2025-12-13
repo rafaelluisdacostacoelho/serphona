@@ -224,22 +224,22 @@ Authorization: Bearer {jwt_token}
 
 ```
 ┌─────────────────────────────────────┐
-│       Presentation Layer            │
-│  (HTTP Handlers, DTOs, Routes)      │
+│         Presentation Layer          │
+│    (HTTP Handlers, DTOs, Routes)    │
 └─────────────────────────────────────┘
                   ↓
 ┌─────────────────────────────────────┐
-│         Use Case Layer              │
-│  (Business Logic, Orchestration)    │
+│           Use Case Layer            │
+│   (Business Logic, Orchestration)   │
 └─────────────────────────────────────┘
                   ↓
 ┌─────────────────────────────────────┐
-│         Domain Layer                │
+│           Domain Layer              │
 │  (Entities, Repository Interfaces)  │
 └─────────────────────────────────────┘
                   ↓
 ┌─────────────────────────────────────┐
-│      Infrastructure Layer           │
+│         Infrastructure Layer        │
 │  (Database, HTTP Client, Validator) │
 └─────────────────────────────────────┘
 ```
@@ -331,7 +331,7 @@ Authorization: Bearer {jwt_token}
 9. VALIDA OUTPUT contra JSON Schema
    ↓
 10. LOGA execução no DB (analytics)
-    ↓
+   ↓
 11. Retorna resultado
 ```
 

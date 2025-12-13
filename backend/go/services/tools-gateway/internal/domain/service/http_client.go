@@ -191,13 +191,13 @@ func (c *httpClientImpl) addAuthentication(req *http.Request, authType string, d
 	}
 
 	switch authType {
-	case entity.AuthTypeAPIKey:
+	case entity.AuthTypeAPIKey.String():
 		return c.addAPIKeyAuth(req, config)
-	case entity.AuthTypeBearer:
+	case entity.AuthTypeBearer.String():
 		return c.addBearerAuth(req, config)
-	case entity.AuthTypeBasic:
+	case entity.AuthTypeBasic.String():
 		return c.addBasicAuth(req, config)
-	case entity.AuthTypeNone:
+	case entity.AuthTypeNone.String():
 		return nil
 	default:
 		return fmt.Errorf("unsupported auth type: %s", authType)
