@@ -1,80 +1,55 @@
-# =============================================================================
-# Tenant Management Service - Multi-stage Dockerfile
-# =============================================================================
-# Build: docker build -t tenant-manager:latest .
-# Run:   docker run -p 8080:8080 -p 9090:9090 tenant-manager:latest
-# =============================================================================
-
-# -----------------------------------------------------------------------------
-# Stage 1: Build
-# -----------------------------------------------------------------------------
-FROM golang:1.22-alpine AS builder
+# Build stage
+FROM golang:1.21-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates tzdata
 
-# Create non-root user for runtime
-RUN adduser -D -g '' appuser
-
 # Set working directory
-WORKDIR /build
+WORKDIR /app
 
-# Copy go mod files first for better layer caching
+# Copy go mod files
 COPY go.mod go.sum ./
-RUN go mod download && go mod verify
+
+# Download dependencies
+RUN go mod download
 
 # Copy source code
 COPY . .
 
-# Build arguments
-ARG VERSION=dev
-ARG BUILD_TIME=unknown
-
-# Build the binary
+# Build the application
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-    -ldflags="-s -w -X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME}" \
-    -o /build/bin/tenant-manager \
+    -ldflags="-w -s" \
+    -o /app/bin/tenant-manager \
     ./cmd/server
 
-# -----------------------------------------------------------------------------
-# Stage 2: Runtime
-# -----------------------------------------------------------------------------
-FROM scratch
+# Final stage
+FROM alpine:latest
 
-# Import from builder
-COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=builder /etc/passwd /etc/passwd
+# Install runtime dependencies
+RUN apk --no-cache add ca-certificates tzdata curl
 
-# Copy binary
-COPY --from=builder /build/bin/tenant-manager /app/tenant-manager
-
-# Copy migrations (if running migrations from container)
-COPY --from=builder /build/migrations /app/migrations
-
-# Use non-root user
-USER appuser
+# Create non-root user
+RUN addgroup -g 1000 app && \
+    adduser -D -u 1000 -G app app
 
 # Set working directory
 WORKDIR /app
 
+# Copy binary from builder
+COPY --from=builder /app/bin/tenant-manager /app/tenant-manager
+
+# Change ownership
+RUN chown -R app:app /app
+
+# Switch to non-root user
+USER app
+
 # Expose ports
-# 8080 - HTTP API
-# 9090 - gRPC API
-# 9091 - Prometheus metrics
-EXPOSE 8080 9090 9091
+EXPOSE 8080 9090
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD ["/app/tenant-manager", "healthcheck"] || exit 1
+    CMD curl -f http://localhost:8080/health || exit 1
 
-# Default environment variables
-ENV SERVER_HOST=0.0.0.0 \
-    SERVER_PORT=8080 \
-    GRPC_PORT=9090 \
-    METRICS_PORT=9091 \
-    LOG_LEVEL=info \
-    ENVIRONMENT=production
-
-# Run the binary
+# Run the application
 ENTRYPOINT ["/app/tenant-manager"]

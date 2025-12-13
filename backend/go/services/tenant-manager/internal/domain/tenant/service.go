@@ -68,7 +68,7 @@ func (s *Service) Create(ctx context.Context, name, email string, plan Plan) (*T
 	tenant.Slug = slug
 
 	// Save to repository
-	if err := s.repo.Save(ctx, tenant); err != nil {
+	if err := s.repo.Create(ctx, tenant); err != nil {
 		return nil, fmt.Errorf("failed to save tenant: %w", err)
 	}
 
@@ -78,7 +78,7 @@ func (s *Service) Create(ctx context.Context, name, email string, plan Plan) (*T
 // Update updates an existing tenant with validation.
 func (s *Service) Update(ctx context.Context, id uuid.UUID, name, email, phone string) (*Tenant, error) {
 	// Get existing tenant
-	tenant, err := s.repo.FindByID(ctx, id)
+	tenant, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +128,7 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, name, email, phone s
 // UpdateSettings updates tenant settings with validation.
 func (s *Service) UpdateSettings(ctx context.Context, id uuid.UUID, settings Settings) (*Tenant, error) {
 	// Get existing tenant
-	tenant, err := s.repo.FindByID(ctx, id)
+	tenant, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +152,7 @@ func (s *Service) UpdateSettings(ctx context.Context, id uuid.UUID, settings Set
 
 // Activate activates a tenant.
 func (s *Service) Activate(ctx context.Context, id uuid.UUID) error {
-	tenant, err := s.repo.FindByID(ctx, id)
+	tenant, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -176,7 +176,7 @@ func (s *Service) Activate(ctx context.Context, id uuid.UUID) error {
 
 // Suspend suspends a tenant.
 func (s *Service) Suspend(ctx context.Context, id uuid.UUID, reason string) error {
-	tenant, err := s.repo.FindByID(ctx, id)
+	tenant, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -209,7 +209,7 @@ func (s *Service) Suspend(ctx context.Context, id uuid.UUID, reason string) erro
 
 // Delete soft deletes a tenant.
 func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
-	tenant, err := s.repo.FindByID(ctx, id)
+	tenant, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -233,7 +233,7 @@ func (s *Service) ChangePlan(ctx context.Context, id uuid.UUID, newPlan Plan) er
 		return err
 	}
 
-	tenant, err := s.repo.FindByID(ctx, id)
+	tenant, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return err
 	}

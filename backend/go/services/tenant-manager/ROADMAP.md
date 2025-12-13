@@ -4,14 +4,14 @@ Comparando o README com a estrutura atual, identifiquei __os seguintes arquivos 
 
 ### 🔴 CRÍTICOS (Impedem funcionamento)
 
-#### 1. __cmd/server/main.go__ ⚠️ ESSENCIAL
+#### [x] 1. __cmd/server/main.go__ ⚠️ ESSENCIAL
 
 - Entry point da aplicação
 - Setup do servidor HTTP e gRPC
 - Dependency injection
 - Graceful shutdown
 
-#### 2. __internal/domain/tenant/service.go__
+#### [x] 2. __internal/domain/tenant/service.go__
 
 - Lógica de negócio do domínio
 - Validações de regras de negócio

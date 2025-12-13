@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tenant-manager-config
+  namespace: serphona
+  labels:
+    app: tenant-manager
+    component: backend
+data:
+  # Kafka configuration
+  kafka-brokers: "kafka-0.kafka-headless.kafka.svc.cluster.local:9092,kafka-1.kafka-headless.kafka.svc.cluster.local:9092,kafka-2.kafka-headless.kafka.svc.cluster.local:9092"
+  
+  # Observability
+  log-level: "info"
+  log-format: "json"
+  
+  # Server configuration
+  server-read-timeout: "15s"
+  server-write-timeout: "15s"
+  server-idle-timeout: "60s"
+  
+  # Database configuration
+  database-max-open-conns: "25"
+  database-max-idle-conns: "5"
+  database-conn-max-lifetime: "5m"

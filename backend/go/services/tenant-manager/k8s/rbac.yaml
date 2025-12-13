@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tenant-manager
+  namespace: serphona
+  labels:
+    app: tenant-manager
+    component: backend
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: tenant-manager
+  namespace: serphona
+  labels:
+    app: tenant-manager
+    component: backend
+rules:
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tenant-manager
+  namespace: serphona
+  labels:
+    app: tenant-manager
+    component: backend
+subjects:
+- kind: ServiceAccount
+  name: tenant-manager
+  namespace: serphona
+roleRef:
+  kind: Role
+  name: tenant-manager
+  apiGroup: rbac.authorization.k8s.io
