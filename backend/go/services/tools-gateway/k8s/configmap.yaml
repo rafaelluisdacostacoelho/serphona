@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tools-gateway-config
+  namespace: serphona
+data:
+  # Database
+  db-host: "postgres-service"
+  db-port: "5432"
+  db-name: "serphona_tools"
+  
+  # Observability
+  jaeger-endpoint: "http://jaeger-collector:14268/api/traces"
+  
+  # App Config
+  log-level: "info"
+  timeout: "30s"
+  max-connections: "100"

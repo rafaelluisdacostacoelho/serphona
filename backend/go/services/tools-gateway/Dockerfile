@@ -2,10 +2,9 @@
 FROM golang:1.21-alpine AS builder
 
 # Install build dependencies
-RUN apk add --no-cache git ca-certificates
+RUN apk add --no-cache git ca-certificates tzdata
 
-# Set working directory
-WORKDIR /app
+WORKDIR /build
 
 # Copy go mod files
 COPY go.mod go.sum ./
@@ -17,12 +16,15 @@ RUN go mod download
 COPY . .
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags="-w -s" -o /app/tools-gateway ./cmd/server/main.go
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags="-w -s" \
+    -o tools-gateway \
+    ./cmd/api
 
-# Runtime stage
-FROM alpine:latest
+# Final stage
+FROM alpine:3.19
 
-# Install runtime dependencies
+# Install ca-certificates for HTTPS requests
 RUN apk --no-cache add ca-certificates tzdata
 
 # Create non-root user
@@ -32,21 +34,21 @@ RUN addgroup -g 1000 appuser && \
 WORKDIR /app
 
 # Copy binary from builder
-COPY --from=builder /app/tools-gateway .
-COPY --from=builder /app/migrations ./migrations
+COPY --from=builder /build/tools-gateway .
+COPY --from=builder /build/migrations ./migrations
 
 # Change ownership
 RUN chown -R appuser:appuser /app
 
-# Switch to non-root user
+# Use non-root user
 USER appuser
 
 # Expose port
-EXPOSE 8085
+EXPOSE 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8085/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
 
 # Run the application
-ENTRYPOINT ["./tools-gateway"]
+ENTRYPOINT ["/app/tools-gateway"]

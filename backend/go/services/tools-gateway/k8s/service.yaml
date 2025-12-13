@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: tools-gateway
+  namespace: serphona
+  labels:
+    app: tools-gateway
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+spec:
+  type: ClusterIP
+  selector:
+    app: tools-gateway
+  ports:
+  - name: http
+    port: 80
+    targetPort: http
+    protocol: TCP
+  - name: grpc
+    port: 9090
+    targetPort: grpc
+    protocol: TCP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tools-gateway-headless
+  namespace: serphona
+  labels:
+    app: tools-gateway
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: tools-gateway
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
+    protocol: TCP
+  - name: grpc
+    port: 9090
+    targetPort: grpc
+    protocol: TCP
