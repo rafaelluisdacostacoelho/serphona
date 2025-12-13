@@ -227,17 +227,17 @@ Authorization: Bearer {jwt_token}
 │       Presentation Layer            │
 │  (HTTP Handlers, DTOs, Routes)      │
 └─────────────────────────────────────┘
-              ↓
+                  ↓
 ┌─────────────────────────────────────┐
 │         Use Case Layer              │
 │  (Business Logic, Orchestration)    │
 └─────────────────────────────────────┘
-              ↓
+                  ↓
 ┌─────────────────────────────────────┐
 │         Domain Layer                │
 │  (Entities, Repository Interfaces)  │
 └─────────────────────────────────────┘
-              ↓
+                  ↓
 ┌─────────────────────────────────────┐
 │      Infrastructure Layer           │
 │  (Database, HTTP Client, Validator) │

@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: voice-gateway-config
+  namespace: serphona
+  labels:
+    app: voice-gateway
+    component: telephony
+data:
+  # Asterisk Configuration
+  asterisk.ari.url: "http://asterisk:8088/ari"
+  
+  # Redis Configuration
+  redis.url: "redis://redis-master:6379/0"
+  
+  # Kafka Configuration
+  kafka.brokers: "kafka-0.kafka-headless:9092,kafka-1.kafka-headless:9092,kafka-2.kafka-headless:9092"
+  
+  # Service URLs
+  tenant.manager.url: "http://tenant-manager"
+  agent.orchestrator.url: "http://agent-orchestrator"
+  
+  # Google Cloud (optional)
+  google.cloud.project.id: ""

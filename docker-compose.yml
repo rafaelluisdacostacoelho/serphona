@@ -1,0 +1,313 @@
+version: '3.9'
+
+services:
+  # ============================================================================
+  # Infrastructure Services
+  # ============================================================================
+  
+  # PostgreSQL - Database principal
+  postgres:
+    image: postgres:16-alpine
+    container_name: serphona-postgres
+    environment:
+      POSTGRES_USER: serphona
+      POSTGRES_PASSWORD: serphona_dev
+      POSTGRES_DB: serphona
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U serphona"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - serphona
+  
+  # Redis - Cache e sessões
+  redis:
+    image: redis:7-alpine
+    container_name: serphona-redis
+    command: redis-server --requirepass serphona_dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - serphona
+  
+  # Kafka - Event Streaming
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: serphona-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - serphona
+  
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: serphona-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server=localhost:9092"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - serphona
+  
+  # Asterisk - Telephony Server (opcional - comentado por padrão)
+  # asterisk:
+  #   image: andrius/asterisk:18
+  #   container_name: serphona-asterisk
+  #   ports:
+  #     - "8088:8088"  # ARI HTTP
+  #     - "5060:5060/udp"  # SIP
+  #   volumes:
+  #     - ./asterisk/config:/etc/asterisk
+  #   networks:
+  #     - serphona
+  
+  # ============================================================================
+  # Backend Services (Go)
+  # ============================================================================
+  
+  # Tenant Manager
+  tenant-manager:
+    build:
+      context: ./backend/go/services/tenant-manager
+      dockerfile: Dockerfile
+    container_name: serphona-tenant-manager
+    environment:
+      SERVICE_NAME: tenant-manager
+      HTTP_PORT: 8080
+      DATABASE_URL: postgres://serphona:serphona_dev@postgres:5432/serphona?sslmode=disable
+      REDIS_URL: redis://:serphona_dev@redis:6379/0
+      KAFKA_BROKERS: kafka:29092
+      LOG_LEVEL: debug
+    ports:
+      - "8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - serphona
+  
+  # Auth Gateway
+  auth-gateway:
+    build:
+      context: ./backend/go/services/auth-gateway
+      dockerfile: Dockerfile
+    container_name: serphona-auth-gateway
+    environment:
+      SERVICE_NAME: auth-gateway
+      HTTP_PORT: 8080
+      DATABASE_URL: postgres://serphona:serphona_dev@postgres:5432/serphona?sslmode=disable
+      REDIS_URL: redis://:serphona_dev@redis:6379/1
+      JWT_SECRET: dev-jwt-secret-change-in-production
+      LOG_LEVEL: debug
+    ports:
+      - "8082:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - serphona
+  
+  # Agent Orchestrator
+  agent-orchestrator:
+    build:
+      context: ./backend/go/services/agent-orchestrator
+      dockerfile: Dockerfile
+    container_name: serphona-agent-orchestrator
+    environment:
+      SERVICE_NAME: agent-orchestrator
+      HTTP_PORT: 8080
+      REDIS_URL: redis://:serphona_dev@redis:6379/2
+      KAFKA_BROKERS: kafka:29092
+      TENANT_MANAGER_URL: http://tenant-manager:8080
+      TOOLS_GATEWAY_URL: http://tools-gateway:8080
+      LOG_LEVEL: debug
+    ports:
+      - "8083:8080"
+    depends_on:
+      - redis
+      - kafka
+      - tenant-manager
+    networks:
+      - serphona
+  
+  # Tools Gateway
+  tools-gateway:
+    build:
+      context: ./backend/go/services/tools-gateway
+      dockerfile: Dockerfile
+    container_name: serphona-tools-gateway
+    environment:
+      SERVICE_NAME: tools-gateway
+      HTTP_PORT: 8080
+      REDIS_URL: redis://:serphona_dev@redis:6379/3
+      KAFKA_BROKERS: kafka:29092
+      LOG_LEVEL: debug
+    ports:
+      - "8084:8080"
+    depends_on:
+      - redis
+      - kafka
+    networks:
+      - serphona
+  
+  # Voice Gateway (comentado - requer Asterisk)
+  # voice-gateway:
+  #   build:
+  #     context: ./backend/go/services/voice-gateway
+  #     dockerfile: Dockerfile
+  #   container_name: serphona-voice-gateway
+  #   environment:
+  #     SERVICE_NAME: voice-gateway
+  #     HTTP_PORT: 8080
+  #     ASTERISK_ARI_URL: http://asterisk:8088/ari
+  #     ASTERISK_ARI_USERNAME: serphona
+  #     ASTERISK_ARI_PASSWORD: serphona_dev
+  #     REDIS_URL: redis://:serphona_dev@redis:6379/4
+  #     KAFKA_BROKERS: kafka:29092
+  #     TENANT_MANAGER_URL: http://tenant-manager:8080
+  #     AGENT_ORCHESTRATOR_URL: http://agent-orchestrator:8080
+  #     LOG_LEVEL: debug
+  #   ports:
+  #     - "8085:8080"
+  #   depends_on:
+  #     - asterisk
+  #     - redis
+  #     - kafka
+  #     - tenant-manager
+  #     - agent-orchestrator
+  #   networks:
+  #     - serphona
+  
+  # Billing Service
+  billing-service:
+    build:
+      context: ./backend/go/services/billing-service
+      dockerfile: Dockerfile
+    container_name: serphona-billing-service
+    environment:
+      SERVICE_NAME: billing-service
+      HTTP_PORT: 8080
+      DATABASE_URL: postgres://serphona:serphona_dev@postgres:5432/serphona?sslmode=disable
+      REDIS_URL: redis://:serphona_dev@redis:6379/5
+      KAFKA_BROKERS: kafka:29092
+      LOG_LEVEL: debug
+    ports:
+      - "8086:8080"
+    depends_on:
+      - postgres
+      - redis
+      - kafka
+    networks:
+      - serphona
+  
+  # ============================================================================
+  # Backend Services (Python)
+  # ============================================================================
+  
+  # Analytics Processor Service
+  analytics-processor:
+    build:
+      context: ./backend/python/analytics-processor-service
+      dockerfile: Dockerfile
+    container_name: serphona-analytics-processor
+    environment:
+      SERVICE_NAME: analytics-processor
+      KAFKA_BROKERS: kafka:29092
+      DATABASE_URL: postgres://serphona:serphona_dev@postgres:5432/serphona?sslmode=disable
+      LOG_LEVEL: DEBUG
+    depends_on:
+      - postgres
+      - kafka
+    networks:
+      - serphona
+  
+  # ============================================================================
+  # Frontend Services
+  # ============================================================================
+  
+  # Console (Main Application)
+  console:
+    build:
+      context: ./frontend/console
+      dockerfile: Dockerfile
+    container_name: serphona-console
+    ports:
+      - "3000:80"
+    environment:
+      VITE_API_URL: http://localhost:8080
+      VITE_AUTH_URL: http://localhost:8082
+    networks:
+      - serphona
+  
+  # Auth MFE
+  auth-mfe:
+    build:
+      context: ./frontend/auth-mfe
+      dockerfile: Dockerfile
+    container_name: serphona-auth-mfe
+    ports:
+      - "3001:80"
+    networks:
+      - serphona
+  
+  # Billing MFE
+  billing-mfe:
+    build:
+      context: ./frontend/billing-mfe
+      dockerfile: Dockerfile
+    container_name: serphona-billing-mfe
+    ports:
+      - "3002:80"
+    networks:
+      - serphona
+  
+  # Website (Landing Page)
+  website:
+    build:
+      context: ./frontend/website
+      dockerfile: Dockerfile
+    container_name: serphona-website
+    ports:
+      - "3003:80"
+    networks:
+      - serphona
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  serphona:
+    driver: bridge

@@ -1,0 +1,193 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: voice-gateway
+  namespace: serphona
+  labels:
+    app: voice-gateway
+    component: telephony
+    tier: backend
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: voice-gateway
+  template:
+    metadata:
+      labels:
+        app: voice-gateway
+        component: telephony
+        tier: backend
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: voice-gateway
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      
+      containers:
+      - name: voice-gateway
+        image: serphona/voice-gateway:latest
+        imagePullPolicy: IfNotPresent
+        
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: metrics
+          containerPort: 9091
+          protocol: TCP
+        
+        env:
+        - name: SERVICE_NAME
+          value: "voice-gateway"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: HTTP_PORT
+          value: "8080"
+        - name: METRICS_PORT
+          value: "9091"
+        
+        # Asterisk Configuration
+        - name: ASTERISK_ARI_URL
+          valueFrom:
+            configMapKeyRef:
+              name: voice-gateway-config
+              key: asterisk.ari.url
+        - name: ASTERISK_ARI_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: voice-gateway-secrets
+              key: asterisk.ari.username
+        - name: ASTERISK_ARI_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: voice-gateway-secrets
+              key: asterisk.ari.password
+        - name: ASTERISK_ARI_APP_NAME
+          value: "serphona"
+        
+        # Redis Configuration
+        - name: REDIS_URL
+          valueFrom:
+            configMapKeyRef:
+              name: voice-gateway-config
+              key: redis.url
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: voice-gateway-secrets
+              key: redis.password
+              optional: true
+        
+        # Kafka Configuration
+        - name: KAFKA_BROKERS
+          valueFrom:
+            configMapKeyRef:
+              name: voice-gateway-config
+              key: kafka.brokers
+        - name: KAFKA_TOPIC_PREFIX
+          value: "serphona.voice"
+        
+        # Service Dependencies
+        - name: TENANT_MANAGER_URL
+          valueFrom:
+            configMapKeyRef:
+              name: voice-gateway-config
+              key: tenant.manager.url
+        - name: AGENT_ORCHESTRATOR_URL
+          valueFrom:
+            configMapKeyRef:
+              name: voice-gateway-config
+              key: agent.orchestrator.url
+        
+        # Google Cloud Configuration (optional)
+        - name: GOOGLE_CLOUD_PROJECT_ID
+          valueFrom:
+            configMapKeyRef:
+              name: voice-gateway-config
+              key: google.cloud.project.id
+              optional: true
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: "/etc/secrets/google/credentials.json"
+        
+        # ElevenLabs Configuration (optional)
+        - name: ELEVENLABS_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: voice-gateway-secrets
+              key: elevenlabs.api.key
+              optional: true
+        
+        # Feature Flags
+        - name: MAX_CONCURRENT_CALLS
+          value: "100"
+        - name: ENABLE_RECORDING
+          value: "true"
+        - name: AUDIO_BUFFER_SIZE
+          value: "8192"
+        
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 2
+        
+        volumeMounts:
+        - name: google-credentials
+          mountPath: /etc/secrets/google
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+      
+      volumes:
+      - name: google-credentials
+        secret:
+          secretName: google-cloud-credentials
+          optional: true
+      - name: tmp
+        emptyDir: {}
+      
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - voice-gateway
+              topologyKey: kubernetes.io/hostname
+      
+      terminationGracePeriodSeconds: 30

@@ -1,0 +1,13 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: voice-gateway
+  namespace: serphona
+  labels:
+    app: voice-gateway
+    component: telephony
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: voice-gateway

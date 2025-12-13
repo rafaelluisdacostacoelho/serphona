@@ -23,15 +23,19 @@ type Provider interface {
 
 // SynthesizeConfig contains configuration for speech synthesis.
 type SynthesizeConfig struct {
-	Language      string  // Language code (e.g., "pt-BR", "en-US")
-	VoiceID       string  // Voice ID (provider-specific)
-	Gender        string  // Voice gender: "male", "female", "neutral"
-	SpeechRate    float64 // Speech rate (0.25 to 4.0, default 1.0)
-	Pitch         float64 // Voice pitch (-20.0 to 20.0, default 0.0)
-	Volume        float64 // Audio volume (0.0 to 1.0, default 1.0)
-	SampleRate    int     // Sample rate in Hz (e.g., 16000, 24000)
-	AudioEncoding string  // Audio encoding (e.g., "pcm", "mp3", "opus")
-	Model         string  // Model to use (provider-specific)
+	Language       string   // Language code (e.g., "pt-BR", "en-US")
+	VoiceID        string   // Voice ID (provider-specific)
+	Gender         string   // Voice gender: "male", "female", "neutral"
+	SpeechRate     float64  // Speech rate (0.25 to 4.0, default 1.0)
+	SpeakingRate   float32  // Speaking rate (alias for compatibility)
+	Pitch          float64  // Voice pitch (-20.0 to 20.0, default 0.0)
+	Volume         float64  // Audio volume (0.0 to 1.0, default 1.0)
+	VolumeGainDb   float32  // Volume gain in dB (Google TTS)
+	SampleRate     int      // Sample rate in Hz (e.g., 16000, 24000)
+	AudioEncoding  string   // Audio encoding (e.g., "pcm", "mp3", "opus")
+	Model          string   // Model to use (provider-specific)
+	SSML           bool     // Whether input is SSML
+	EffectsProfile []string // Audio effects profile IDs
 }
 
 // AudioFormat represents supported audio formats.
@@ -61,4 +65,12 @@ type Voice struct {
 	Language string
 	Gender   string
 	Provider string
+}
+
+// VoiceInfo represents detailed voice information.
+type VoiceInfo struct {
+	Name          string
+	LanguageCodes []string
+	Gender        string
+	SampleRate    int
 }

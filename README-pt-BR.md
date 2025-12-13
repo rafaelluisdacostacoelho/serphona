@@ -22,20 +22,22 @@ Serphona é uma plataforma completa de Voice of Customer (VoC) que combina agent
 │                                           │                                                │
 │                                           ▼                                                │
 │ ┌────────────────────────────────────────────────────────────────────────────────────────┐ │
-│ │                           BACKEND SERVICES (Kubernetes)                                │ │
+│ │                              BACKEND SERVICES (Kubernetes)                             │ │
 │ │                                                                                        │ │
-│ │  ┌─────────────────────────── Go Services ───────────────────────────────────────────┐ │ │
+│ │  ┌───────────────────────────────── Go Services ─────────────────────────────────────┐ │ │
 │ │  │  ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐  │ │ │
 │ │  │  │ auth-gateway    │ │ tenant-manager  │ │ billing-service │ │ analytics-query │  │ │ │
 │ │  │  │ (JWT, RBAC)     │ │ (Multi-tenant)  │ │ (Stripe)        │ │ (ClickHouse)    │  │ │ │
 │ │  │  └─────────────────┘ └─────────────────┘ └─────────────────┘ └─────────────────┘  │ │ │
 │ │  │  ┌─────────────────┐ ┌─────────────────┐                                          │ │ │
-│ │  │  │ agent-          │ │ tools-gateway   │   Libs: platform-core, platform-auth,    │ │ │
-│ │  │  │ orchestrator    │ │ (MCP, APIs)     │         platform-events, observability   │ │ │
-│ │  │  └─────────────────┘ └─────────────────┘                                          │ │ │
+│ │  │  │ agent-          │ │ tools-gateway   │   Libs: platform-core,                   │ │ │
+│ │  │  │ orchestrator    │ │ (MCP, APIs)     │         platform-auth,                   │ │ │
+│ │  │  └─────────────────┘ └─────────────────┘         platform-events,                 │ │ │
+│ │  │                                                  platform-observability           │ │ │
+│ │  │                                                                                   │ │ │
 │ │  └───────────────────────────────────────────────────────────────────────────────────┘ │ │
 │ │                                                                                        │ │
-│ │  ┌─────────────────────────── Python Services ───────────────────────────────────────┐ │ │
+│ │  ┌─────────────────────────────── Python Services ───────────────────────────────────┐ │ │
 │ │  │  ┌─────────────────────────┐ ┌─────────────────────────┐                          │ │ │
 │ │  │  │ analytics-processor     │ │ reporting-export        │   Libs: analytics-common │ │ │
 │ │  │  │ (Kafka → NLP → CH)      │ │ (PDF, CSV exports)      │         nlp-utils        │ │ │
@@ -45,7 +47,7 @@ Serphona é uma plataforma completa de Voice of Customer (VoC) que combina agent
 │                                           │                                                │
 │                                           ▼                                                │
 │ ┌────────────────────────────────────────────────────────────────────────────────────────┐ │
-│ │                                   DATA LAYER                                           │ │
+│ │                                      DATA LAYER                                        │ │
 │ │  ┌───────────────┐ ┌───────────────┐ ┌───────────────┐ ┌───────────────┐ ┌───────────┐ │ │
 │ │  │  PostgreSQL   │ │  ClickHouse   │ │     Kafka     │ │     MinIO     │ │   Redis   │ │ │
 │ │  │ (OLTP + RLS)  │ │   (OLAP)      │ │  (Streaming)  │ │  (S3 Storage) │ │  (Cache)  │ │ │
@@ -54,11 +56,11 @@ Serphona é uma plataforma completa de Voice of Customer (VoC) que combina agent
 │                                           │                                                │
 │                                           ▼                                                │
 │ ┌────────────────────────────────────────────────────────────────────────────────────────┐ │
-│ │                              VOIP LAYER (Bare Metal)                                   │ │
-│ │  ┌───────────────────┐  ┌───────────────────┐  ┌───────────────────┐                   │ │
-│ │  │     Asterisk      │  │     Kamailio      │  │    RTPEngine      │                   │ │
-│ │  │   (PBX, WebRTC)   │  │   (SIP Proxy)     │  │  (Media Proxy)    │                   │ │
-│ │  └───────────────────┘  └───────────────────┘  └───────────────────┘                   │ │
+│ │                                VOIP LAYER (Bare Metal)                                 │ │
+│ │          ┌───────────────────┐  ┌───────────────────┐  ┌───────────────────┐           │ │
+│ │          │     Asterisk      │  │     Kamailio      │  │    RTPEngine      │           │ │
+│ │          │   (PBX, WebRTC)   │  │   (SIP Proxy)     │  │  (Media Proxy)    │           │ │
+│ │          └───────────────────┘  └───────────────────┘  └───────────────────┘           │ │
 │ └────────────────────────────────────────────────────────────────────────────────────────┘ │
 └────────────────────────────────────────────────────────────────────────────────────────────┘
 ```

@@ -55,7 +55,7 @@ func (c *Client) CreateConversation(ctx context.Context, tenantID uuid.UUID, age
 		TenantID: tenantID,
 		AgentID:  agentID,
 		Channel:  "voice",
-		InitialState: map[string]interface{}{
+		InitialState: map[string]any{
 			"call_initiated": time.Now().UTC().Format(time.RFC3339),
 		},
 	}
@@ -97,20 +97,20 @@ func (c *Client) CreateConversation(ctx context.Context, tenantID uuid.UUID, age
 
 // SubmitTurnRequest represents a conversation turn submission.
 type SubmitTurnRequest struct {
-	UserMessage string                 `json:"user_message"`
-	Context     map[string]interface{} `json:"context,omitempty"`
+	UserMessage string         `json:"user_message"`
+	Context     map[string]any `json:"context,omitempty"`
 }
 
 // TurnResponse represents an agent's response to a turn.
 type TurnResponse struct {
-	ConversationID uuid.UUID              `json:"conversation_id"`
-	TurnID         uuid.UUID              `json:"turn_id"`
-	AgentResponse  string                 `json:"agent_response"`
-	Intent         string                 `json:"intent,omitempty"`
-	Action         string                 `json:"action,omitempty"`
-	ActionParams   map[string]interface{} `json:"action_params,omitempty"`
-	State          string                 `json:"state"`
-	FinishReason   string                 `json:"finish_reason,omitempty"`
+	ConversationID uuid.UUID      `json:"conversation_id"`
+	TurnID         uuid.UUID      `json:"turn_id"`
+	AgentResponse  string         `json:"agent_response"`
+	Intent         string         `json:"intent,omitempty"`
+	Action         string         `json:"action,omitempty"`
+	ActionParams   map[string]any `json:"action_params,omitempty"`
+	State          string         `json:"state"`
+	FinishReason   string         `json:"finish_reason,omitempty"`
 }
 
 // SubmitTurn submits a user message and gets agent response.
@@ -229,7 +229,7 @@ func (c *Client) EndConversation(ctx context.Context, conversationID uuid.UUID, 
 
 // UpdateContextRequest represents a context update request.
 type UpdateContextRequest struct {
-	Context map[string]interface{} `json:"context"`
+	Context map[string]any `json:"context"`
 }
 
 // UpdateContext updates conversation context.

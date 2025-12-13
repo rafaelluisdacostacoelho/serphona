@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: voice-gateway
+  namespace: serphona
+  labels:
+    app: voice-gateway
+    component: telephony
+spec:
+  type: ClusterIP
+  selector:
+    app: voice-gateway
+  ports:
+  - name: http
+    port: 80
+    targetPort: http
+    protocol: TCP
+  - name: metrics
+    port: 9091
+    targetPort: metrics
+    protocol: TCP
+  sessionAffinity: None
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: voice-gateway-metrics
+  namespace: serphona
+  labels:
+    app: voice-gateway
+    component: telephony
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9091"
+spec:
+  type: ClusterIP
+  selector:
+    app: voice-gateway
+  ports:
+  - name: metrics
+    port: 9091
+    targetPort: metrics
+    protocol: TCP

@@ -19,7 +19,7 @@ import (
 // Service orchestrates call lifecycle and interactions.
 type Service struct {
 	// Infrastructure
-	asteriskClient *asterisk.ARIClient
+	asteriskClient *asterisk.ARIClientHTTP
 	callStateRepo  *redis.CallStateRepository
 	eventPublisher *events.Publisher
 	logger         *zap.Logger
@@ -34,7 +34,7 @@ type Service struct {
 
 // NewService creates a new call service.
 func NewService(
-	asteriskClient *asterisk.ARIClient,
+	asteriskClient *asterisk.ARIClientHTTP,
 	callStateRepo *redis.CallStateRepository,
 	eventPublisher *events.Publisher,
 	sttProviders map[string]stt.Provider,
@@ -191,7 +191,7 @@ func (s *Service) EndCall(ctx context.Context, callID uuid.UUID) error {
 	}
 
 	// Hangup via Asterisk
-	if err := s.asteriskClient.HangupChannel(ctx, c.ChannelID); err != nil {
+	if err := s.asteriskClient.HangupChannel(ctx, c.ChannelID, "normal"); err != nil {
 		s.logger.Error("failed to hangup channel", zap.Error(err))
 		// Continue to update state even if hangup fails
 	}

@@ -1,0 +1,33 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: serphona
+
+resources:
+- rbac.yaml
+- configmap.yaml
+- secrets.example.yaml
+- deployment.yaml
+- service.yaml
+- hpa.yaml
+- pdb.yaml
+- networkpolicy.yaml
+
+commonLabels:
+  app.kubernetes.io/name: voice-gateway
+  app.kubernetes.io/component: telephony
+  app.kubernetes.io/part-of: serphona
+
+images:
+- name: serphona/voice-gateway
+  newTag: latest
+
+configMapGenerator:
+- name: voice-gateway-version
+  literals:
+  - version=1.0.0
+  - build-date=2024-12-13
+
+replicas:
+- name: voice-gateway
+  count: 3
