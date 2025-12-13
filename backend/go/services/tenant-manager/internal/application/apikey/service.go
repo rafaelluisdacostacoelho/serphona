@@ -6,22 +6,33 @@ import (
 	"fmt"
 	"time"
 
+	"tenant-manager/internal/domain/apikey"
+	"tenant-manager/internal/domain/events"
+
 	"github.com/google/uuid"
-	"github.com/serphona/serphona/backend/go/services/tenant-manager/internal/adapter/kafka"
-	"github.com/serphona/serphona/backend/go/services/tenant-manager/internal/adapter/redis"
-	"github.com/serphona/serphona/backend/go/services/tenant-manager/internal/domain/apikey"
-	"github.com/serphona/serphona/backend/go/services/tenant-manager/internal/domain/events"
 )
+
+// EventPublisher defines the interface for publishing events.
+type EventPublisher interface {
+	Publish(ctx context.Context, topic string, data []byte) error
+}
+
+// Cache defines the interface for caching operations.
+type Cache interface {
+	Get(ctx context.Context, key string, dest interface{}) error
+	Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error
+	Delete(ctx context.Context, key string) error
+}
 
 // Service handles application-level API key operations.
 type Service struct {
 	domainService  *apikey.Service
-	eventPublisher *kafka.EventPublisher
-	cache          *redis.Client
+	eventPublisher EventPublisher
+	cache          Cache
 }
 
 // NewService creates a new application service.
-func NewService(domainService *apikey.Service, eventPublisher *kafka.EventPublisher, cache *redis.Client) *Service {
+func NewService(domainService *apikey.Service, eventPublisher EventPublisher, cache Cache) *Service {
 	return &Service{
 		domainService:  domainService,
 		eventPublisher: eventPublisher,
