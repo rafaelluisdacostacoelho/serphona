@@ -53,7 +53,7 @@ func (p *EventPublisher) PublishSuspended(ctx context.Context, t *tenant.Tenant)
 
 // PublishSettingsUpdated publishes a settings updated event.
 func (p *EventPublisher) PublishSettingsUpdated(ctx context.Context, tenantID uuid.UUID, settings *tenant.Settings) error {
-	event := map[string]interface{}{
+	event := map[string]any{
 		"tenant_id": tenantID.String(),
 		"settings":  settings,
 	}
