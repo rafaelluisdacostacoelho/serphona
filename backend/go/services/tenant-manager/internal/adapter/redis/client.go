@@ -10,8 +10,8 @@ import (
 	"tenant-manager/internal/config"
 )
 
-// NewClient creates a new Redis client.
-func NewClient(ctx context.Context, cfg config.RedisConfig) (*redis.Client, error) {
+// NewClient creates a new Redis client and wraps it in Cache.
+func NewClient(ctx context.Context, cfg config.RedisConfig) (*Cache, error) {
 	opt, err := redis.ParseURL(cfg.URL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse Redis URL: %w", err)
@@ -29,5 +29,5 @@ func NewClient(ctx context.Context, cfg config.RedisConfig) (*redis.Client, erro
 		return nil, fmt.Errorf("failed to ping Redis: %w", err)
 	}
 
-	return client, nil
+	return NewCache(client), nil
 }

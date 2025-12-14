@@ -1,116 +1,52 @@
-// Package redis provides Redis client implementations.
+// Package redis provides Redis cache functionality.
 package redis
 
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
-
-	"tenant-manager/internal/domain/tenant"
 )
 
-// Cache implements tenant.Cache using Redis.
+// Cache wraps redis.Client and provides cache operations.
 type Cache struct {
 	client *redis.Client
-	ttl    time.Duration
 }
 
-// NewCache creates a new Redis cache.
-func NewCache(client *redis.Client, ttl time.Duration) *Cache {
+// NewCache creates a new Cache instance.
+func NewCache(client *redis.Client) *Cache {
 	return &Cache{
 		client: client,
-		ttl:    ttl,
 	}
 }
 
-// Get retrieves a tenant from cache.
-func (c *Cache) Get(ctx context.Context, key string) (*tenant.Tenant, error) {
-	data, err := c.client.Get(ctx, key).Bytes()
-	if err == redis.Nil {
-		return nil, fmt.Errorf("key not found in cache")
-	}
+// Get retrieves a value from cache and unmarshals into dest.
+func (c *Cache) Get(ctx context.Context, key string, dest interface{}) error {
+	val, err := c.client.Get(ctx, key).Result()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get from cache: %w", err)
+		return err
 	}
 
-	var t tenant.Tenant
-	if err := json.Unmarshal(data, &t); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal tenant: %w", err)
-	}
-
-	return &t, nil
+	return json.Unmarshal([]byte(val), dest)
 }
 
-// Set stores a tenant in cache.
-func (c *Cache) Set(ctx context.Context, key string, t *tenant.Tenant) error {
-	data, err := json.Marshal(t)
+// Set stores a value in cache with TTL.
+func (c *Cache) Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+	data, err := json.Marshal(value)
 	if err != nil {
-		return fmt.Errorf("failed to marshal tenant: %w", err)
+		return err
 	}
 
-	if err := c.client.Set(ctx, key, data, c.ttl).Err(); err != nil {
-		return fmt.Errorf("failed to set in cache: %w", err)
-	}
-
-	return nil
+	return c.client.Set(ctx, key, data, ttl).Err()
 }
 
-// Delete removes a tenant from cache.
+// Delete removes a key from cache.
 func (c *Cache) Delete(ctx context.Context, key string) error {
-	if err := c.client.Del(ctx, key).Err(); err != nil {
-		return fmt.Errorf("failed to delete from cache: %w", err)
-	}
-	return nil
+	return c.client.Del(ctx, key).Err()
 }
 
-// GetSettings retrieves settings from cache.
-func (c *Cache) GetSettings(ctx context.Context, tenantID uuid.UUID) (*tenant.Settings, error) {
-	key := fmt.Sprintf("tenant:%s:settings", tenantID)
-	data, err := c.client.Get(ctx, key).Bytes()
-	if err == redis.Nil {
-		return nil, fmt.Errorf("settings not found in cache")
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to get settings from cache: %w", err)
-	}
-
-	var settings tenant.Settings
-	if err := json.Unmarshal(data, &settings); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal settings: %w", err)
-	}
-
-	return &settings, nil
-}
-
-// SetSettings stores settings in cache.
-func (c *Cache) SetSettings(ctx context.Context, tenantID uuid.UUID, settings *tenant.Settings) error {
-	key := fmt.Sprintf("tenant:%s:settings", tenantID)
-	data, err := json.Marshal(settings)
-	if err != nil {
-		return fmt.Errorf("failed to marshal settings: %w", err)
-	}
-
-	if err := c.client.Set(ctx, key, data, c.ttl).Err(); err != nil {
-		return fmt.Errorf("failed to set settings in cache: %w", err)
-	}
-
-	return nil
-}
-
-// Invalidate removes all cached data for a tenant.
-func (c *Cache) Invalidate(ctx context.Context, tenantID uuid.UUID) error {
-	keys := []string{
-		fmt.Sprintf("tenant:%s", tenantID),
-		fmt.Sprintf("tenant:%s:settings", tenantID),
-	}
-
-	if err := c.client.Del(ctx, keys...).Err(); err != nil {
-		return fmt.Errorf("failed to invalidate cache: %w", err)
-	}
-
-	return nil
+// Close closes the Redis connection.
+func (c *Cache) Close() error {
+	return c.client.Close()
 }
