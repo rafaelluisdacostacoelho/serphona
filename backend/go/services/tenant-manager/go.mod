@@ -3,17 +3,18 @@ module tenant-manager
 go 1.24.0
 
 require (
+	github.com/IBM/sarama v1.46.3
+	github.com/gin-gonic/gin v1.11.0
 	github.com/go-chi/chi/v5 v5.0.12
 	github.com/go-playground/validator/v10 v10.27.0
 	github.com/google/uuid v1.6.0
 	github.com/gosimple/slug v1.15.0
 	github.com/jackc/pgx/v5 v5.5.3
 	github.com/kelseyhightower/envconfig v1.4.0
+	github.com/redis/go-redis/v9 v9.17.2
 	go.uber.org/zap v1.26.0
 	google.golang.org/grpc v1.61.0
-	github.com/IBM/sarama v1.46.3
-	github.com/gin-gonic/gin v1.11.0
-	github.com/redis/go-redis/v9 v9.17.2
+	google.golang.org/protobuf v1.36.9
 )
 
 require (
@@ -69,7 +70,6 @@ require (
 	golang.org/x/text v0.30.0 // indirect
 	golang.org/x/tools v0.37.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240125205218-1f4bbc51befe // indirect
-	google.golang.org/protobuf v1.36.9 // indirect
 )
 
 replace github.com/serphona/serphona/backend/go/libs/platform-events => ../../libs/platform-events

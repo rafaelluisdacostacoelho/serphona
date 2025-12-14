@@ -1,0 +1,140 @@
+syntax = "proto3";
+
+package tenant.v1;
+
+option go_package = "tenant-manager/proto/tenantpb;tenantpb";
+
+import "google/protobuf/timestamp.proto";
+
+// TenantService provides operations for managing tenants.
+service TenantService {
+  // CreateTenant creates a new tenant organization.
+  rpc CreateTenant(CreateTenantRequest) returns (CreateTenantResponse);
+  
+  // GetTenant retrieves a tenant by ID.
+  rpc GetTenant(GetTenantRequest) returns (GetTenantResponse);
+  
+  // UpdateTenant updates an existing tenant.
+  rpc UpdateTenant(UpdateTenantRequest) returns (UpdateTenantResponse);
+  
+  // DeleteTenant soft-deletes a tenant.
+  rpc DeleteTenant(DeleteTenantRequest) returns (DeleteTenantResponse);
+  
+  // ListTenants lists tenants with pagination and filtering.
+  rpc ListTenants(ListTenantsRequest) returns (ListTenantsResponse);
+  
+  // ActivateTenant activates a suspended tenant.
+  rpc ActivateTenant(ActivateTenantRequest) returns (ActivateTenantResponse);
+  
+  // SuspendTenant suspends an active tenant.
+  rpc SuspendTenant(SuspendTenantRequest) returns (SuspendTenantResponse);
+}
+
+// Tenant represents a tenant organization.
+message Tenant {
+  string id = 1;
+  string name = 2;
+  string slug = 3;
+  string email = 4;
+  string phone = 5;
+  string status = 6;
+  string plan = 7;
+  map<string, string> settings = 8;
+  map<string, string> metadata = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+  string billing_email = 12;
+}
+
+// CreateTenantRequest represents the request to create a tenant.
+message CreateTenantRequest {
+  string name = 1;
+  string email = 2;
+  string phone = 3;
+  string plan = 4;
+  string billing_email = 5;
+  TenantMetadata metadata = 6;
+}
+
+// TenantMetadata contains optional tenant metadata.
+message TenantMetadata {
+  string industry = 1;
+  string company_size = 2;
+  string website = 3;
+}
+
+// CreateTenantResponse represents the response after creating a tenant.
+message CreateTenantResponse {
+  Tenant tenant = 1;
+}
+
+// GetTenantRequest represents the request to get a tenant.
+message GetTenantRequest {
+  string id = 1;
+}
+
+// GetTenantResponse represents the response with tenant data.
+message GetTenantResponse {
+  Tenant tenant = 1;
+}
+
+// UpdateTenantRequest represents the request to update a tenant.
+message UpdateTenantRequest {
+  string id = 1;
+  optional string name = 2;
+  optional string email = 3;
+  optional string phone = 4;
+  optional string billing_email = 5;
+}
+
+// UpdateTenantResponse represents the response after updating a tenant.
+message UpdateTenantResponse {
+  Tenant tenant = 1;
+}
+
+// DeleteTenantRequest represents the request to delete a tenant.
+message DeleteTenantRequest {
+  string id = 1;
+}
+
+// DeleteTenantResponse represents the response after deleting a tenant.
+message DeleteTenantResponse {
+  bool success = 1;
+}
+
+// ListTenantsRequest represents the request to list tenants.
+message ListTenantsRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+  string status = 3;
+  string search = 4;
+}
+
+// ListTenantsResponse represents the response with tenant list.
+message ListTenantsResponse {
+  repeated Tenant tenants = 1;
+  int64 total = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+  int32 total_pages = 5;
+}
+
+// ActivateTenantRequest represents the request to activate a tenant.
+message ActivateTenantRequest {
+  string id = 1;
+}
+
+// ActivateTenantResponse represents the response after activating a tenant.
+message ActivateTenantResponse {
+  Tenant tenant = 1;
+}
+
+// SuspendTenantRequest represents the request to suspend a tenant.
+message SuspendTenantRequest {
+  string id = 1;
+}
+
+// SuspendTenantResponse represents the response after suspending a tenant.
+message SuspendTenantResponse {
+  Tenant tenant = 1;
+}

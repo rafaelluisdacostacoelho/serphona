@@ -20,6 +20,7 @@ import (
 	"tenant-manager/internal/config"
 	tenantDomain "tenant-manager/internal/domain/tenant"
 	"tenant-manager/pkg/logger"
+	tenantpb "tenant-manager/proto"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -75,7 +76,7 @@ func main() {
 	// Start gRPC server in goroutine
 	grpcServer := startGRPCServer(cfg, deps, log)
 	go func() {
-		if err := serveGRPC(grpcServer, cfg.Server.GRPCPort, log); err != nil {
+		if err := serveGRPC(grpcServer, cfg.GRPC.Host, cfg.GRPC.Port, log); err != nil {
 			log.Error("gRPC server error", zap.Error(err))
 			cancel()
 		}
@@ -104,7 +105,7 @@ func main() {
 	}
 
 	// Graceful shutdown
-	gracefulShutdown(ctx, httpServer, grpcServer, log)
+	gracefulShutdown(cfg, httpServer, grpcServer, log)
 	log.Info("Service stopped gracefully")
 }
 
@@ -266,12 +267,13 @@ func startHTTPServer(cfg *config.Config, deps *Dependencies, log *zap.Logger) *h
 
 	// Create HTTP server
 	server := &http.Server{
-		Addr:           fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),
-		Handler:        r,
-		ReadTimeout:    cfg.Server.ReadTimeout,
-		WriteTimeout:   cfg.Server.WriteTimeout,
-		IdleTimeout:    cfg.Server.IdleTimeout,
-		MaxHeaderBytes: 1 << 20, // 1 MB
+		Addr:              fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),
+		Handler:           r,
+		ReadTimeout:       cfg.Server.ReadTimeout,
+		ReadHeaderTimeout: cfg.Server.ReadHeaderTimeout,
+		WriteTimeout:      cfg.Server.WriteTimeout,
+		IdleTimeout:       cfg.Server.IdleTimeout,
+		MaxHeaderBytes:    cfg.Server.MaxHeaderBytes,
 	}
 
 	return server
@@ -279,43 +281,56 @@ func startHTTPServer(cfg *config.Config, deps *Dependencies, log *zap.Logger) *h
 
 // startGRPCServer creates and configures the gRPC server
 func startGRPCServer(cfg *config.Config, deps *Dependencies, log *zap.Logger) *grpc.Server {
-	// Create gRPC server with interceptors
-	server := grpc.NewServer(
-		grpc.UnaryInterceptor(grpcUnaryInterceptor(log)),
+	grpcCfg := cfg.GRPC
+
+	maxRecv := grpcCfg.MaxRecvMsgSizeMB * 1024 * 1024
+	maxSend := grpcCfg.MaxSendMsgSizeMB * 1024 * 1024
+
+	opts := []grpc.ServerOption{
+		grpc.ChainUnaryInterceptor(
+			grpcUnaryInterceptor(log),
+			enforceDeadline(cfg.GRPC.DefaultRequestTimeout, log),
+		),
 		grpc.StreamInterceptor(grpcStreamInterceptor(log)),
-	)
+		grpc.MaxRecvMsgSize(maxRecv),
+		grpc.MaxSendMsgSize(maxSend),
+		grpc.ConnectionTimeout(grpcCfg.ConnectionTimeout),
+	}
 
-	// Register services
+	server := grpc.NewServer(opts...)
+
 	tenantHandler := handler.NewTenantHandler(deps.TenantService)
-	_ = tenantHandler // placeholder until proto is generated
-	// tenantpb.RegisterTenantServiceServer(server, tenantHandler)
+	tenantpb.RegisterTenantServiceServer(server, tenantHandler)
 
-	// Register health check service
 	healthServer := health.NewServer()
 	healthpb.RegisterHealthServer(server, healthServer)
 	healthServer.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
 
-	// Register reflection service (for debugging)
-	reflection.Register(server)
+	// Reflection: preferir desabilitado em produção
+	if grpcCfg.ReflectionEnabled && cfg.Environment != "production" {
+		reflection.Register(server)
+	}
 
 	return server
 }
 
 // serveGRPC starts the gRPC server
-func serveGRPC(server *grpc.Server, port int, log *zap.Logger) error {
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+func serveGRPC(server *grpc.Server, host string, port int, log *zap.Logger) error {
+	addr := fmt.Sprintf("%s:%d", host, port)
+
+	lis, err := net.Listen("tcp", addr)
 	if err != nil {
-		return fmt.Errorf("failed to listen on port %d: %w", port, err)
+		return fmt.Errorf("failed to listen on %s: %w", addr, err)
 	}
 
-	log.Info("gRPC server listening", zap.Int("port", port))
+	log.Info("gRPC server listening", zap.String("address", addr))
 	return server.Serve(lis)
 }
 
 // gracefulShutdown performs graceful shutdown of all servers
-func gracefulShutdown(ctx context.Context, httpServer *http.Server, grpcServer *grpc.Server, log *zap.Logger) {
+func gracefulShutdown(cfg *config.Config, httpServer *http.Server, grpcServer *grpc.Server, log *zap.Logger) {
 	// Create shutdown context with timeout
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
 	defer cancel()
 
 	// Shutdown HTTP server
@@ -380,6 +395,17 @@ func grpcStreamInterceptor(log *zap.Logger) grpc.StreamServerInterceptor {
 		)
 
 		return err
+	}
+}
+
+func enforceDeadline(defaultTimeout time.Duration, log *zap.Logger) grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		if _, ok := ctx.Deadline(); !ok {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, defaultTimeout)
+			defer cancel()
+		}
+		return handler(ctx, req)
 	}
 }
 

@@ -14,6 +14,7 @@ type Config struct {
 	LogLevel    string `envconfig:"LOG_LEVEL" default:"info"`
 
 	Server   ServerConfig
+	GRPC     GRPCConfig
 	Database DatabaseConfig
 	Redis    RedisConfig
 	Kafka    KafkaConfig
@@ -23,13 +24,52 @@ type Config struct {
 
 // ServerConfig represents server configuration.
 type ServerConfig struct {
-	Host            string        `envconfig:"SERVER_HOST" default:"0.0.0.0"`
-	Port            int           `envconfig:"SERVER_PORT" default:"8080"`
-	GRPCPort        int           `envconfig:"SERVER_GRPC_PORT" default:"9090"`
-	ReadTimeout     time.Duration `envconfig:"SERVER_READ_TIMEOUT" default:"10s"`
-	WriteTimeout    time.Duration `envconfig:"SERVER_WRITE_TIMEOUT" default:"10s"`
-	IdleTimeout     time.Duration `envconfig:"SERVER_IDLE_TIMEOUT" default:"120s"`
+	Host     string `envconfig:"SERVER_HOST" default:"0.0.0.0"`
+	Port     int    `envconfig:"SERVER_PORT" default:"8080"`
+	GRPCPort int    `envconfig:"SERVER_GRPC_PORT" default:"9090"`
+
+	ReadTimeout       time.Duration `envconfig:"SERVER_READ_TIMEOUT" default:"10s"`
+	ReadHeaderTimeout time.Duration `envconfig:"SERVER_READ_HEADER_TIMEOUT" default:"5s"`
+	WriteTimeout      time.Duration `envconfig:"SERVER_WRITE_TIMEOUT" default:"10s"`
+	IdleTimeout       time.Duration `envconfig:"SERVER_IDLE_TIMEOUT" default:"120s"`
+
+	MaxHeaderBytes  int           `envconfig:"SERVER_MAX_HEADER_BYTES" default:"1048576"` // 1MB
 	ShutdownTimeout time.Duration `envconfig:"SERVER_SHUTDOWN_TIMEOUT" default:"30s"`
+}
+
+type GRPCConfig struct {
+	Host string `envconfig:"GRPC_HOST" default:"0.0.0.0"`
+	Port int    `envconfig:"GRPC_PORT" default:"9090"` // você pode manter alinhado com SERVER_GRPC_PORT por enquanto
+
+	// Handshake: tempo para estabelecer conexão (não é timeout de RPC)
+	ConnectionTimeout time.Duration `envconfig:"GRPC_CONNECTION_TIMEOUT" default:"5s"`
+
+	// Limites de payload: evita OOM e abuse
+	MaxRecvMsgSizeMB int `envconfig:"GRPC_MAX_RECV_MSG_SIZE_MB" default:"10"`
+	MaxSendMsgSizeMB int `envconfig:"GRPC_MAX_SEND_MSG_SIZE_MB" default:"10"`
+
+	// Produção: reflection deve ser false por padrão
+	ReflectionEnabled bool `envconfig:"GRPC_REFLECTION_ENABLED" default:"false"`
+
+	// Deadline policy (escala): evita chamadas sem deadline ficarem presas
+	DefaultRequestTimeout time.Duration `envconfig:"GRPC_DEFAULT_REQUEST_TIMEOUT" default:"10s"`
+	RequireClientDeadline bool          `envconfig:"GRPC_REQUIRE_CLIENT_DEADLINE" default:"false"`
+
+	// Keepalive: estabilidade sob LB/proxies e conexões zumbis
+	Keepalive GRPCKeepaliveConfig
+}
+
+type GRPCKeepaliveConfig struct {
+	// ServerParameters
+	MaxConnectionIdle     time.Duration `envconfig:"GRPC_KA_MAX_CONNECTION_IDLE" default:"5m"`
+	MaxConnectionAge      time.Duration `envconfig:"GRPC_KA_MAX_CONNECTION_AGE" default:"2h"`
+	MaxConnectionAgeGrace time.Duration `envconfig:"GRPC_KA_MAX_CONNECTION_AGE_GRACE" default:"5m"`
+	Time                  time.Duration `envconfig:"GRPC_KA_TIME" default:"2h"`
+	Timeout               time.Duration `envconfig:"GRPC_KA_TIMEOUT" default:"20s"`
+
+	// EnforcementPolicy
+	MinTime             time.Duration `envconfig:"GRPC_KA_MIN_TIME" default:"1m"`
+	PermitWithoutStream bool          `envconfig:"GRPC_KA_PERMIT_WITHOUT_STREAM" default:"true"`
 }
 
 // DatabaseConfig represents database configuration.
