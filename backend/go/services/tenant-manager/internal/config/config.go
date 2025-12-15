@@ -20,6 +20,7 @@ type Config struct {
 	Kafka    KafkaConfig
 	JWT      JWTConfig
 	Metrics  MetricsConfig
+	Tracing  TracingConfig
 }
 
 // ServerConfig represents server configuration.
@@ -99,13 +100,22 @@ type KafkaConfig struct {
 
 // JWTConfig represents JWT configuration.
 type JWTConfig struct {
-	Secret string `envconfig:"JWT_SECRET" required:"true"`
-	Issuer string `envconfig:"JWT_ISSUER" default:"serphona"`
+	Secret    string   `envconfig:"JWT_SECRET" required:"true"`
+	PublicKey string   `envconfig:"JWT_PUBLIC_KEY"`                 // PEM encoded RSA public key for RS256 (optional)
+	Issuer    string   `envconfig:"JWT_ISSUER" default:"serphona"`  // Expected issuer (optional)
+	Audience  []string `envconfig:"JWT_AUDIENCE"`                   // Expected audience list (optional)
 }
 
 // MetricsConfig represents metrics configuration.
 type MetricsConfig struct {
-	Port int `envconfig:"METRICS_PORT" default:"9091"`
+	Enabled bool `envconfig:"METRICS_ENABLED" default:"true"`
+	Port    int  `envconfig:"METRICS_PORT" default:"9091"`
+}
+
+// TracingConfig represents tracing configuration.
+type TracingConfig struct {
+	Enabled        bool   `envconfig:"TRACING_ENABLED" default:"false"`
+	JaegerEndpoint string `envconfig:"JAEGER_ENDPOINT"`
 }
 
 // Load loads the configuration from environment variables.

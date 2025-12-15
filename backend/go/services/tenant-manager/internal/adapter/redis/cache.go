@@ -14,6 +14,11 @@ type Cache struct {
 	client *redis.Client
 }
 
+// Client exposes the underlying redis client when needed.
+func (c *Cache) Client() *redis.Client {
+	return c.client
+}
+
 // NewCache creates a new Cache instance.
 func NewCache(client *redis.Client) *Cache {
 	return &Cache{

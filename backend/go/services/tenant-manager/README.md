@@ -189,10 +189,29 @@ make migrate-up
 | Variable | Description | Default |
 |----------|-------------|---------|
 | SERVER_HOST | Server host | 0.0.0.0 |
+| ENVIRONMENT | Runtime environment | development |
+| SERVER_HOST | Server host | 0.0.0.0 |
 | SERVER_PORT | Server port | 8080 |
+| GRPC_HOST | gRPC server host | 0.0.0.0 |
 | GRPC_PORT | gRPC server port | 9090 |
 | DATABASE_URL | PostgreSQL connection string | - |
-| REDIS_URL | Redis connection string | - |
-| KAFKA_BROKERS | Kafka broker addresses | - |
+| DATABASE_MAX_OPEN_CONNS | Max open DB connections | 25 |
+| DATABASE_MAX_IDLE_CONNS | Max idle DB connections | 5 |
+| DATABASE_CONN_MAX_LIFE | DB connection max lifetime | 5m |
+| DATABASE_AUTO_MIGRATE | Run migrations on startup | true |
+| DATABASE_MIGRATIONS_PATH | Path to migrations | migrations |
+| REDIS_URL | Redis connection string | redis://localhost:6379 |
+| REDIS_DB | Redis DB index | 0 |
+| REDIS_PASSWORD | Redis password | - |
+| KAFKA_BROKERS | Kafka broker addresses | localhost:9092 |
+| KAFKA_TOPIC_PREFIX | Kafka topic prefix | serphona |
+| KAFKA_GROUP_ID | Kafka consumer group ID | tenant-manager |
 | LOG_LEVEL | Logging level | info |
-| JWT_SECRET | JWT signing secret | - |
+| JWT_SECRET | JWT signing secret (HS256) | - |
+| JWT_PUBLIC_KEY | PEM-encoded RSA public key (for RS256) | - |
+| JWT_ISSUER | Expected JWT issuer (iss) | serphona |
+| JWT_AUDIENCE | Expected JWT audience (aud), comma-separated | - |
+| METRICS_ENABLED | Enable metrics endpoint | true |
+| METRICS_PORT | Metrics port | 9091 |
+| TRACING_ENABLED | Enable tracing | false |
+| JAEGER_ENDPOINT | Jaeger collector endpoint (optional) | - |

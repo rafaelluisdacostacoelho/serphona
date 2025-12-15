@@ -50,11 +50,13 @@ func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check Redis
-	if err := h.redis.Ping(ctx).Err(); err != nil {
-		response.Status = "unhealthy"
-		response.Services["redis"] = "down"
-	} else {
-		response.Services["redis"] = "up"
+	if h.redis != nil {
+		if err := h.redis.Ping(ctx).Err(); err != nil {
+			response.Status = "unhealthy"
+			response.Services["redis"] = "down"
+		} else {
+			response.Services["redis"] = "up"
+		}
 	}
 
 	status := http.StatusOK

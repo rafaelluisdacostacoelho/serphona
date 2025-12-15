@@ -1,0 +1,105 @@
+openapi: 3.0.3
+info:
+  title: Tenant Manager API
+  version: "1.0.0"
+  description: REST API for tenant management (tenants and API keys)
+servers:
+  - url: http://localhost:8080
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: OK
+  /ready:
+    get:
+      summary: Readiness check
+      responses:
+        "200":
+          description: OK
+  /api/v1/tenants:
+    get:
+      summary: List tenants
+      responses:
+        "200":
+          description: Tenants list
+    post:
+      summary: Create tenant
+      responses:
+        "201":
+          description: Created
+  /api/v1/tenants/{id}:
+    get:
+      summary: Get tenant
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Tenant
+    put:
+      summary: Update tenant
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Updated
+    delete:
+      summary: Delete tenant
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+  /api/v1/tenants/{id}/api-keys:
+    get:
+      summary: List API keys
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Keys
+    post:
+      summary: Create API key
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: Created
+  /api/v1/tenants/{id}/api-keys/{keyId}:
+    delete:
+      summary: Revoke API key
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: keyId
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted

@@ -16,8 +16,10 @@ import (
 	"tenant-manager/internal/adapter/kafka"
 	"tenant-manager/internal/adapter/postgres"
 	"tenant-manager/internal/adapter/redis"
+	apikeyapp "tenant-manager/internal/application/apikey"
 	"tenant-manager/internal/application/tenant"
 	"tenant-manager/internal/config"
+	domainapikey "tenant-manager/internal/domain/apikey"
 	tenantDomain "tenant-manager/internal/domain/tenant"
 	"tenant-manager/pkg/logger"
 	tenantpb "tenant-manager/proto"
@@ -27,7 +29,12 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"strings"
 )
 
 const (
@@ -113,10 +120,11 @@ func main() {
 type Dependencies struct {
 	// Repositories
 	TenantRepo tenantDomain.Repository
-	APIKeyRepo tenant.APIKeyRepository
+	APIKeyRepo domainapikey.Repository
 
 	// Services
 	TenantService *tenant.Service
+	APIKeyService *apikeyapp.Service
 
 	// Infrastructure
 	DB             *postgres.DB
@@ -189,21 +197,34 @@ func initializeDependencies(ctx context.Context, cfg *config.Config, log *zap.Lo
 
 	// Initialize domain services
 	tenantDomainService := tenantDomain.NewService(deps.TenantRepo)
+	apiKeyDomainService := domainapikey.NewService(deps.APIKeyRepo)
 
 	// Initialize application services
 	var tenantCache tenantDomain.Cache
+	var apiKeyCache apikeyapp.Cache
 	if redisCache != nil {
 		tenantCache = redis.NewTenantCache(redisCache, cfg.Redis.CacheTTL)
+		apiKeyCache = redisCache
 	}
 
 	deps.TenantService = tenant.NewService(
 		deps.TenantRepo,
-		deps.APIKeyRepo,
+		nil, // tenant service no longer depends on api key repo directly; API keys handled by dedicated service
 		tenantCache,
 		deps.EventPublisher,
 		log,
 	)
+	deps.APIKeyService = apikeyapp.NewService(
+		apiKeyDomainService,
+		nil, // TODO: wire event publisher
+		apiKeyCache,
+	)
 	_ = tenantDomainService // Use domain service when needed
+
+	// Optionally start metrics server on dedicated port
+	if cfg.Metrics.Enabled {
+		go startMetricsServer(cfg.Metrics, log)
+	}
 
 	cleanup := func() {
 		for i := len(cleanupFuncs) - 1; i >= 0; i-- {
@@ -227,30 +248,22 @@ func startHTTPServer(cfg *config.Config, deps *Dependencies, log *zap.Logger) *h
 	r.Use(middleware.CORS())
 
 	// Health checks (no auth required)
+	healthHandler := httpHandler.NewHealthHandler(deps.DB.Pool, nil)
 	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status":  "healthy",
-			"service": serviceName,
-			"version": serviceVersion,
-		})
+		healthHandler.Health(c.Writer, c.Request)
+	})
+	r.GET("/ready", func(c *gin.Context) {
+		healthHandler.Ready(c.Writer, c.Request)
 	})
 
-	r.GET("/ready", func(c *gin.Context) {
-		if deps.DB == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not ready", "reason": "database not connected"})
-			return
-		}
-		// Check DB connection
-		if err := deps.DB.Pool.Ping(c.Request.Context()); err != nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not ready", "reason": err.Error()})
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{"status": "ready"})
+	// Metrics endpoint (Prometheus exposition)
+	r.GET("/metrics", func(c *gin.Context) {
+		metricsHandler(c.Writer, c.Request)
 	})
 
 	// API routes with authentication
 	api := r.Group("/api/v1")
-	api.Use(middleware.JWTAuth(cfg.JWT.Secret))
+	api.Use(middleware.JWTAuth(cfg.JWT.Secret, cfg.JWT.PublicKey, cfg.JWT.Issuer, cfg.JWT.Audience))
 	{
 		// Tenant routes
 		tenantHandler := httpHandler.NewGinTenantHandler(deps.TenantService, log)
@@ -260,11 +273,11 @@ func startHTTPServer(cfg *config.Config, deps *Dependencies, log *zap.Logger) *h
 		api.PUT("/tenants/:id", tenantHandler.Update)
 		api.DELETE("/tenants/:id", tenantHandler.Delete)
 
-		// API Key routes (placeholder handler)
-		apiKeyHandler := httpHandler.NewAPIKeyHandler(deps.TenantService, log)
-		api.POST("/tenants/:id/api-keys", func(c *gin.Context) { apiKeyHandler.Create(c.Writer, c.Request) })
-		api.GET("/tenants/:id/api-keys", func(c *gin.Context) { apiKeyHandler.List(c.Writer, c.Request) })
-		api.DELETE("/tenants/:id/api-keys/:keyId", func(c *gin.Context) { apiKeyHandler.Delete(c.Writer, c.Request) })
+		// API Key routes
+		apiKeyHandler := httpHandler.NewGinAPIKeyHandler(deps.APIKeyService, log)
+		api.POST("/tenants/:id/api-keys", apiKeyHandler.Create)
+		api.GET("/tenants/:id/api-keys", apiKeyHandler.List)
+		api.DELETE("/tenants/:id/api-keys/:keyId", apiKeyHandler.Delete)
 	}
 
 	// Create HTTP server
@@ -292,11 +305,23 @@ func startGRPCServer(cfg *config.Config, deps *Dependencies, log *zap.Logger) *g
 		grpc.ChainUnaryInterceptor(
 			grpcUnaryInterceptor(log),
 			enforceDeadline(cfg.GRPC.DefaultRequestTimeout, log),
+			grpcAuthInterceptor(cfg.JWT.Secret, cfg.JWT.PublicKey, cfg.JWT.Issuer, cfg.JWT.Audience, log),
 		),
 		grpc.StreamInterceptor(grpcStreamInterceptor(log)),
 		grpc.MaxRecvMsgSize(maxRecv),
 		grpc.MaxSendMsgSize(maxSend),
 		grpc.ConnectionTimeout(grpcCfg.ConnectionTimeout),
+		grpc.KeepaliveParams(keepalive.ServerParameters{
+			MaxConnectionIdle:     grpcCfg.Keepalive.MaxConnectionIdle,
+			MaxConnectionAge:      grpcCfg.Keepalive.MaxConnectionAge,
+			MaxConnectionAgeGrace: grpcCfg.Keepalive.MaxConnectionAgeGrace,
+			Time:                  grpcCfg.Keepalive.Time,
+			Timeout:               grpcCfg.Keepalive.Timeout,
+		}),
+		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
+			MinTime:             grpcCfg.Keepalive.MinTime,
+			PermitWithoutStream: grpcCfg.Keepalive.PermitWithoutStream,
+		}),
 	}
 
 	server := grpc.NewServer(opts...)
@@ -411,8 +436,68 @@ func enforceDeadline(defaultTimeout time.Duration, log *zap.Logger) grpc.UnarySe
 	}
 }
 
+// grpcAuthInterceptor validates JWT on unary gRPC calls using the same HS256/RS256 logic as HTTP middleware.
+func grpcAuthInterceptor(secret, publicKey, issuer string, audience []string, log *zap.Logger) grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+		md, ok := metadata.FromIncomingContext(ctx)
+		if !ok {
+			return nil, status.Errorf(codes.Unauthenticated, "missing metadata")
+		}
+		authHeaders := md.Get("authorization")
+		if len(authHeaders) == 0 {
+			return nil, status.Errorf(codes.Unauthenticated, "authorization header required")
+		}
+
+		token := authHeaders[0]
+		if strings.HasPrefix(strings.ToLower(token), "bearer ") {
+			token = strings.TrimSpace(token[7:])
+		}
+
+		claims, err := middleware.ParseJWT(token, secret, publicKey, issuer, audience)
+		if err != nil {
+			return nil, status.Errorf(codes.Unauthenticated, "invalid token: %v", err)
+		}
+
+		tenantID, _ := claims["tenant_id"].(string)
+		userID, _ := claims["sub"].(string)
+		if tenantID == "" || userID == "" {
+			return nil, status.Errorf(codes.Unauthenticated, "missing tenant_id or sub claim")
+		}
+
+		ctx = context.WithValue(ctx, "tenant_id", tenantID)
+		ctx = context.WithValue(ctx, "user_id", userID)
+
+		return handler(ctx, req)
+	}
+}
+
 // maskPassword masks passwords in URLs for logging
 func maskPassword(url string) string {
 	// Simple masking - in production use proper URL parsing
 	return url // TODO: implement proper password masking
+}
+
+// startMetricsServer runs a minimal metrics endpoint on a dedicated port if enabled.
+func startMetricsServer(cfg config.MetricsConfig, log *zap.Logger) {
+	addr := fmt.Sprintf(":%d", cfg.Port)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/metrics", metricsHandler)
+	srv := &http.Server{
+		Addr:         addr,
+		Handler:      mux,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 5 * time.Second,
+	}
+
+	go func() {
+		log.Info("Metrics server listening", zap.String("address", addr))
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Warn("Metrics server error", zap.Error(err))
+		}
+	}()
+}
+
+func metricsHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+	fmt.Fprintf(w, "# HELP tenant_manager_up Service health\n# TYPE tenant_manager_up gauge\ntenant_manager_up 1\n")
 }

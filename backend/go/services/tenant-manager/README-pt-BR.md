@@ -195,7 +195,14 @@ make migrate-up
 | REDIS_URL | String de conexão Redis | - |
 | KAFKA_BROKERS | Endereços dos brokers Kafka | - |
 | LOG_LEVEL | Nível de logging | info |
-| JWT_SECRET | Segredo de assinatura JWT | - |
+| JWT_SECRET | Segredo de assinatura JWT (HS256) | - |
+| JWT_PUBLIC_KEY | Chave pública RSA em PEM (para RS256) | - |
+| JWT_ISSUER | Emissor esperado do JWT (iss) | serphona |
+| JWT_AUDIENCE | Audiência esperada (aud), separada por vírgula | - |
+| METRICS_ENABLED | Habilita endpoint de métricas | true |
+| METRICS_PORT | Porta de métricas | 9091 |
+| TRACING_ENABLED | Habilita tracing | false |
+| JAEGER_ENDPOINT | Endpoint do collector Jaeger (opcional) | - |
 
 ## Desenvolvimento
 
@@ -227,6 +234,33 @@ make test-coverage
 # Testes de integração
 make test-integration
 ```
+
+### Variáveis de Ambiente (nomes usados pelo config)
+
+| Variável | Descrição | Padrão |
+|----------|-----------|--------|
+| ENVIRONMENT | Ambiente de execução | development |
+| SERVER_HOST | Host HTTP | 0.0.0.0 |
+| SERVER_PORT | Porta do servidor | 8080 |
+| GRPC_HOST | Host do servidor gRPC | 0.0.0.0 |
+| GRPC_PORT | Porta do servidor gRPC | 9090 |
+| DATABASE_URL | String de conexão PostgreSQL | - |
+| DATABASE_MAX_OPEN_CONNS | Máximo de conexões abertas | 25 |
+| DATABASE_MAX_IDLE_CONNS | Máximo de conexões ociosas | 5 |
+| DATABASE_CONN_MAX_LIFE | Tempo máximo da conexão | 5m |
+| DATABASE_AUTO_MIGRATE | Rodar migrations no start | true |
+| DATABASE_MIGRATIONS_PATH | Caminho das migrations | migrations |
+| REDIS_URL | String de conexão Redis | redis://localhost:6379 |
+| REDIS_DB | DB do Redis | 0 |
+| REDIS_PASSWORD | Senha do Redis | - |
+| KAFKA_BROKERS | Endereços dos brokers Kafka | localhost:9092 |
+| KAFKA_TOPIC_PREFIX | Prefixo dos tópicos Kafka | serphona |
+| KAFKA_GROUP_ID | Consumer group Kafka | tenant-manager |
+| LOG_LEVEL | Nível de logging | info |
+| JWT_SECRET | Segredo de assinatura JWT (HS256) | - |
+| JWT_PUBLIC_KEY | Chave pública RSA em PEM (para RS256) | - |
+| JWT_ISSUER | Emissor esperado do JWT (iss) | serphona |
+| JWT_AUDIENCE | Audiência esperada (aud), separada por vírgula | - |
 
 ## Documentação Relacionada
 

@@ -167,8 +167,7 @@ generate:
 ## generate-openapi: Generate OpenAPI spec from code annotations
 generate-openapi:
 	@echo "Generating OpenAPI spec..."
-	@which swag > /dev/null || go install github.com/swaggo/swag/cmd/swag@latest
-	swag init -g cmd/server/main.go -o api/openapi --parseDependency --parseInternal
+	@echo "OpenAPI spec maintained at api/openapi/openapi.yaml (static placeholder)"
 
 ## generate-proto: Generate gRPC code from proto files
 generate-proto:
