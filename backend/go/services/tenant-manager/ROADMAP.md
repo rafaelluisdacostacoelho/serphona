@@ -9,7 +9,7 @@
 - OpenAPI placeholder (`api/openapi/openapi.yaml`) e script de proto corrigido.
 
 ### Em aberto / a fazer
-- DTOs/validators HTTP dedicados (`internal/adapter/http/dto` e `validator`) ou mover handlers para Gin puro.
+[x] - DTOs/validators HTTP dedicados (`internal/adapter/http/dto` e `validator`) ou mover handlers para Gin puro.
 - Migration 000003 para configs adicionais de tenant (up/down).
 - Scripts utilitários em `scripts/` (migrate.sh, generate.sh, seed.sh) conforme estrutura documentada.
 - Swagger/UI ou geração automática da OpenAPI (atual hoje é estática).

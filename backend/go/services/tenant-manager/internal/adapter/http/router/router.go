@@ -13,7 +13,6 @@ import (
 type Config struct {
 	healthHandler    *httphandler.HealthHandler
 	tenantHandler    *httphandler.TenantHandler
-	apiKeyHandler    *httphandler.APIKeyHandler
 	middlewares      []func(http.Handler) http.Handler
 	authMiddleware   func(http.Handler) http.Handler
 	tenantMiddleware func(http.Handler) http.Handler
@@ -33,13 +32,6 @@ func WithHealthHandler(h *httphandler.HealthHandler) Option {
 func WithTenantHandler(h *httphandler.TenantHandler) Option {
 	return func(c *Config) {
 		c.tenantHandler = h
-	}
-}
-
-// WithAPIKeyHandler sets the API key handler.
-func WithAPIKeyHandler(h *httphandler.APIKeyHandler) Option {
-	return func(c *Config) {
-		c.apiKeyHandler = h
 	}
 }
 
@@ -95,14 +87,6 @@ func New(opts ...Option) http.Handler {
 				r.Get("/{id}", cfg.tenantHandler.Get)
 				r.Put("/{id}", cfg.tenantHandler.Update)
 				r.Delete("/{id}", cfg.tenantHandler.Delete)
-			})
-		}
-
-		// API Key routes (if handler exists)
-		if cfg.apiKeyHandler != nil {
-			r.Route("/api-keys", func(r chi.Router) {
-				r.Get("/", cfg.apiKeyHandler.List)
-				r.Post("/", cfg.apiKeyHandler.Create)
 			})
 		}
 	})
