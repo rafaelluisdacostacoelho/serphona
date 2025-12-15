@@ -118,7 +118,7 @@ go run cmd/server/main.go
 ## Development
 
 ### Prerequisites
-- Go 1.21+
+- Go 1.24+
 - PostgreSQL 15+
 - Redis 7+
 - Stripe account (test mode)

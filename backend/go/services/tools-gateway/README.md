@@ -20,7 +20,7 @@ O **Tools Gateway** abstrai a complexidade de integrar com APIs de terceiros, fo
 
 ### Pré-requisitos
 
-- Go 1.21+
+- Go 1.24+
 - PostgreSQL 14+
 - Make (opcional)
 

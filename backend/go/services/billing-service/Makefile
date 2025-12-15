@@ -4,7 +4,7 @@
 SERVICE_NAME=billing-service
 DOCKER_IMAGE=serphona/$(SERVICE_NAME)
 DOCKER_TAG=latest
-GO_VERSION=1.21
+GO_VERSION=1.24
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'

@@ -212,7 +212,7 @@ make migrate-up
 
 ### Pré-requisitos
 
-- Go 1.21+
+- Go 1.24+
 - Docker & Docker Compose
 - PostgreSQL 15+
 - Redis 7+

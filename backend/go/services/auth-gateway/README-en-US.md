@@ -58,7 +58,7 @@ auth-gateway/
 
 ### Prerequisites
 
-- Go 1.21+
+- Go 1.24+
 - PostgreSQL 14+
 - Docker (optional)
 

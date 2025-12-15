@@ -26,7 +26,7 @@ Enterprise-grade analytics query service for the Serphona platform with ClickHou
 
 ## 📋 Prerequisites
 
-- Go 1.21+
+- Go 1.24+
 - ClickHouse 21+
 - Redis 7+ (optional, for caching)
 - Docker & Kubernetes (for deployment)
@@ -242,7 +242,7 @@ This project is part of the Serphona platform.
 
 ## 🏆 Tech Stack
 
-- **Language**: Go 1.21
+- **Language**: Go 1.24
 - **Database**: ClickHouse (OLAP)
 - **Cache**: Redis 7
 - **Framework**: Gin

@@ -726,7 +726,7 @@ span.SetAttributes(
 
 ### Core
 
-- **Language**: Go 1.21+
+- **Language**: Go 1.24+
 - **Framework**: Gin
 - **Database**: PostgreSQL 14+
 - **Cache/Rate Limit**: Redis 7+

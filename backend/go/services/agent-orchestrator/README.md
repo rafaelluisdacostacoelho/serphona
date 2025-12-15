@@ -31,7 +31,7 @@ Enterprise-grade microservice for orchestrating conversational AI agents with LL
 
 ## 📋 Prerequisites
 
-- Go 1.21+
+- Go 1.24+
 - Redis 7+
 - PostgreSQL 14+ (optional, for agent persistence)
 - Docker & Kubernetes (for deployment)

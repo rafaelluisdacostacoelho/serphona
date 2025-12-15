@@ -19,7 +19,7 @@ Guia completo de deployment e infraestrutura do Billing Service.
 - **Kubernetes** 1.25+
 - **kubectl** configurado
 - **Helm** 3.0+ (opcional)
-- **Go** 1.21+ (para desenvolvimento)
+- **Go** 1.24+ (para desenvolvimento)
 
 ### Credenciais Necessárias
 

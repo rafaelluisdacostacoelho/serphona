@@ -1,6 +1,6 @@
 module github.com/serphona/serphona/backend/go/services/analytics-query-service
 
-go 1.21
+go 1.24.0
 
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.15.0

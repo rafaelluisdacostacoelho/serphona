@@ -1,6 +1,6 @@
 module github.com/serphona/serphona/backend/go/libs/platform-core
 
-go 1.21
+go 1.24.0
 
 require (
 	go.uber.org/zap v1.26.0

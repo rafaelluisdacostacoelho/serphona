@@ -1,6 +1,6 @@
 module github.com/serphona/backend/go/libs/platform-observability
 
-go 1.21
+go 1.24.0
 
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.15.0

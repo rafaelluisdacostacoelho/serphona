@@ -162,7 +162,7 @@ serphona/
 ### Backend Go (`backend/go/`)
 | Tecnologia | Propósito |
 |------------|-----------|
-| Go 1.21+ | Linguagem |
+| Go 1.24+ | Linguagem |
 | Gin | HTTP Framework |
 | GORM | ORM PostgreSQL |
 | Zap | Logging |
@@ -201,7 +201,7 @@ serphona/
 ### Pré-requisitos
 - Docker & Docker Compose
 - Node.js 18+
-- Go 1.21+
+- Go 1.24+
 - Python 3.11+
 - kubectl (para K8s)
 

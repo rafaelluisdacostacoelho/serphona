@@ -571,7 +571,7 @@ require (
 
 ### Technologies Used:
 
-- **Backend**: Go 1.21+
+- **Backend**: Go 1.24+
 - **Database**: PostgreSQL 14+
 - **Messaging**: RabbitMQ / Redis
 - **API Gateway**: Kong / Traefik
