@@ -204,6 +204,10 @@ make migrate-up
 | TRACING_ENABLED | Habilita tracing | false |
 | JAEGER_ENDPOINT | Endpoint do collector Jaeger (opcional) | - |
 
+## Documentação da API
+
+- Swagger UI: `/docs` (serve `api/openapi/openapi.yaml`)
+
 ## Desenvolvimento
 
 ### Pré-requisitos

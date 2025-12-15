@@ -215,3 +215,7 @@ make migrate-up
 | METRICS_PORT | Metrics port | 9091 |
 | TRACING_ENABLED | Enable tracing | false |
 | JAEGER_ENDPOINT | Jaeger collector endpoint (optional) | - |
+
+## API Docs
+
+- Swagger UI: `/docs` (serves `api/openapi/openapi.yaml`)

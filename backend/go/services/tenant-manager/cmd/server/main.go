@@ -129,7 +129,7 @@ type Dependencies struct {
 	// Infrastructure
 	DB             *postgres.DB
 	Cache          *redis.Cache
-	EventPublisher *kafka.EventPublisher
+	EventPublisher tenantDomain.EventPublisher
 	Producer       *kafka.Producer
 }
 
@@ -162,7 +162,7 @@ func initializeDependencies(ctx context.Context, cfg *config.Config, log *zap.Lo
 	log.Info("Connecting to Redis", zap.String("url", maskPassword(cfg.Redis.URL)))
 	redisCache, err := redis.NewClient(ctx, cfg.Redis)
 	if err != nil {
-		log.Warn("Failed to connect to Redis, caching disabled", zap.Error(err))
+		log.Warn("Failed to connect to Redis, using no-op cache", zap.Error(err))
 		redisCache = nil
 	} else {
 		deps.Cache = redisCache
@@ -178,7 +178,7 @@ func initializeDependencies(ctx context.Context, cfg *config.Config, log *zap.Lo
 	log.Info("Connecting to Kafka", zap.Strings("brokers", cfg.Kafka.Brokers))
 	producer, err := kafka.NewProducer(cfg.Kafka)
 	if err != nil {
-		log.Warn("Failed to connect to Kafka, events disabled", zap.Error(err))
+		log.Warn("Failed to connect to Kafka, using no-op publisher", zap.Error(err))
 		producer = nil
 	} else {
 		deps.Producer = producer
@@ -189,6 +189,9 @@ func initializeDependencies(ctx context.Context, cfg *config.Config, log *zap.Lo
 				log.Error("Error closing Kafka", zap.Error(err))
 			}
 		})
+	}
+	if deps.EventPublisher == nil {
+		deps.EventPublisher = kafka.NewNoopPublisher()
 	}
 
 	// Initialize repositories
@@ -205,6 +208,8 @@ func initializeDependencies(ctx context.Context, cfg *config.Config, log *zap.Lo
 	if redisCache != nil {
 		tenantCache = redis.NewTenantCache(redisCache, cfg.Redis.CacheTTL)
 		apiKeyCache = redisCache
+	} else {
+		tenantCache = redis.NoopCache{}
 	}
 
 	deps.TenantService = tenant.NewService(
@@ -260,6 +265,9 @@ func startHTTPServer(cfg *config.Config, deps *Dependencies, log *zap.Logger) *h
 	r.GET("/metrics", func(c *gin.Context) {
 		metricsHandler(c.Writer, c.Request)
 	})
+
+	// Serve OpenAPI/Swagger UI (static)
+	r.Static("/docs", "./api/openapi")
 
 	// API routes with authentication
 	api := r.Group("/api/v1")
