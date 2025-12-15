@@ -2,6 +2,7 @@
 package middleware
 
 import (
+	"context"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -19,6 +20,10 @@ func RequestID() gin.HandlerFunc {
 
 		c.Set("request_id", requestID)
 		c.Header("X-Request-ID", requestID)
+
+		// Also inject into request context so downstream handlers that rely on Context values can read it.
+		ctx := context.WithValue(c.Request.Context(), "request_id", requestID)
+		c.Request = c.Request.WithContext(ctx)
 
 		c.Next()
 	}

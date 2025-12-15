@@ -26,7 +26,6 @@ func NewAPIKeyHandler(service *tenant.Service, logger *zap.Logger) *APIKeyHandle
 
 // List handles GET /api/v1/api-keys
 func (h *APIKeyHandler) List(w http.ResponseWriter, r *http.Request) {
-	// Placeholder implementation
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"message": "API keys list endpoint"})
@@ -34,8 +33,13 @@ func (h *APIKeyHandler) List(w http.ResponseWriter, r *http.Request) {
 
 // Create handles POST /api/v1/api-keys
 func (h *APIKeyHandler) Create(w http.ResponseWriter, r *http.Request) {
-	// Placeholder implementation
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]string{"message": "API key created"})
+}
+
+// Delete handles DELETE /api/v1/api-keys/:keyId
+func (h *APIKeyHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNoContent)
 }

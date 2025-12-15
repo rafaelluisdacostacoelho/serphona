@@ -116,16 +116,10 @@ func (s *Service) CreateTenant(ctx context.Context, cmd CreateTenantCommand) (*T
 	}
 
 	// Cache the tenant
-	if err := s.cache.Set(ctx, fmt.Sprintf("tenant:%s", tenantEntity.ID), tenantEntity); err != nil {
-		s.logger.Warn("failed to cache tenant", zap.Error(err))
-		// Non-critical error, continue
-	}
+	s.cacheSet(ctx, fmt.Sprintf("tenant:%s", tenantEntity.ID), tenantEntity)
 
 	// Publish created event
-	if err := s.eventPublisher.PublishCreated(ctx, tenantEntity); err != nil {
-		s.logger.Error("failed to publish tenant created event", zap.Error(err))
-		// Non-critical error, continue
-	}
+	s.publishCreated(ctx, tenantEntity)
 
 	return toDTO(tenantEntity), nil
 }
@@ -134,9 +128,11 @@ func (s *Service) CreateTenant(ctx context.Context, cmd CreateTenantCommand) (*T
 func (s *Service) GetTenant(ctx context.Context, id uuid.UUID) (*TenantDTO, error) {
 	// Try cache first
 	cacheKey := fmt.Sprintf("tenant:%s", id)
-	cached, err := s.cache.Get(ctx, cacheKey)
-	if err == nil && cached != nil {
-		return toDTO(cached), nil
+	if s.cache != nil {
+		cached, err := s.cache.Get(ctx, cacheKey)
+		if err == nil && cached != nil {
+			return toDTO(cached), nil
+		}
 	}
 
 	// Fetch from repository
@@ -147,9 +143,7 @@ func (s *Service) GetTenant(ctx context.Context, id uuid.UUID) (*TenantDTO, erro
 	}
 
 	// Cache for future requests
-	if err := s.cache.Set(ctx, cacheKey, tenantEntity); err != nil {
-		s.logger.Warn("failed to cache tenant", zap.Error(err))
-	}
+	s.cacheSet(ctx, cacheKey, tenantEntity)
 
 	return toDTO(tenantEntity), nil
 }
@@ -217,14 +211,10 @@ func (s *Service) UpdateTenant(ctx context.Context, cmd UpdateTenantCommand) (*T
 	}
 
 	// Invalidate cache
-	if err := s.cache.Invalidate(ctx, tenantEntity.ID); err != nil {
-		s.logger.Warn("failed to invalidate cache", zap.Error(err))
-	}
+	s.cacheInvalidate(ctx, tenantEntity.ID)
 
 	// Publish updated event
-	if err := s.eventPublisher.PublishUpdated(ctx, tenantEntity); err != nil {
-		s.logger.Error("failed to publish tenant updated event", zap.Error(err))
-	}
+	s.publishUpdated(ctx, tenantEntity)
 
 	return toDTO(tenantEntity), nil
 }
@@ -249,14 +239,10 @@ func (s *Service) DeleteTenant(ctx context.Context, id uuid.UUID) error {
 	}
 
 	// Invalidate cache
-	if err := s.cache.Invalidate(ctx, id); err != nil {
-		s.logger.Warn("failed to invalidate cache", zap.Error(err))
-	}
+	s.cacheInvalidate(ctx, id)
 
 	// Publish deleted event
-	if err := s.eventPublisher.PublishDeleted(ctx, id); err != nil {
-		s.logger.Error("failed to publish tenant deleted event", zap.Error(err))
-	}
+	s.publishDeleted(ctx, id)
 
 	return nil
 }
@@ -321,10 +307,10 @@ func (s *Service) ActivateTenant(ctx context.Context, id uuid.UUID) error {
 	}
 
 	// Invalidate cache
-	s.cache.Invalidate(ctx, id)
+	s.cacheInvalidate(ctx, id)
 
 	// Publish event
-	s.eventPublisher.PublishActivated(ctx, tenantEntity)
+	s.publishActivated(ctx, tenantEntity)
 
 	return nil
 }
@@ -346,16 +332,19 @@ func (s *Service) SuspendTenant(ctx context.Context, id uuid.UUID) error {
 	}
 
 	// Invalidate cache
-	s.cache.Invalidate(ctx, id)
+	s.cacheInvalidate(ctx, id)
 
 	// Publish event
-	s.eventPublisher.PublishSuspended(ctx, tenantEntity)
+	s.publishSuspended(ctx, tenantEntity)
 
 	return nil
 }
 
 // ValidateAPIKey validates an API key and returns the tenant ID.
 func (s *Service) ValidateAPIKey(ctx context.Context, apiKey string) (*uuid.UUID, error) {
+	if s.apiKeyRepo == nil {
+		return nil, apperrors.NewInternalError("api key repository not configured")
+	}
 	if apiKey == "" {
 		return nil, apperrors.NewUnauthorizedError("API key is required")
 	}
@@ -399,4 +388,69 @@ func toDTO(t *tenant.Tenant) *TenantDTO {
 // Helper to normalize strings
 func normalizeString(s string) string {
 	return strings.TrimSpace(strings.ToLower(s))
+}
+
+// cache helpers tolerate nil cache to keep the service operational without Redis.
+func (s *Service) cacheSet(ctx context.Context, key string, value *tenant.Tenant) {
+	if s.cache == nil {
+		return
+	}
+	if err := s.cache.Set(ctx, key, value); err != nil {
+		s.logger.Warn("failed to cache tenant", zap.String("key", key), zap.Error(err))
+	}
+}
+
+func (s *Service) cacheInvalidate(ctx context.Context, tenantID uuid.UUID) {
+	if s.cache == nil {
+		return
+	}
+	if err := s.cache.Invalidate(ctx, tenantID); err != nil {
+		s.logger.Warn("failed to invalidate cache", zap.String("tenant_id", tenantID.String()), zap.Error(err))
+	}
+}
+
+// publish helpers tolerate nil publisher to avoid panics when Kafka is disabled/unavailable.
+func (s *Service) publishCreated(ctx context.Context, t *tenant.Tenant) {
+	if s.eventPublisher == nil {
+		return
+	}
+	if err := s.eventPublisher.PublishCreated(ctx, t); err != nil {
+		s.logger.Error("failed to publish tenant created event", zap.Error(err))
+	}
+}
+
+func (s *Service) publishUpdated(ctx context.Context, t *tenant.Tenant) {
+	if s.eventPublisher == nil {
+		return
+	}
+	if err := s.eventPublisher.PublishUpdated(ctx, t); err != nil {
+		s.logger.Error("failed to publish tenant updated event", zap.Error(err))
+	}
+}
+
+func (s *Service) publishDeleted(ctx context.Context, id uuid.UUID) {
+	if s.eventPublisher == nil {
+		return
+	}
+	if err := s.eventPublisher.PublishDeleted(ctx, id); err != nil {
+		s.logger.Error("failed to publish tenant deleted event", zap.Error(err))
+	}
+}
+
+func (s *Service) publishActivated(ctx context.Context, t *tenant.Tenant) {
+	if s.eventPublisher == nil {
+		return
+	}
+	if err := s.eventPublisher.PublishActivated(ctx, t); err != nil {
+		s.logger.Error("failed to publish tenant activated event", zap.Error(err))
+	}
+}
+
+func (s *Service) publishSuspended(ctx context.Context, t *tenant.Tenant) {
+	if s.eventPublisher == nil {
+		return
+	}
+	if err := s.eventPublisher.PublishSuspended(ctx, t); err != nil {
+		s.logger.Error("failed to publish tenant suspended event", zap.Error(err))
+	}
 }

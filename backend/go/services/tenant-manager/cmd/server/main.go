@@ -113,6 +113,7 @@ func main() {
 type Dependencies struct {
 	// Repositories
 	TenantRepo tenantDomain.Repository
+	APIKeyRepo tenant.APIKeyRepository
 
 	// Services
 	TenantService *tenant.Service
@@ -184,6 +185,7 @@ func initializeDependencies(ctx context.Context, cfg *config.Config, log *zap.Lo
 
 	// Initialize repositories
 	deps.TenantRepo = postgres.NewTenantRepository(db)
+	deps.APIKeyRepo = postgres.NewAPIKeyRepository(db)
 
 	// Initialize domain services
 	tenantDomainService := tenantDomain.NewService(deps.TenantRepo)
@@ -196,7 +198,7 @@ func initializeDependencies(ctx context.Context, cfg *config.Config, log *zap.Lo
 
 	deps.TenantService = tenant.NewService(
 		deps.TenantRepo,
-		nil, // apiKeyRepo - not yet implemented
+		deps.APIKeyRepo,
 		tenantCache,
 		deps.EventPublisher,
 		log,
@@ -258,11 +260,11 @@ func startHTTPServer(cfg *config.Config, deps *Dependencies, log *zap.Logger) *h
 		api.PUT("/tenants/:id", tenantHandler.Update)
 		api.DELETE("/tenants/:id", tenantHandler.Delete)
 
-		// API Key routes - placeholder
-		// apiKeyHandler := httpHandler.NewAPIKeyHandler(deps.APIKeyService)
-		// api.POST("/tenants/:id/api-keys", apiKeyHandler.Create)
-		// api.GET("/tenants/:id/api-keys", apiKeyHandler.List)
-		// api.DELETE("/tenants/:id/api-keys/:keyId", apiKeyHandler.Delete)
+		// API Key routes (placeholder handler)
+		apiKeyHandler := httpHandler.NewAPIKeyHandler(deps.TenantService, log)
+		api.POST("/tenants/:id/api-keys", func(c *gin.Context) { apiKeyHandler.Create(c.Writer, c.Request) })
+		api.GET("/tenants/:id/api-keys", func(c *gin.Context) { apiKeyHandler.List(c.Writer, c.Request) })
+		api.DELETE("/tenants/:id/api-keys/:keyId", func(c *gin.Context) { apiKeyHandler.Delete(c.Writer, c.Request) })
 	}
 
 	// Create HTTP server
