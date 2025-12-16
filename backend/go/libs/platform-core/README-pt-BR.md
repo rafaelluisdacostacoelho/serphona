@@ -7,9 +7,9 @@ Utilitários centrais compartilhados pelos serviços da Serphona. Atualmente ofe
 - Defaults para ajustes comuns (portas HTTP/GRPC, nível de log, expiração do JWT, porta do ClickHouse).
 - Struct `Config` tipada para os serviços consumirem.
 - Helper de validação para garantir chaves obrigatórias.
-- Helper de logger (zap) que respeita o nível configurado.
+- Helper de logger (zap) que respeita o nível configurado e pode incluir metadados do serviço.
 - Helper de health (liveness/readiness).
-- Helper de segredos via env.
+- Helper de segredos com provider configurável (env por padrão).
 
 ## Instalação
 ```bash
@@ -38,7 +38,7 @@ if err := config.ValidateRequired(cfg, "DATABASE_URL", "JWT_SECRET"); err != nil
     log.Fatalf("faltam configs obrigatorias: %v", err)
 }
 
-logger, err := logger.New(cfg.LogLevel)
+logger, err := logger.NewWithMeta(cfg.LogLevel, "billing-service", cfg.Environment, "1.2.3")
 if err != nil {
     log.Fatalf("logger: %v", err)
 }
@@ -63,6 +63,9 @@ dbPass, err := secrets.Get("DB_PASSWORD")
 if err != nil {
     log.Fatal(err)
 }
+
+// Plugar provider customizado (ex.: secret manager):
+secrets.SetProvider(meuProvider)
 ```
 
 ## Configuração

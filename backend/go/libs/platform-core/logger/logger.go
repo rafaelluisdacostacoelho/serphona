@@ -25,3 +25,25 @@ func New(level string) (*zap.Logger, error) {
 
 	return cfg.Build()
 }
+
+// NewWithMeta creates a logger and attaches common service metadata fields.
+func NewWithMeta(level, service, environment, version string) (*zap.Logger, error) {
+	base, err := New(level)
+	if err != nil {
+		return nil, err
+	}
+	fields := []zap.Field{}
+	if service != "" {
+		fields = append(fields, zap.String("service", service))
+	}
+	if environment != "" {
+		fields = append(fields, zap.String("env", environment))
+	}
+	if version != "" {
+		fields = append(fields, zap.String("version", version))
+	}
+	if len(fields) == 0 {
+		return base, nil
+	}
+	return base.With(fields...), nil
+}
