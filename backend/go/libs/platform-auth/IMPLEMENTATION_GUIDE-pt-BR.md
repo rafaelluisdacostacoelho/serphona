@@ -1,53 +1,47 @@
-# Platform Auth - Guia de Implementação
+﻿# Platform Auth - Guia de Implementacao
 
-> 🔐 Guia completo para implementar a biblioteca platform-auth em seus microserviços
+Guia completo para usar a biblioteca platform-auth nos seus microsservicos.
 
-## 📋 O Que Foi Desenvolvido
+## O que ja foi desenvolvido
 
-A biblioteca `platform-auth` fornece os seguintes componentes:
+### Tipos compartilhados (`types/`)
+- `Claims` — claims customizadas do JWT (usuario, tenant, role, sessao)
+- `User` — representacao de usuario
+- `TokenResponse` — payload de tokens (access/refresh)
+- `AuthResponse` — usuario + tokens
 
-### 1. **Tipos Compartilhados** (`types/`)
-- ✅ `Claims` - Estrutura de claims JWT customizadas
-- ✅ `User` - Representação de usuário
-- ✅ `TokenResponse` - Resposta com tokens
-- ✅ `AuthResponse` - Resposta completa de autenticação
+### Erros padronizados (`errors/`)
+- Erros comuns de autenticacao
+- Codigos de erro
+- Tipo `AuthError`
 
-### 2. **Erros Padronizados** (`errors/`)
-- ✅ Erros comuns de autenticação
-- ✅ Códigos de erro padronizados
-- ✅ Tipo `AuthError` customizado
+### Utilitarios JWT (`jwt/`)
+- Validacao de token JWT
+- Extracao do header `Authorization`
+- Configuracao do secret
 
-### 3. **Utilitários JWT** (`jwt/`)
-- ✅ Validação de tokens JWT
-- ✅ Extração de tokens de headers
-- ✅ Configuração de secret
+### Middleware (`middleware/`)
+- `RequireAuth()` — valida JWT e injeta claims
+- `RequireRole(role)` — exige role especifica
+- `RequireAdmin()` / `RequireSuperAdmin()` — atalhos
+- Helpers para ler dados do contexto do Gin
 
-### 4. **Middleware** (`middleware/`)
-- ✅ `RequireAuth()` - Valida JWT
-- ✅ `RequireRole(role)` - Requer role específica
-- ✅ `RequireAdmin()` - Requer admin/superadmin
-- ✅ `RequireSuperAdmin()` - Requer superadmin
-- ✅ Helpers para extrair dados do contexto
-
-### 5. **Cliente HTTP** (`client/`)
-- ✅ Cliente para comunicar com auth-gateway
-- ✅ Validação de tokens
-- ✅ Buscar informações de usuários
-- ✅ Refresh de tokens
-- ✅ Logout
+### Cliente HTTP (`client/`)
+- Cliente para comunicar com o auth-gateway
+- Validacao de token
+- Buscar informacoes de usuario
+- Refresh de token
+- Logout
 
 ---
 
-## 🚀 Como Usar em Seus Services
+## Como usar nos servicos
 
-### Passo 1: Adicionar Dependência
+### Passo 1: Adicionar dependencia
 
-No `go.mod` do seu service:
-
+`go.mod`
 ```go
-require (
-    github.com/serphona/serphona/backend/go/libs/platform-auth v1.0.0
-)
+require github.com/serphona/serphona/backend/go/libs/platform-auth v1.0.0
 ```
 
 Execute:
@@ -55,160 +49,100 @@ Execute:
 go mod tidy
 ```
 
-### Passo 2: Configurar Variáveis de Ambiente
-
-No `.env` do seu service:
+### Passo 2: Configurar variaveis de ambiente
 
 ```env
-# JWT Secret (DEVE SER O MESMO EM TODOS OS SERVICES)
-JWT_SECRET=your-super-secret-jwt-key-min-32-chars
-
-# Auth Gateway URL (opcional, para cliente HTTP)
+JWT_SECRET=sua-chave-jwt-min-32-caracteres
 AUTH_GATEWAY_URL=http://auth-gateway:8080
 ```
 
-### Passo 3: Inicializar no Main
+### Passo 3: Inicializar no `main`
 
 ```go
-package main
-
-import (
-    "log"
-    "os"
-    
-    "github.com/gin-gonic/gin"
-    authjwt "github.com/serphona/serphona/backend/go/libs/platform-auth/jwt"
-    "github.com/serphona/serphona/backend/go/libs/platform-auth/middleware"
-)
-
 func main() {
-    // 1. Configurar JWT secret
-    jwtSecret := os.Getenv("JWT_SECRET")
-    if jwtSecret == "" {
-        log.Fatal("JWT_SECRET não configurado")
-    }
-    authjwt.SetSecret(jwtSecret)
-    
-    // 2. Criar router
+    authjwt.MustSetSecretFromEnv() // gera panic se JWT_SECRET estiver ausente
+
     router := gin.Default()
-    
-    // 3. Adicionar rotas...
-    setupRoutes(router)
-    
-    // 4. Iniciar servidor
+    configurarRotas(router)
     router.Run(":8081")
 }
 ```
 
-### Passo 4: Proteger Rotas
+### Passo 4: Proteger rotas
 
 ```go
-func setupRoutes(router *gin.Engine) {
-    // Rotas públicas
+func configurarRotas(router *gin.Engine) {
     router.GET("/health", healthCheck)
-    
-    // Rotas protegidas
+
     api := router.Group("/api/v1")
     api.Use(middleware.RequireAuth())
     {
-        // Qualquer usuário autenticado
-        api.GET("/data", getData)
-        api.POST("/items", createItem)
-        
-        // Somente admin
+        api.GET("/dados", getDados)
+        api.POST("/itens", criarItem)
+
         admin := api.Group("/admin")
         admin.Use(middleware.RequireAdmin())
-        {
-            admin.GET("/users", listUsers)
-            admin.DELETE("/users/:id", deleteUser)
-        }
-        
-        // Somente superadmin
+        admin.GET("/usuarios", listarUsuarios)
+        admin.DELETE("/usuarios/:id", removerUsuario)
+
         superadmin := api.Group("/superadmin")
         superadmin.Use(middleware.RequireSuperAdmin())
-        {
-            superadmin.GET("/system", getSystemInfo)
-        }
+        superadmin.GET("/sistema", getInfoSistema)
     }
 }
 ```
 
-### Passo 5: Usar Informações do Usuário
+### Passo 5: Usar informacoes do usuario
 
 ```go
-func getData(c *gin.Context) {
-    // Opção 1: Extrair claims completas
+func getDados(c *gin.Context) {
     claims, err := middleware.GetClaimsFromContext(c)
     if err != nil {
         c.JSON(401, gin.H{"error": "Unauthorized"})
         return
     }
-    
-    log.Printf("User: %s (%s)", claims.Name, claims.Email)
-    log.Printf("Tenant: %s", claims.TenantID)
-    log.Printf("Role: %s", claims.Role)
-    
-    // Opção 2: Extrair dados específicos
+
     userID, _ := middleware.GetUserIDFromContext(c)
     tenantID, _ := middleware.GetTenantIDFromContext(c)
-    
-    // Opção 3: Usar valores diretos do contexto
-    email := c.GetString("email")
-    role := c.GetString("role")
-    
+
     c.JSON(200, gin.H{
-        "userId": userID,
+        "userId":   userID,
         "tenantId": tenantID,
-        "email": email,
-        "role": role,
+        "email":    claims.Email,
+        "role":     claims.Role,
     })
 }
 ```
 
 ---
 
-## 📚 Exemplos de Uso
+## Exemplos de uso
 
 ### Exemplo 1: Billing Service
 
 ```go
-package main
-
-import (
-    "github.com/gin-gonic/gin"
-    authjwt "github.com/serphona/serphona/backend/go/libs/platform-auth/jwt"
-    "github.com/serphona/serphona/backend/go/libs/platform-auth/middleware"
-)
-
 func main() {
     authjwt.SetSecret(os.Getenv("JWT_SECRET"))
-    
+
     router := gin.Default()
-    
     api := router.Group("/api/v1/billing")
     api.Use(middleware.RequireAuth())
-    {
-        // Listar faturas do tenant do usuário
-        api.GET("/invoices", func(c *gin.Context) {
-            tenantID, _ := middleware.GetTenantIDFromContext(c)
-            invoices := getInvoicesByTenant(tenantID)
-            c.JSON(200, invoices)
-        })
-        
-        // Criar assinatura
-        api.POST("/subscriptions", func(c *gin.Context) {
-            claims, _ := middleware.GetClaimsFromContext(c)
-            
-            // Validar que o usuário pode criar assinatura
-            if !claims.IsAdmin() {
-                c.JSON(403, gin.H{"error": "Admin required"})
-                return
-            }
-            
-            // Criar assinatura...
-        })
-    }
-    
+
+    api.GET("/faturas", func(c *gin.Context) {
+        tenantID, _ := middleware.GetTenantIDFromContext(c)
+        invoices := buscarFaturasPorTenant(tenantID)
+        c.JSON(200, invoices)
+    })
+
+    api.POST("/assinaturas", func(c *gin.Context) {
+        claims, _ := middleware.GetClaimsFromContext(c)
+        if !claims.IsAdmin() {
+            c.JSON(403, gin.H{"error": "Admin required"})
+            return
+        }
+        // criar assinatura...
+    })
+
     router.Run(":8081")
 }
 ```
@@ -216,210 +150,131 @@ func main() {
 ### Exemplo 2: Tenant Manager Service
 
 ```go
-package main
-
-import (
-    "github.com/gin-gonic/gin"
-    "github.com/serphona/serphona/backend/go/libs/platform-auth/middleware"
-)
-
 func main() {
     router := gin.Default()
-    
+
     api := router.Group("/api/v1/tenants")
     api.Use(middleware.RequireAuth())
-    {
-        // Obter tenant atual
-        api.GET("/current", func(c *gin.Context) {
-            tenantID, _ := middleware.GetTenantIDFromContext(c)
-            tenant := getTenantByID(tenantID)
-            c.JSON(200, tenant)
-        })
-        
-        // Listar membros do tenant (somente admin)
-        api.GET("/members", middleware.RequireAdmin(), func(c *gin.Context) {
-            tenantID, _ := middleware.GetTenantIDFromContext(c)
-            members := getMembersByTenant(tenantID)
-            c.JSON(200, members)
-        })
-        
-        // Gerenciar todos os tenants (somente superadmin)
-        api.GET("/all", middleware.RequireSuperAdmin(), func(c *gin.Context) {
-            tenants := getAllTenants()
-            c.JSON(200, tenants)
-        })
-    }
-    
+    api.GET("/atual", func(c *gin.Context) {
+        tenantID, _ := middleware.GetTenantIDFromContext(c)
+        tenant := buscarTenantPorID(tenantID)
+        c.JSON(200, tenant)
+    })
+
+    api.GET("/membros", middleware.RequireAdmin(), func(c *gin.Context) {
+        tenantID, _ := middleware.GetTenantIDFromContext(c)
+        membros := listarMembrosPorTenant(tenantID)
+        c.JSON(200, membros)
+    })
+
+    api.GET("/todos", middleware.RequireSuperAdmin(), func(c *gin.Context) {
+        tenants := listarTodosTenants()
+        c.JSON(200, tenants)
+    })
+
     router.Run(":8082")
 }
 ```
 
-### Exemplo 3: Usando Cliente HTTP
+### Exemplo 3: Usando o cliente HTTP
 
 ```go
-package main
-
-import (
-    "github.com/serphona/serphona/backend/go/libs/platform-auth/client"
-)
-
-func main() {
-    // Criar cliente
-    authClient := client.New("http://auth-gateway:8080")
-    
-    // Validar token chamando auth-gateway
-    token := "eyJhbGc..."
-    claims, err := authClient.ValidateToken(token)
-    if err != nil {
-        log.Fatal("Token inválido:", err)
-    }
-    
-    log.Printf("User: %s", claims.Email)
-    
-    // Buscar informações do usuário
-    user, err := authClient.GetMe(token)
-    if err != nil {
-        log.Fatal("Erro ao buscar usuário:", err)
-    }
-    
-    log.Printf("User: %+v", user)
-    
-    // Refresh token
-    newTokens, err := authClient.RefreshToken(refreshToken)
-    if err != nil {
-        log.Fatal("Erro ao renovar token:", err)
-    }
-    
-    log.Printf("New access token: %s", newTokens.AccessToken)
-}
-```
-
----
-
-## 🔒 Segurança
-
-### Validação Local vs Gateway
-
-**Validação Local (Recomendado):**
-```go
-// Mais rápido, não faz chamada HTTP
-claims, err := authjwt.ValidateToken(token)
-```
-
-**Validação via Gateway:**
-```go
-// Mais seguro, verifica se sessão ainda é válida
 authClient := client.New("http://auth-gateway:8080")
+
 claims, err := authClient.ValidateToken(token)
-```
+if err != nil {
+    log.Fatal("Token invalido:", err)
+}
 
-### Recomendações:
+usuario, err := authClient.GetMe(token)
+if err != nil {
+    log.Fatal("Erro ao buscar usuario:", err)
+}
 
-1. ✅ Use **validação local** para a maioria das requests
-2. ✅ Use **validação via gateway** para operações sensíveis
-3. ✅ Sempre use HTTPS em produção
-4. ✅ Nunca exponha o JWT_SECRET
-5. ✅ Implemente rate limiting
-6. ✅ Valide input do usuário
+novosTokens, err := authClient.RefreshToken(refreshToken)
+if err != nil {
+    log.Fatal("Erro ao renovar token:", err)
+}
 
----
-
-## 🧪 Testes
-
-### Testar Middleware
-
-```go
-func TestRequireAuth(t *testing.T) {
-    authjwt.SetSecret("test-secret-key-minimum-32-chars")
-    
-    router := gin.Default()
-    router.GET("/protected", middleware.RequireAuth(), func(c *gin.Context) {
-        c.JSON(200, gin.H{"message": "success"})
-    })
-    
-    // Criar token válido
-    token := createTestToken()
-    
-    // Request com token
-    req := httptest.NewRequest("GET", "/protected", nil)
-    req.Header.Set("Authorization", "Bearer "+token)
-    
-    w := httptest.NewRecorder()
-    router.ServeHTTP(w, req)
-    
-    assert.Equal(t, 200, w.Code)
+// ou carregando a URL do ambiente
+authClient, err := client.NewFromEnv()
+if err != nil {
+    log.Fatal(err)
 }
 ```
 
 ---
 
-## 🐛 Troubleshooting
+## Seguranca
 
-### Erro: "JWT secret not configured"
+### Validacao local vs gateway
 
-**Solução:** Configure o secret antes de usar:
-```go
-authjwt.SetSecret(os.Getenv("JWT_SECRET"))
-```
+- **Validacao local (recomendada):** `authjwt.ValidateToken(token)` — mais rapida, sem chamada HTTP.
+- **Validacao via gateway:** `client.ValidateToken(token)` — verifica validade da sessao no auth-gateway.
 
-### Erro: "Missing authentication token"
+### Recomendações
 
-**Solução:** Certifique-se de enviar o header:
+1. Use validacao local na maioria das rotas.
+2. Use o gateway em operacoes sensiveis.
+3. Sempre use HTTPS em producao.
+4. Nunca exponha ou registre o `JWT_SECRET`.
+5. Aplique rate limiting quando fizer sentido.
+6. Valide entradas antes de usá-las.
+
+---
+
+## Testes
+
+Rode todos os testes:
 ```bash
-curl -H "Authorization: Bearer <token>" http://localhost:8081/api/v1/data
+go test ./...
 ```
 
-### Erro: "Token expired"
+---
 
-**Solução:** Use refresh token para renovar:
-```go
-newTokens, err := authClient.RefreshToken(refreshToken)
-```
+## Troubleshooting
 
-### Erro: "Insufficient permissions"
-
-**Solução:** Verifique a role do usuário:
-- `user` - usuário comum
-- `admin` - administrador do tenant
-- `superadmin` - super administrador da plataforma
+- **"JWT secret not configured"** — chame `authjwt.SetSecret` antes dos helpers/middlewares.
+- **"Missing authentication token"** — envie o header `Authorization: Bearer <token>`.
+- **"Token expired"** — use `client.RefreshToken` para renovar.
+- **"Insufficient permissions"** — verifique a role do usuario.
 
 ---
 
-## 📝 Checklist de Implementação
+## Checklist de implementacao
 
-Ao adicionar platform-auth em um novo service:
-
-- [ ] Adicionar dependência no go.mod
-- [ ] Executar `go mod tidy`
-- [ ] Adicionar JWT_SECRET no .env
-- [ ] Configurar secret no main.go
-- [ ] Adicionar middleware RequireAuth() nas rotas protegidas
-- [ ] Extrair userID/tenantID do contexto onde necessário
-- [ ] Implementar tratamento de erros apropriado
-- [ ] Testar com token válido e inválido
-- [ ] Documentar endpoints protegidos no README
-- [ ] Configurar CORS se necessário
-
----
-
-## 🔗 Links Úteis
-
-- [Auth Gateway README](../../services/auth-gateway/README.md)
-- [Libs vs Services Guide](../../../docs/architecture/LIBS_VS_SERVICES.md)
-- [Platform Auth README](./README.md)
-- [Exemplo Completo](./examples/basic_usage.go)
+- [ ] Adicionar dependencia em `go.mod`
+- [ ] Rodar `go mod tidy`
+- [ ] Definir `JWT_SECRET` no ambiente (falhar se ausente)
+- [ ] Definir `AUTH_GATEWAY_URL` ao usar o cliente HTTP
+- [ ] Chamar `authjwt.SetSecret` na inicializacao (uma vez)
+- [ ] Inicializar o cliente com `client.New` se precisar validar via gateway
+- [ ] Proteger rotas com `RequireAuth`
+- [ ] Restringir rotas admin/superadmin com `RequireAdmin`/`RequireSuperAdmin` ou `RequireRole`
+- [ ] Ler `userId`/`tenantId` do contexto quando necessario
+- [ ] Tratar erros de auth de forma consistente
+- [ ] Testar middleware/JWT com tokens validos e invalidos
+- [ ] Documentar endpoints protegidos
+- [ ] Configurar CORS se necessario
 
 ---
 
-## 📞 Suporte
+## Links uteis
 
-Para dúvidas ou problemas:
-1. Verifique este guia
-2. Veja os exemplos em `examples/`
-3. Consulte a documentação do auth-gateway
-4. Abra uma issue no repositório
+- Auth Gateway README: `../../services/auth-gateway/README.md`
+- Guia Libs vs Services: `../../../docs/architecture/LIBS_VS_SERVICES.md`
+- README Platform Auth: `./README-pt-BR.md`
+- Exemplo completo: `./examples/basic_usage.go`
 
 ---
 
-**Última atualização**: 29/11/2025  
-**Versão da Lib**: 1.0.0
+## Suporte
+
+1. Consulte este guia e os exemplos.
+2. Veja a documentacao do auth-gateway.
+3. Abra um issue no repositorio se precisar.
+
+---
+
+Ultima atualizacao: Dezembro 2025  
+Versao da biblioteca: 1.0.0

@@ -5,7 +5,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// Claims representa as claims customizadas do JWT do Serphona
+// Claims represents the custom Serphona JWT claims.
 type Claims struct {
 	UserID    string `json:"userId"`
 	Email     string `json:"email"`
@@ -16,19 +16,16 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-// Valid valida as claims customizadas
+// Valid validates the custom claims fields.
 func (c *Claims) Valid() error {
-	// Validar UserID
 	if c.UserID == "" {
 		return jwt.ErrTokenInvalidClaims
 	}
 
-	// Validar UUID format
 	if _, err := uuid.Parse(c.UserID); err != nil {
 		return jwt.ErrTokenInvalidClaims
 	}
 
-	// Validar TenantID
 	if c.TenantID == "" {
 		return jwt.ErrTokenInvalidClaims
 	}
@@ -37,7 +34,6 @@ func (c *Claims) Valid() error {
 		return jwt.ErrTokenInvalidClaims
 	}
 
-	// Validar Role
 	validRoles := map[string]bool{
 		"user":       true,
 		"admin":      true,
@@ -51,17 +47,17 @@ func (c *Claims) Valid() error {
 	return nil
 }
 
-// HasRole verifica se o usuário tem uma role específica
+// HasRole returns true when the user has the provided role.
 func (c *Claims) HasRole(role string) bool {
 	return c.Role == role
 }
 
-// IsAdmin verifica se o usuário é admin ou superadmin
+// IsAdmin returns true when the user is admin or superadmin.
 func (c *Claims) IsAdmin() bool {
 	return c.Role == "admin" || c.Role == "superadmin"
 }
 
-// IsSuperAdmin verifica se o usuário é superadmin
+// IsSuperAdmin returns true when the user is superadmin.
 func (c *Claims) IsSuperAdmin() bool {
 	return c.Role == "superadmin"
 }

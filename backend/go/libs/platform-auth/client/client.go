@@ -6,19 +6,25 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"time"
 
 	autherrors "github.com/serphona/serphona/backend/go/libs/platform-auth/errors"
 	"github.com/serphona/serphona/backend/go/libs/platform-auth/types"
 )
 
-// Client é um cliente HTTP para comunicação com o auth-gateway
+const (
+	// EnvAuthGatewayURL is the default environment variable name used to configure the gateway URL.
+	EnvAuthGatewayURL = "AUTH_GATEWAY_URL"
+)
+
+// Client is an HTTP client used to communicate with auth-gateway.
 type Client struct {
 	baseURL    string
 	httpClient *http.Client
 }
 
-// New cria um novo cliente HTTP para auth-gateway
+// New creates a new auth-gateway HTTP client.
 func New(baseURL string) *Client {
 	return &Client{
 		baseURL: baseURL,
@@ -28,7 +34,16 @@ func New(baseURL string) *Client {
 	}
 }
 
-// ValidateToken valida um token JWT chamando o auth-gateway
+// NewFromEnv creates a new client using EnvAuthGatewayURL and returns an error if missing.
+func NewFromEnv() (*Client, error) {
+	baseURL := os.Getenv(EnvAuthGatewayURL)
+	if baseURL == "" {
+		return nil, fmt.Errorf("environment variable %s not set", EnvAuthGatewayURL)
+	}
+	return New(baseURL), nil
+}
+
+// ValidateToken validates a JWT by calling auth-gateway.
 func (c *Client) ValidateToken(token string) (*types.Claims, error) {
 	url := fmt.Sprintf("%s/api/v1/auth/validate", c.baseURL)
 
@@ -61,7 +76,7 @@ func (c *Client) ValidateToken(token string) (*types.Claims, error) {
 	return &claims, nil
 }
 
-// GetUserByID busca informações de um usuário pelo ID
+// GetUserByID fetches a user by ID from auth-gateway.
 func (c *Client) GetUserByID(userID, token string) (*types.User, error) {
 	url := fmt.Sprintf("%s/api/v1/auth/users/%s", c.baseURL, userID)
 
@@ -98,7 +113,7 @@ func (c *Client) GetUserByID(userID, token string) (*types.User, error) {
 	return &user, nil
 }
 
-// GetMe busca informações do usuário atual
+// GetMe fetches the current user from auth-gateway using the provided token.
 func (c *Client) GetMe(token string) (*types.User, error) {
 	url := fmt.Sprintf("%s/api/v1/auth/me", c.baseURL)
 
@@ -131,7 +146,7 @@ func (c *Client) GetMe(token string) (*types.User, error) {
 	return &user, nil
 }
 
-// RefreshToken renova o access token usando o refresh token
+// RefreshToken renews the access token using the refresh token.
 func (c *Client) RefreshToken(refreshToken string) (*types.TokenResponse, error) {
 	url := fmt.Sprintf("%s/api/v1/auth/refresh", c.baseURL)
 
@@ -173,7 +188,7 @@ func (c *Client) RefreshToken(refreshToken string) (*types.TokenResponse, error)
 	return &tokens, nil
 }
 
-// Logout revoga a sessão atual
+// Logout revokes the current session.
 func (c *Client) Logout(token string) error {
 	url := fmt.Sprintf("%s/api/v1/auth/logout", c.baseURL)
 

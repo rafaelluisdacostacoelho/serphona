@@ -2,7 +2,7 @@ package types
 
 import "time"
 
-// User representa um usuário no sistema Serphona
+// User represents a user in the Serphona platform.
 type User struct {
 	ID        string    `json:"id"`
 	Email     string    `json:"email"`
@@ -16,14 +16,14 @@ type User struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
-// TokenResponse representa a resposta com tokens de autenticação
+// TokenResponse represents the authentication token payload.
 type TokenResponse struct {
 	AccessToken  string `json:"accessToken"`
 	RefreshToken string `json:"refreshToken"`
-	ExpiresIn    int    `json:"expiresIn"` // segundos
+	ExpiresIn    int    `json:"expiresIn"` // seconds
 }
 
-// AuthResponse representa a resposta completa de autenticação
+// AuthResponse represents the full authentication response.
 type AuthResponse struct {
 	User   User          `json:"user"`
 	Tokens TokenResponse `json:"tokens"`

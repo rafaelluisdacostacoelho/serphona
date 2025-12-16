@@ -9,16 +9,13 @@ import (
 	"github.com/serphona/serphona/backend/go/libs/platform-auth/types"
 )
 
-// RequireAuth é um middleware que valida JWT e injeta claims no contexto
+// RequireAuth is a Gin middleware that validates a JWT and injects claims into the request context.
 func RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Extrai token do header Authorization
 		authHeader := c.GetHeader("Authorization")
 
-		// Valida token
 		claims, err := authjwt.ValidateTokenFromHeader(authHeader)
 		if err != nil {
-			// Determina código de status apropriado
 			statusCode := http.StatusUnauthorized
 			errorCode := autherrors.CodeUnauthorized
 			errorMessage := "Unauthorized"
@@ -43,10 +40,7 @@ func RequireAuth() gin.HandlerFunc {
 			return
 		}
 
-		// Verifica se o usuário está ativo
-		// (esta validação pode ser feita aqui ou no auth-gateway)
-
-		// Injeta claims no contexto
+		// Claims are added to the context for downstream handlers.
 		c.Set("claims", claims)
 		c.Set("userID", claims.UserID)
 		c.Set("email", claims.Email)
@@ -59,10 +53,9 @@ func RequireAuth() gin.HandlerFunc {
 	}
 }
 
-// RequireRole é um middleware que requer uma role específica
+// RequireRole enforces a specific role on the request context.
 func RequireRole(requiredRole string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Obtém claims do contexto (injetado por RequireAuth)
 		claims, err := GetClaimsFromContext(c)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{
@@ -73,7 +66,6 @@ func RequireRole(requiredRole string) gin.HandlerFunc {
 			return
 		}
 
-		// Verifica role
 		if !claims.HasRole(requiredRole) {
 			c.JSON(http.StatusForbidden, gin.H{
 				"error": "Insufficient permissions",
@@ -87,7 +79,7 @@ func RequireRole(requiredRole string) gin.HandlerFunc {
 	}
 }
 
-// RequireAdmin é um middleware que requer role admin ou superadmin
+// RequireAdmin allows only admin or superadmin roles.
 func RequireAdmin() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		claims, err := GetClaimsFromContext(c)
@@ -113,7 +105,7 @@ func RequireAdmin() gin.HandlerFunc {
 	}
 }
 
-// RequireSuperAdmin é um middleware que requer role superadmin
+// RequireSuperAdmin allows only the superadmin role.
 func RequireSuperAdmin() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		claims, err := GetClaimsFromContext(c)
@@ -139,7 +131,7 @@ func RequireSuperAdmin() gin.HandlerFunc {
 	}
 }
 
-// GetClaimsFromContext extrai as claims do contexto da request
+// GetClaimsFromContext extracts claims from the request context.
 func GetClaimsFromContext(c *gin.Context) (*types.Claims, error) {
 	claimsValue, exists := c.Get("claims")
 	if !exists {
@@ -154,7 +146,7 @@ func GetClaimsFromContext(c *gin.Context) (*types.Claims, error) {
 	return claims, nil
 }
 
-// GetUserIDFromContext extrai o userID do contexto
+// GetUserIDFromContext extracts the userID from context.
 func GetUserIDFromContext(c *gin.Context) (string, error) {
 	claims, err := GetClaimsFromContext(c)
 	if err != nil {
@@ -163,7 +155,7 @@ func GetUserIDFromContext(c *gin.Context) (string, error) {
 	return claims.UserID, nil
 }
 
-// GetTenantIDFromContext extrai o tenantID do contexto
+// GetTenantIDFromContext extracts the tenantID from context.
 func GetTenantIDFromContext(c *gin.Context) (string, error) {
 	claims, err := GetClaimsFromContext(c)
 	if err != nil {

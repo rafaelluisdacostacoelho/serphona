@@ -1,273 +1,142 @@
-# Platform Auth Library
+﻿# Biblioteca Platform Auth
 
-> 🔐 Biblioteca compartilhada de autenticação para os microserviços do Serphona.
+Utilitarios de autenticacao compartilhados para os microsservicos da Serphona (o auth-gateway concentra a logica completa de autenticacao).
 
-## 📋 Propósito
+## Objetivo
 
-Esta biblioteca fornece componentes reutilizáveis de autenticação para serem usados por todos os services do Serphona, **exceto** o `auth-gateway` que é quem implementa a lógica de autenticação completa.
+Esta biblioteca **nao** implementa:
+- Login/Logout
+- Registro de usuarios ou gestao de base de dados
+- Provedores OAuth
+- Emissao de tokens
 
-## 🎯 Responsabilidades
+Esta biblioteca **fornece**:
+- Middleware de validacao JWT (Gin)
+- Cliente HTTP para falar com o auth-gateway
+- Tipos compartilhados (Claims, User, tokens)
+- Utilitarios JWT
+- Erros padronizados
 
-A `platform-auth` **NÃO** implementa:
-- ❌ Login/Logout
-- ❌ Registro de usuários
-- ❌ Gestão de banco de dados de usuários
-- ❌ OAuth providers
-- ❌ Emissão de tokens
-
-A `platform-auth` **FORNECE**:
-- ✅ Middleware de validação JWT
-- ✅ Cliente HTTP para chamar auth-gateway
-- ✅ Tipos compartilhados (Claims, User, etc)
-- ✅ Utilitários de JWT
-- ✅ Erros padronizados
-
-## 📦 Instalação
+## Instalacao
 
 ```bash
-go get github.com/serphona/backend/go/libs/platform-auth
+go get github.com/serphona/serphona/backend/go/libs/platform-auth
 ```
 
-## 🚀 Uso
+## Uso
 
-### 1. Middleware de Autenticação
-
-Use em qualquer service para proteger rotas:
+### 1. Middleware de autenticacao
 
 ```go
-package main
+router := gin.Default()
 
-import (
-    "github.com/gin-gonic/gin"
-    "github.com/serphona/backend/go/libs/platform-auth/middleware"
-)
+router.GET("/health", func(c *gin.Context) { c.JSON(200, gin.H{"status": "ok"}) })
 
-func main() {
-    router := gin.Default()
-    
-    // Rotas públicas
-    router.GET("/health", healthHandler)
-    
-    // Rotas protegidas
-    protected := router.Group("/api/v1")
-    protected.Use(middleware.RequireAuth())
-    {
-        protected.GET("/billing/invoices", getInvoices)
-        protected.GET("/tenants/current", getCurrentTenant)
-    }
-    
-    router.Run(":8081")
+protegidas := router.Group("/api/v1")
+protegidas.Use(middleware.RequireAuth())
+{
+    protegidas.GET("/faturas", listarFaturas)
+    protegidas.GET("/tenants/atual", tenantAtual)
 }
 ```
 
-### 2. Extrair Informações do Usuário
-
-```go
-func getInvoices(c *gin.Context) {
-    // Extrai claims do contexto (injetado pelo middleware)
-    userID := c.GetString("userID")
-    tenantID := c.GetString("tenantID")
-    role := c.GetString("role")
-    
-    // Ou use o helper
-    claims, err := middleware.GetClaimsFromContext(c)
-    if err != nil {
-        c.JSON(401, gin.H{"error": "Unauthorized"})
-        return
-    }
-    
-    // Use as informações
-    invoices := getInvoicesForTenant(claims.TenantID)
-    c.JSON(200, invoices)
-}
-```
-
-### 3. Cliente HTTP para Auth Gateway
-
-```go
-package main
-
-import (
-    "github.com/serphona/backend/go/libs/platform-auth/client"
-)
-
-func main() {
-    // Criar cliente
-    authClient := client.New("http://auth-gateway:8080")
-    
-    // Validar token
-    claims, err := authClient.ValidateToken(token)
-    if err != nil {
-        // Token inválido
-    }
-    
-    // Obter informações do usuário
-    user, err := authClient.GetUserByID(userID)
-}
-```
-
-### 4. Validação Manual de JWT
-
-```go
-import "github.com/serphona/backend/go/libs/platform-auth/jwt"
-
-// Validar token manualmente
-claims, err := jwt.ValidateToken(tokenString, jwtSecret)
-if err != nil {
-    // Token inválido
-}
-
-// Extrair token do header Authorization
-token, err := jwt.ExtractTokenFromHeader(authHeader)
-```
-
-## 📁 Estrutura
-
-```
-platform-auth/
-├── middleware/
-│   ├── auth.go           # Middleware RequireAuth()
-│   └── context.go        # Helpers para context
-├── client/
-│   └── auth_client.go    # Cliente HTTP para auth-gateway
-├── jwt/
-│   ├── validator.go      # Validação de JWT
-│   └── extractor.go      # Extração de token
-├── types/
-│   ├── claims.go         # Estrutura de claims
-│   └── user.go           # Tipos de usuário
-├── errors/
-│   └── errors.go         # Erros padronizados
-├── go.mod
-└── README.md
-```
-
-## 🔧 Configuração
-
-### Variáveis de Ambiente
-
-```env
-# JWT Secret (deve ser o mesmo em todos os services)
-JWT_SECRET=your-super-secret-jwt-key-change-in-production
-
-# Auth Gateway URL (para cliente HTTP)
-AUTH_GATEWAY_URL=http://auth-gateway:8080
-```
-
-### Inicialização
-
-```go
-import (
-    "github.com/serphona/backend/go/libs/platform-auth/middleware"
-    "os"
-)
-
-func main() {
-    // Configurar JWT secret
-    jwtSecret := os.Getenv("JWT_SECRET")
-    middleware.SetJWTSecret(jwtSecret)
-    
-    // Resto da aplicação...
-}
-```
-
-## 📖 API Reference
-
-### Middleware
-
-#### `RequireAuth()`
-Middleware que valida JWT e injeta claims no contexto.
-
-```go
-router.Use(middleware.RequireAuth())
-```
-
-#### `RequireRole(role string)`
-Middleware que requer uma role específica.
-
-```go
-router.Use(middleware.RequireRole("admin"))
-```
-
-#### `GetClaimsFromContext(c *gin.Context)`
-Extrai claims do contexto da request.
+### 2. Extrair informacoes do usuario
 
 ```go
 claims, err := middleware.GetClaimsFromContext(c)
+if err != nil {
+    c.JSON(401, gin.H{"error": "Unauthorized"})
+    return
+}
+
+log.Printf("Tenant: %s", claims.TenantID)
 ```
 
-### Client
-
-#### `New(baseURL string)`
-Cria novo cliente HTTP para auth-gateway.
+### 3. Cliente HTTP para o auth-gateway
 
 ```go
-client := client.New("http://auth-gateway:8080")
+authClient := client.New("http://auth-gateway:8080")
+claims, err := authClient.ValidateToken(token)
+usuario, err := authClient.GetUserByID(userID, token)
 ```
 
-#### `ValidateToken(token string)`
-Valida token chamando auth-gateway.
+### 4. Validacao JWT manual
 
 ```go
-claims, err := client.ValidateToken(token)
+claims, err := authjwt.ValidateToken(tokenString)
+rawToken, err := authjwt.ExtractTokenFromHeader(authHeader)
 ```
 
-#### `GetUserByID(userID string)`
-Busca informações do usuário.
+## Estrutura
+
+```
+platform-auth/
+├── middleware/          # RequireAuth e middlewares de role
+├── client/              # Cliente HTTP para auth-gateway
+├── jwt/                 # Helpers JWT (validacao/extracao)
+├── types/               # Claims, User e tipos de token
+├── errors/              # Erros padronizados e codigos
+├── examples/            # Exemplo basico com Gin
+├── README*.md
+├── IMPLEMENTATION_GUIDE*.md
+├── go.mod
+└── go.sum
+```
+
+## Configuracao
+
+Variaveis de ambiente esperadas pelos consumidores:
+
+```env
+JWT_SECRET=sua-chave-jwt-super-secreta
+AUTH_GATEWAY_URL=http://auth-gateway:8080
+```
+
+Configure o secret no inicio da aplicacao (falha se nao estiver setado):
 
 ```go
-user, err := client.GetUserByID(userID)
+authjwt.MustSetSecretFromEnv()
 ```
 
-### JWT
+## API
 
-#### `ValidateToken(tokenString, secret string)`
-Valida JWT localmente (sem chamar auth-gateway).
+- `middleware.RequireAuth()` — valida o JWT e injeta claims no contexto
+- `middleware.RequireRole(role)` — exige uma role especifica
+- `middleware.RequireAdmin()` / `RequireSuperAdmin()` — atalhos de roles
+- `middleware.GetClaimsFromContext(c)` — retorna `*types.Claims`
+- `client.New(baseURL)` — cria cliente para auth-gateway
+- `client.ValidateToken(token)` — valida via gateway
+- `client.GetUserByID(userID, token)` / `client.GetMe(token)`
+- `client.RefreshToken(refreshToken)` / `client.Logout(token)`
+- `jwt.ValidateToken(token)` — validacao local com secret configurado
+- `jwt.ExtractTokenFromHeader(header)` — parse de `Authorization: Bearer <token>`
 
-```go
-claims, err := jwt.ValidateToken(token, jwtSecret)
-```
+## Seguranca
 
-#### `ExtractTokenFromHeader(authHeader string)`
-Extrai token do header "Bearer xxx".
+- Valide tokens localmente para rotas comuns; use o auth-gateway em fluxos sensiveis.
+- Mantenha o `JWT_SECRET` igual em todos os servicos e nunca o registre em logs.
+- Use HTTPS em producao.
 
-```go
-token, err := jwt.ExtractTokenFromHeader(c.GetHeader("Authorization"))
-```
-
-## 🔒 Segurança
-
-- ✅ Validação de assinatura JWT
-- ✅ Verificação de expiração
-- ✅ Suporte a refresh tokens
-- ✅ Claims customizados (tenantID, role)
-- ✅ Rate limiting no cliente HTTP
-
-## 🧪 Testes
+## Testes
 
 ```bash
 go test ./...
 ```
 
-## 📝 Exemplos
+## Exemplos
 
-Ver pasta `examples/` para exemplos completos de uso.
+Veja `examples/` para um exemplo executavel com Gin.
 
-## 🤝 Contribuindo
-
-Esta lib é mantida pela equipe Serphona. Para contribuir:
+## Contribuicao
 
 1. Crie uma branch
-2. Faça suas alterações
+2. Realize as mudancas
 3. Adicione testes
 4. Abra um Pull Request
 
-## 📚 Documentação Adicional
-
-- [Auth Gateway Service](../../services/auth-gateway/README.md)
-- [Libs vs Services Guide](../../../docs/architecture/LIBS_VS_SERVICES.md)
+Documentacao adicional: `IMPLEMENTATION_GUIDE-en-US.md` e `IMPLEMENTATION_GUIDE-pt-BR.md`.
 
 ---
 
-**Versão**: 1.0.0  
-**Licença**: Proprietary
+Versao: 1.0.0  
+Licenca: Proprietaria

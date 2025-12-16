@@ -2,6 +2,7 @@ package jwt
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -9,19 +10,41 @@ import (
 	"github.com/serphona/serphona/backend/go/libs/platform-auth/types"
 )
 
+const (
+	// EnvJWTSecret is the default environment variable name used to load the JWT secret.
+	EnvJWTSecret = "JWT_SECRET"
+)
+
 var jwtSecret string
 
-// SetSecret configura o secret JWT para validação
+// SetSecret configures the JWT secret used for validation.
 func SetSecret(secret string) {
 	jwtSecret = secret
 }
 
-// GetSecret retorna o secret JWT configurado
+// SetSecretFromEnv loads the JWT secret from EnvJWTSecret and returns an error if missing.
+func SetSecretFromEnv() error {
+	secret := os.Getenv(EnvJWTSecret)
+	if secret == "" {
+		return fmt.Errorf("environment variable %s not set", EnvJWTSecret)
+	}
+	SetSecret(secret)
+	return nil
+}
+
+// MustSetSecretFromEnv loads the JWT secret from EnvJWTSecret and panics if missing.
+func MustSetSecretFromEnv() {
+	if err := SetSecretFromEnv(); err != nil {
+		panic(err)
+	}
+}
+
+// GetSecret returns the configured JWT secret.
 func GetSecret() string {
 	return jwtSecret
 }
 
-// ValidateToken valida um token JWT e retorna as claims
+// ValidateToken validates a JWT token and returns its claims using the configured secret.
 func ValidateToken(tokenString string) (*types.Claims, error) {
 	if jwtSecret == "" {
 		return nil, fmt.Errorf("JWT secret not configured")
@@ -30,15 +53,13 @@ func ValidateToken(tokenString string) (*types.Claims, error) {
 	return ValidateTokenWithSecret(tokenString, jwtSecret)
 }
 
-// ValidateTokenWithSecret valida um token JWT com um secret específico
+// ValidateTokenWithSecret validates a JWT token with a provided secret.
 func ValidateTokenWithSecret(tokenString, secret string) (*types.Claims, error) {
 	if tokenString == "" {
 		return nil, autherrors.ErrMissingToken
 	}
 
-	// Parse e valida o token
 	token, err := jwt.ParseWithClaims(tokenString, &types.Claims{}, func(token *jwt.Token) (interface{}, error) {
-		// Verifica o método de assinatura
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
@@ -46,14 +67,12 @@ func ValidateTokenWithSecret(tokenString, secret string) (*types.Claims, error) 
 	})
 
 	if err != nil {
-		// Verifica se o token expirou
 		if strings.Contains(err.Error(), "token is expired") {
 			return nil, autherrors.ErrTokenExpired
 		}
 		return nil, autherrors.ErrInvalidToken
 	}
 
-	// Extrai as claims
 	if claims, ok := token.Claims.(*types.Claims); ok && token.Valid {
 		return claims, nil
 	}
@@ -61,14 +80,12 @@ func ValidateTokenWithSecret(tokenString, secret string) (*types.Claims, error) 
 	return nil, autherrors.ErrInvalidToken
 }
 
-// ExtractTokenFromHeader extrai o token do header Authorization
-// Espera formato: "Bearer <token>"
+// ExtractTokenFromHeader extracts the token from the Authorization header (expects "Bearer <token>").
 func ExtractTokenFromHeader(authHeader string) (string, error) {
 	if authHeader == "" {
 		return "", autherrors.ErrMissingToken
 	}
 
-	// Remove "Bearer " do início
 	parts := strings.Split(authHeader, " ")
 	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
 		return "", autherrors.ErrInvalidToken
@@ -82,7 +99,7 @@ func ExtractTokenFromHeader(authHeader string) (string, error) {
 	return token, nil
 }
 
-// ValidateTokenFromHeader valida um token extraído do header Authorization
+// ValidateTokenFromHeader validates a token extracted from the Authorization header.
 func ValidateTokenFromHeader(authHeader string) (*types.Claims, error) {
 	token, err := ExtractTokenFromHeader(authHeader)
 	if err != nil {
