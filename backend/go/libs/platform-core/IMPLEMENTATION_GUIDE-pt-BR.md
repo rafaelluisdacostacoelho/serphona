@@ -4,7 +4,11 @@ Guia para adotar a biblioteca platform-core nos seus servicos.
 
 ## O que voce recebe
 - Struct tipada `Config` cobrindo HTTP/GRPC, database, Redis, Kafka, ClickHouse, MinIO, JWT, OTLP, nivel de log, ambiente.
-- Loader que mescla defaults, `config.yaml` e variaveis de ambiente.
+- Loader que mescla defaults, `config.yaml` e variaveis de ambiente (suporta brokers Kafka separados por virgula via env).
+- Helper de validacao para chaves obrigatorias.
+- Helper de logger (zap) que respeita `LOG_LEVEL`.
+- Handler de health para liveness/readiness.
+- Helper de segredos via env.
 
 ## Passos de setup
 1) Adicione a dependencia no `go.mod` do servico:
@@ -23,6 +27,23 @@ cfg, err := config.Load()
 if err != nil {
     log.Fatalf("config: %v", err)
 }
+
+if err := config.ValidateRequired(cfg, "DATABASE_URL", "JWT_SECRET"); err != nil {
+    log.Fatalf("config faltando: %v", err)
+}
+
+logger, err := logger.New(cfg.LogLevel)
+if err != nil {
+    log.Fatalf("logger: %v", err)
+}
+defer logger.Sync()
+
+// Endpoint de health
+mux := http.NewServeMux()
+mux.HandleFunc("/health", health.Handler(
+    func() error { return nil }, // liveness
+    func() error { return nil }, // readiness checks
+))
 ```
 
 5) Use `cfg` na aplicacao (portas, URLs, brokers, etc.).
@@ -68,6 +89,10 @@ ENVIRONMENT: "development"
 - [ ] Criar `config.yaml` (opcional) sem segredos
 - [ ] Definir env vars para segredos (`DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, etc.)
 - [ ] Carregar config no start com `config.Load()`
+- [ ] Validar chaves obrigatorias com `config.ValidateRequired(...)`
+- [ ] Inicializar logger zap com `logger.New(cfg.LogLevel)`
+- [ ] Expor `/health` usando `health.Handler(...)`
+- [ ] Usar `secrets.Get` para segredos em env (ou secret manager) quando necessario
 - [ ] Ligar portas e clients usando os valores carregados
 - [ ] Documentar quais chaves o servico exige
 - [ ] Adicionar testes para validar env/fields obrigatorios (opcional)

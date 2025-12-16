@@ -6,6 +6,10 @@ Core utilities shared across Serphona services. Currently provides configuration
 - Centralized config loading via YAML + environment variables.
 - Defaults for common settings (HTTP/GRPC ports, log level, JWT expiration, ClickHouse port).
 - Typed `Config` struct for services to depend on.
+- Validation helper to ensure required keys are set.
+- Zap logger helper that honors the configured log level.
+- Health handler helper for liveness/readiness.
+- Simple secrets helper for env-based secrets.
 
 ## Installation
 ```bash
@@ -23,12 +27,41 @@ import (
 )
 
 func main() {
-    cfg, err := config.Load()
-    if err != nil {
-        log.Fatalf("config: %v", err)
-    }
+cfg, err := config.Load()
+if err != nil {
+    log.Fatalf("config: %v", err)
+}
 
-    log.Printf("HTTP listening on %s, env: %s, log level: %s", cfg.HTTPAddr, cfg.Environment, cfg.LogLevel)
+log.Printf("HTTP listening on %s, env: %s, log level: %s", cfg.HTTPAddr, cfg.Environment, cfg.LogLevel)
+
+if err := config.ValidateRequired(cfg, "DATABASE_URL", "JWT_SECRET"); err != nil {
+    log.Fatalf("missing required config: %v", err)
+}
+
+logger, err := logger.New(cfg.LogLevel)
+if err != nil {
+    log.Fatalf("logger: %v", err)
+}
+defer logger.Sync()
+
+logger.Info("service starting", zap.String("env", cfg.Environment))
+}
+```
+
+## Health checks
+```go
+mux := http.NewServeMux()
+mux.HandleFunc("/health", health.Handler(
+    func() error { return nil },          // liveness
+    func() error { return nil },          // readiness checks (db, cache, etc.)
+))
+```
+
+## Secrets
+```go
+dbPass, err := secrets.Get("DB_PASSWORD")
+if err != nil {
+    log.Fatal(err)
 }
 ```
 

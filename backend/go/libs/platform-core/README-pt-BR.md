@@ -6,6 +6,10 @@ Utilitários centrais compartilhados pelos serviços da Serphona. Atualmente ofe
 - Leitura centralizada de config via YAML + variáveis de ambiente.
 - Defaults para ajustes comuns (portas HTTP/GRPC, nível de log, expiração do JWT, porta do ClickHouse).
 - Struct `Config` tipada para os serviços consumirem.
+- Helper de validação para garantir chaves obrigatórias.
+- Helper de logger (zap) que respeita o nível configurado.
+- Helper de health (liveness/readiness).
+- Helper de segredos via env.
 
 ## Instalação
 ```bash
@@ -23,12 +27,41 @@ import (
 )
 
 func main() {
-    cfg, err := config.Load()
-    if err != nil {
-        log.Fatalf("config: %v", err)
-    }
+cfg, err := config.Load()
+if err != nil {
+    log.Fatalf("config: %v", err)
+}
 
-    log.Printf("HTTP em %s, env: %s, log: %s", cfg.HTTPAddr, cfg.Environment, cfg.LogLevel)
+log.Printf("HTTP em %s, env: %s, log: %s", cfg.HTTPAddr, cfg.Environment, cfg.LogLevel)
+
+if err := config.ValidateRequired(cfg, "DATABASE_URL", "JWT_SECRET"); err != nil {
+    log.Fatalf("faltam configs obrigatorias: %v", err)
+}
+
+logger, err := logger.New(cfg.LogLevel)
+if err != nil {
+    log.Fatalf("logger: %v", err)
+}
+defer logger.Sync()
+
+logger.Info("servico iniciando", zap.String("env", cfg.Environment))
+}
+```
+
+## Health checks
+```go
+mux := http.NewServeMux()
+mux.HandleFunc("/health", health.Handler(
+    func() error { return nil }, // liveness
+    func() error { return nil }, // readiness (db, cache, etc.)
+))
+```
+
+## Segredos
+```go
+dbPass, err := secrets.Get("DB_PASSWORD")
+if err != nil {
+    log.Fatal(err)
 }
 ```
 

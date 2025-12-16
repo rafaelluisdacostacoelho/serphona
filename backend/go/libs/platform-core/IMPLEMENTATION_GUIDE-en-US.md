@@ -4,7 +4,11 @@ Guide to adopt the platform-core library in your services.
 
 ## What you get
 - Typed `Config` struct covering HTTP/GRPC, database, Redis, Kafka, ClickHouse, MinIO, JWT, OTLP, log level, environment.
-- Loader that merges defaults, `config.yaml`, and environment variables.
+- Loader that merges defaults, `config.yaml`, and environment variables (supports comma-separated Kafka brokers).
+- Validation helper for required keys.
+- Zap logger helper that honors `LOG_LEVEL`.
+- Health handler for liveness/readiness endpoints.
+- Secrets helper for env-based secrets.
 
 ## Setup Steps
 1) Add dependency to your service `go.mod`:
@@ -23,6 +27,23 @@ cfg, err := config.Load()
 if err != nil {
     log.Fatalf("config: %v", err)
 }
+
+if err := config.ValidateRequired(cfg, "DATABASE_URL", "JWT_SECRET"); err != nil {
+    log.Fatalf("missing config: %v", err)
+}
+
+logger, err := logger.New(cfg.LogLevel)
+if err != nil {
+    log.Fatalf("logger: %v", err)
+}
+defer logger.Sync()
+
+// Health endpoint
+mux := http.NewServeMux()
+mux.HandleFunc("/health", health.Handler(
+    func() error { return nil }, // liveness
+    func() error { return nil }, // readiness checks
+))
 ```
 
 5) Use `cfg` across your app (HTTP ports, database URLs, brokers, etc.).
@@ -68,6 +89,10 @@ ENVIRONMENT: "development"
 - [ ] Create `config.yaml` (optional) with non-secret defaults
 - [ ] Set env vars for secrets (`DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, etc.)
 - [ ] Load config at startup with `config.Load()`
+- [ ] Validate required keys with `config.ValidateRequired(...)`
+- [ ] Initialize zap logger with `logger.New(cfg.LogLevel)`
+- [ ] Expose `/health` using `health.Handler(...)`
+- [ ] Use `secrets.Get` for env-based secrets (or secret manager) where needed
 - [ ] Wire ports and clients using loaded values
 - [ ] Document which keys your service requires
 - [ ] Add tests that validate required env vars/fields (optional)

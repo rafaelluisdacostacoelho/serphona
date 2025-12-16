@@ -74,5 +74,17 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
+	// Allow comma-separated env for Kafka brokers.
+	if len(cfg.KafkaBrokers) == 0 {
+		if brokersEnv := viper.GetString("KAFKA_BROKERS"); brokersEnv != "" {
+			parts := strings.Split(brokersEnv, ",")
+			for _, broker := range parts {
+				if b := strings.TrimSpace(broker); b != "" {
+					cfg.KafkaBrokers = append(cfg.KafkaBrokers, b)
+				}
+			}
+		}
+	}
+
 	return &cfg, nil
 }
