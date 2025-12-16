@@ -152,6 +152,9 @@ secrets/
 .secrets/
 **/secrets.yaml
 **/secrets.yml
+!/backend/go/libs/platform-core/secrets/
+!/backend/go/libs/platform-core/secrets/secrets.go
+!/backend/go/libs/platform-core/secrets/secrets_test.go
 
 # ==== Temporary Files ====
 tmp/
