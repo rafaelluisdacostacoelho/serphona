@@ -24,6 +24,50 @@ type UserUpdatedEvent struct {
 	UpdatedAt time.Time         `json:"updated_at"`
 }
 
+// UserDeletedEvent representa um evento de exclus?o de usu?rio
+type UserDeletedEvent struct {
+	UserID    string    `json:"user_id"`
+	TenantID  string    `json:"tenant_id"`
+	DeletedBy string    `json:"deleted_by"`
+	DeletedAt time.Time `json:"deleted_at"`
+}
+
+// UserLoggedInEvent representa um evento de login de usu?rio
+type UserLoggedInEvent struct {
+	UserID     string    `json:"user_id"`
+	TenantID   string    `json:"tenant_id"`
+	SessionID  string    `json:"session_id"`
+	IPAddress  string    `json:"ip_address"`
+	UserAgent  string    `json:"user_agent"`
+	LoggedInAt time.Time `json:"logged_in_at"`
+}
+
+// UserLoggedOutEvent representa um evento de logout de usu?rio
+type UserLoggedOutEvent struct {
+	UserID      string    `json:"user_id"`
+	TenantID    string    `json:"tenant_id"`
+	SessionID   string    `json:"session_id"`
+	LoggedOutAt time.Time `json:"logged_out_at"`
+}
+
+// PasswordChangedEvent representa um evento de troca de senha
+type PasswordChangedEvent struct {
+	UserID    string    `json:"user_id"`
+	TenantID  string    `json:"tenant_id"`
+	Initiator string    `json:"initiator"`
+	Method    string    `json:"method"`
+	ChangedAt time.Time `json:"changed_at"`
+}
+
+// PasswordResetEvent representa um evento de reset de senha
+type PasswordResetEvent struct {
+	UserID    string    `json:"user_id"`
+	TenantID  string    `json:"tenant_id"`
+	Initiator string    `json:"initiator"`
+	Method    string    `json:"method"`
+	ResetAt   time.Time `json:"reset_at"`
+}
+
 // TenantCreatedEvent representa um evento de criação de tenant
 type TenantCreatedEvent struct {
 	TenantID  string    `json:"tenant_id"`
