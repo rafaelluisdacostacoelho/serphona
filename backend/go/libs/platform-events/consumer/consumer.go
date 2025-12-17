@@ -15,9 +15,16 @@ import (
 	"github.com/serphona/serphona/backend/go/libs/platform-events/types"
 )
 
+type reader interface {
+	FetchMessage(context.Context) (kafka.Message, error)
+	CommitMessages(context.Context, ...kafka.Message) error
+	Close() error
+	Stats() kafka.ReaderStats
+}
+
 // Consumer é responsável por consumir eventos do Kafka
 type Consumer struct {
-	reader   *kafka.Reader
+	reader   reader
 	config   *config.Config
 	handlers map[string][]types.EventHandler
 	filters  map[string][]types.EventFilter

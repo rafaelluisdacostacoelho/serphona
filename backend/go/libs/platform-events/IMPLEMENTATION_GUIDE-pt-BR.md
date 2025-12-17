@@ -9,6 +9,8 @@
 3. [Consumer - Consumindo Eventos](#consumer---consumindo-eventos)
 4. [Padrões e Melhores Práticas](#padrões-e-melhores-práticas)
 5. [Troubleshooting](#troubleshooting)
+6. [Referência de Cabeçalhos](#referência-de-cabeçalhos)
+7. [Payloads Tooling/System](#payloads-toolingsystem)
 
 ---
 
@@ -539,6 +541,32 @@ if err := cfg.Validate(); err != nil {
 ```env
 DEBUG=true
 ```
+
+## Referência de Cabeçalhos
+
+| Header | Obrigatório | Descrição |
+| --- | --- | --- |
+| event_type | Sim | Tipo do evento (alinha com o tópico) |
+| source | Sim | Serviço que publicou o evento |
+| version | Sim | Versão do schema do evento (padrão 1.0) |
+| tenant_id | Opcional | Tenant dono do evento |
+| user_id | Opcional | Usuário que disparou o evento |
+| trace_id | Opcional | Trace ID para tracing distribuído |
+| span_id | Opcional | Span ID para tracing distribuído |
+
+## Payloads Tooling/System
+
+### Tooling
+- `tool.registered` → `ToolRegisteredEvent` (tool_id, tenant_id, name, version, registered_at, registered_by?, metadata?)
+- `tool.invoked` → `ToolInvokedEvent` (tool_id, tenant_id, action, invoked_at, correlation_id?, payload?)
+- `tool.completed` → `ToolCompletedEvent` (tool_id, tenant_id, action, result, duration_ms?, completed_at, correlation_id?)
+- `tool.failed` → `ToolFailedEvent` (tool_id, tenant_id, action, error, duration_ms?, failed_at, context?, correlation_id?)
+
+### System
+- `system.health.check` → `SystemHealthCheckEvent` (service, status, checked_at, details?)
+- `system.error` → `SystemErrorEvent` (service, error, severity?, occurred_at, trace_id?, span_id?, labels?)
+- `system.alert` → `SystemAlertEvent` (alert_id, severity, service, message, created_at, labels?)
+- `system.configuration.updated` → `ConfigurationUpdatedEvent` (service, updated_by?, updated_at, changes?)
 
 ### Eventos não são consumidos
 

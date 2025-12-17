@@ -20,6 +20,17 @@ type SystemAlertEvent struct {
 	Labels    map[string]string `json:"labels,omitempty"`
 }
 
+// SystemErrorEvent reports an error emitted by a service with optional tracing.
+type SystemErrorEvent struct {
+	Service    string            `json:"service"`
+	Error      string            `json:"error"`
+	Severity   string            `json:"severity,omitempty"`
+	OccurredAt time.Time         `json:"occurred_at"`
+	TraceID    string            `json:"trace_id,omitempty"`
+	SpanID     string            `json:"span_id,omitempty"`
+	Labels     map[string]string `json:"labels,omitempty"`
+}
+
 // ConfigurationUpdatedEvent tracks configuration changes applied to a service.
 type ConfigurationUpdatedEvent struct {
 	Service   string            `json:"service"`

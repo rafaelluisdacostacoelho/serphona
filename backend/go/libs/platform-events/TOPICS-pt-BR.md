@@ -62,14 +62,14 @@ Tabela que relaciona cada tópico ao struct de payload esperado. Tópicos sem st
 | Tópico | Struct de payload | Status | Notas |
 | --- | --- | --- | --- |
 | `tool.registered` | `events.ToolRegisteredEvent` | Definido | tool_id, tenant_id, name, version, registered_at |
-| `tool.invoked` | `events.ToolInvokedEvent` | Definido | |
-| `tool.completed` | `events.ToolCompletedEvent` | Definido | |
+| `tool.invoked` | `events.ToolInvokedEvent` | Definido | tool_id, tenant_id, action, invoked_at, correlation_id?, payload? |
+| `tool.completed` | `events.ToolCompletedEvent` | Definido | tool_id, tenant_id, action, result, duration_ms?, completed_at, correlation_id? |
 | `tool.failed` | `events.ToolFailedEvent` | Definido | tool_id, tenant_id, action, error, duration_ms, failed_at |
 
 ## System
 | Tópico | Struct de payload | Status | Notas |
 | --- | --- | --- | --- |
 | `system.health.check` | `events.SystemHealthCheckEvent` | Definido | service, status, checked_at, details |
-| `system.error` | `events.SystemErrorEvent` | Definido | |
+| `system.error` | `events.SystemErrorEvent` | Definido | service, error, severity?, occurred_at, trace_id?, span_id?, labels? |
 | `system.alert` | `events.SystemAlertEvent` | Definido | alert_id, severity, service, message, labels |
 | `system.configuration.updated` | `events.ConfigurationUpdatedEvent` | Definido | service, changes, updated_by, updated_at |

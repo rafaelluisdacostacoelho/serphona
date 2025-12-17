@@ -18,8 +18,42 @@ import (
 )
 
 // Publisher é responsável por publicar eventos no Kafka
+type writerInterface interface {
+	WriteMessages(context.Context, ...kafka.Message) error
+	Stats() kafka.WriterStats
+	Close() error
+}
+
+// newWriter is overridden in tests to avoid dialing real brokers. It respects Dialer (TLS/SASL).
+var newWriter = func(cfg *config.Config) (writerInterface, error) {
+	dialer, err := newDialer(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	w := kafka.NewWriter(kafka.WriterConfig{
+		Brokers:      cfg.Brokers,
+		Dialer:       dialer,
+		Balancer:     &kafka.LeastBytes{},
+		BatchSize:    cfg.PublisherBatchSize,
+		BatchTimeout: cfg.PublisherBatchTimeout,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		RequiredAcks: int(kafka.RequireOne),
+		Async:        false,
+	})
+
+	w.AllowAutoTopicCreation = true
+	w.Compression = kafka.Snappy
+	w.WriteBackoffMin = cfg.PublisherRetryInterval
+	w.WriteBackoffMax = cfg.PublisherRetryInterval
+	w.MaxAttempts = cfg.PublisherMaxRetries
+
+	return w, nil
+}
+
 type Publisher struct {
-	writer *kafka.Writer
+	writer writerInterface
 	ready  map[string]bool
 	config *config.Config
 	mu     sync.RWMutex
@@ -32,23 +66,13 @@ func New(cfg *config.Config) (*Publisher, error) {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 
+	w, err := newWriter(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build writer: %w", err)
+	}
+
 	p := &Publisher{
-		writer: &kafka.Writer{
-			Addr:                   kafka.TCP(cfg.Brokers...),
-			Balancer:               &kafka.LeastBytes{},
-			AllowAutoTopicCreation: true,
-			BatchSize:              cfg.PublisherBatchSize,
-			BatchTimeout:           cfg.PublisherBatchTimeout,
-			MaxAttempts:            cfg.PublisherMaxRetries,
-			ReadTimeout:            10 * time.Second,
-			WriteTimeout:           10 * time.Second,
-			RequiredAcks:           kafka.RequireOne,
-			Async:                  false,
-			Compression:            kafka.Snappy,
-			WriteBackoffMin:        cfg.PublisherRetryInterval,
-			WriteBackoffMax:        cfg.PublisherRetryInterval,
-			Transport:              newTransport(cfg),
-		},
+		writer: w,
 		ready:  make(map[string]bool),
 		config: cfg,
 	}
@@ -122,13 +146,7 @@ func (p *Publisher) Publish(ctx context.Context, topic string, event *types.Even
 
 	msg.Topic = topic
 
-	conn, err := kafka.DialLeader(ctx, "tcp", p.config.Brokers[0], topic, 0)
-	if err != nil {
-		return fmt.Errorf("failed to dial leader for topic %s: %w", topic, err)
-	}
-	defer conn.Close()
-
-	if _, err := conn.WriteMessages(msg); err != nil {
+	if err := p.writer.WriteMessages(ctx, msg); err != nil {
 		return fmt.Errorf("failed to publish event: %w", err)
 	}
 
@@ -208,13 +226,7 @@ func (p *Publisher) PublishBatch(ctx context.Context, topic string, events []*ty
 		messages = append(messages, msg)
 	}
 
-	conn, err := kafka.DialLeader(ctx, "tcp", p.config.Brokers[0], topic, 0)
-	if err != nil {
-		return fmt.Errorf("failed to dial leader for topic %s: %w", topic, err)
-	}
-	defer conn.Close()
-
-	if _, err := conn.WriteMessages(messages...); err != nil {
+	if err := p.writer.WriteMessages(ctx, messages...); err != nil {
 		return fmt.Errorf("failed to publish batch: %w", err)
 	}
 
@@ -236,6 +248,12 @@ func (p *Publisher) Close() error {
 
 	p.closed = true
 
+	if p.writer != nil {
+		if err := p.writer.Close(); err != nil {
+			return fmt.Errorf("failed to close publisher writer: %w", err)
+		}
+	}
+
 	if p.config.Debug {
 		log.Println("[platform-events] Publisher closed")
 	}
@@ -248,7 +266,10 @@ func (p *Publisher) Stats() kafka.WriterStats {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	return kafka.WriterStats{}
+	if p.writer == nil {
+		return kafka.WriterStats{}
+	}
+	return p.writer.Stats()
 }
 
 // ensureTopic guarantees the topic exists and has a leader before publishing.
@@ -261,7 +282,12 @@ func (p *Publisher) ensureTopic(ctx context.Context, topic string) error {
 		return fmt.Errorf("no brokers configured")
 	}
 
-	conn, err := kafka.DialContext(ctx, "tcp", p.config.Brokers[0])
+	dialer, err := newDialer(p.config)
+	if err != nil {
+		return fmt.Errorf("failed to build dialer: %w", err)
+	}
+
+	conn, err := dialer.DialContext(ctx, "tcp", p.config.Brokers[0])
 	if err != nil {
 		return fmt.Errorf("failed to dial broker %s: %w", p.config.Brokers[0], err)
 	}
@@ -289,7 +315,7 @@ func (p *Publisher) ensureTopic(ctx context.Context, topic string) error {
 	}
 
 	// Dial leader to ensure metadata is propagated.
-	leader, err := kafka.DialLeader(ctx, "tcp", p.config.Brokers[0], topic, 0)
+	leader, err := dialer.DialLeader(ctx, "tcp", p.config.Brokers[0], topic, 0)
 	if err != nil {
 		return fmt.Errorf("failed to reach leader for topic %s: %w", topic, err)
 	}

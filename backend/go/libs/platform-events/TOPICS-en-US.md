@@ -62,14 +62,14 @@ This table maps each topic constant to the expected payload struct. Topics witho
 | Topic | Payload struct | Status | Notes |
 | --- | --- | --- | --- |
 | `tool.registered` | `events.ToolRegisteredEvent` | Defined | tool_id, tenant_id, name, version, registered_at |
-| `tool.invoked` | `events.ToolInvokedEvent` | Defined | |
-| `tool.completed` | `events.ToolCompletedEvent` | Defined | |
+| `tool.invoked` | `events.ToolInvokedEvent` | Defined | tool_id, tenant_id, action, invoked_at, correlation_id?, payload? |
+| `tool.completed` | `events.ToolCompletedEvent` | Defined | tool_id, tenant_id, action, result, duration_ms?, completed_at, correlation_id? |
 | `tool.failed` | `events.ToolFailedEvent` | Defined | tool_id, tenant_id, action, error, duration_ms, failed_at |
 
 ## System
 | Topic | Payload struct | Status | Notes |
 | --- | --- | --- | --- |
 | `system.health.check` | `events.SystemHealthCheckEvent` | Defined | service, status, checked_at, details |
-| `system.error` | `events.SystemErrorEvent` | Defined | |
+| `system.error` | `events.SystemErrorEvent` | Defined | service, error, severity?, occurred_at, trace_id?, span_id?, labels? |
 | `system.alert` | `events.SystemAlertEvent` | Defined | alert_id, severity, service, message, labels |
 | `system.configuration.updated` | `events.ConfigurationUpdatedEvent` | Defined | service, changes, updated_by, updated_at |

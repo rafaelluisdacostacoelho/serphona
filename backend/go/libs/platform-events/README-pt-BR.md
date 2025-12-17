@@ -121,8 +121,7 @@ platform-events/
 │   └── config.go           # Configuração do sistema
 ├── types/
 │   └── event.go            # Tipos base de eventos
-├── events/
-│   └── events.go           # Eventos pré-definidos do domínio
+├── events/                 # Eventos pré-definidos do domínio (auth, tenant, billing, agent, analytics, tooling, system)
 ├── topics/
 │   └── topics.go           # Tópicos Kafka padronizados
 ├── publisher/
@@ -130,8 +129,7 @@ platform-events/
 ├── consumer/
 │   └── consumer.go         # Consumer de eventos
 ├── examples/
-│   ├── basic_publisher.go  # Exemplo de publicação
-│   └── basic_consumer.go   # Exemplo de consumo
+│   └── tooling_system_examples.go # Exemplos de payloads para tooling/system
 ├── go.mod
 ├── README-pt-BR.md
 ├── README-en-US.md
@@ -217,44 +215,127 @@ cfg := &config.Config{
 - `tenant.member.removed`
 
 ### Billing Events
-- `billing.subscription.created`
-- `billing.subscription.updated`
-- `billing.subscription.cancelled`
-- `billing.payment.succeeded`
-- `billing.payment.failed`
-- `billing.credits.purchased`
-- `billing.credits.consumed`
-- `billing.invoice.generated`
+- `billing.subscription.created`, `billing.subscription.updated`, `billing.subscription.cancelled`
+- `billing.payment.succeeded`, `billing.payment.failed`
+- `billing.credits.purchased`, `billing.credits.consumed`, `billing.invoice.generated`
 
 ### Agent Events
-- `agent.created`
-- `agent.updated`
-- `agent.deleted`
-- `agent.deployed`
-- `agent.started`
-- `agent.stopped`
-- `agent.conversation.started`
-- `agent.conversation.ended`
-- `agent.message.sent`
-- `agent.message.received`
+- `agent.created`, `agent.updated`, `agent.deleted`
+- `agent.deployed`, `agent.started`, `agent.stopped`
+- `agent.conversation.started`, `agent.conversation.ended`
+- `agent.message.sent`, `agent.message.received`
 
 ### Analytics Events
-- `analytics.interaction.logged`
-- `analytics.metric.recorded`
-- `analytics.report.generated`
-- `analytics.data.exported`
+- `analytics.interaction.logged`, `analytics.metric.recorded`
+- `analytics.report.generated`, `analytics.data.exported`
 
 ### Tool Events
-- `tool.registered`
-- `tool.invoked`
-- `tool.completed`
-- `tool.failed`
+- `tool.registered`, `tool.invoked`, `tool.completed`, `tool.failed`
 
 ### System Events
-- `system.health.check`
-- `system.error`
-- `system.alert`
-- `system.configuration.updated`
+- `system.health.check`, `system.error`, `system.alert`, `system.configuration.updated`
+
+## 🧾 Cabeçalhos e Metadados
+
+O publisher envia os cabeçalhos `event_type`, `source`, `version` e, quando existir, `tenant_id`, `user_id`, `trace_id`, `span_id`. O consumer hidrata esses valores em `types.Event` e guarda os demais em `Metadata`.
+
+| Header | Obrigatório | Descrição |
+| --- | --- | --- |
+| event_type | Sim | Tipo do evento (alinha com o tópico) |
+| source | Sim | Serviço de origem que publicou |
+| version | Sim | Versão do schema do evento (padrão 1.0) |
+| tenant_id | Opcional | Tenant dono do evento |
+| user_id | Opcional | Usuário que disparou o evento |
+| trace_id | Opcional | Trace ID para tracing distribuído |
+| span_id | Opcional | Span ID para tracing distribuído |
+
+## 🧩 Payloads de Tooling & System
+
+### Tooling
+- `tool.registered` → `ToolRegisteredEvent` (tool_id, tenant_id, name, version, registered_at, registered_by?, metadata?)
+- `tool.invoked` → `ToolInvokedEvent` (tool_id, tenant_id, action, invoked_at, correlation_id?, payload?)
+- `tool.completed` → `ToolCompletedEvent` (tool_id, tenant_id, action, result, duration_ms?, completed_at, correlation_id?)
+- `tool.failed` → `ToolFailedEvent` (tool_id, tenant_id, action, error, duration_ms?, failed_at, context?, correlation_id?)
+
+### System
+- `system.health.check` → `SystemHealthCheckEvent` (service, status, checked_at, details?)
+- `system.error` → `SystemErrorEvent` (service, error, severity?, occurred_at, trace_id?, span_id?, labels?)
+- `system.alert` → `SystemAlertEvent` (alert_id, severity, service, message, created_at, labels?)
+- `system.configuration.updated` → `ConfigurationUpdatedEvent` (service, updated_by?, updated_at, changes?)
+
+## 🧪 Exemplos de Tooling/System
+
+```go
+// Exemplo de tool.failed
+toolFailed := events.NewEvent(
+    topics.ToolFailed,
+    "integration-test",
+    events.ToolFailedEvent{
+        ToolID:     "tool-123",
+        TenantID:   "tenant-xyz",
+        Action:     "sync_contacts",
+        Error:      "timeout",
+        DurationMs: 1500,
+        FailedAt:   time.Now().UTC(),
+        Context:    "job=contacts-sync",
+    },
+).WithTenantID("tenant-xyz")
+
+// Exemplo de tool.invoked
+toolInvoked := events.NewEvent(
+    topics.ToolInvoked,
+    "integration-test",
+    events.ToolInvokedEvent{
+        ToolID:        "tool-123",
+        TenantID:      "tenant-xyz",
+        Action:        "sync_contacts",
+        InvokedAt:     time.Now().UTC(),
+        CorrelationID: "corr-1",
+        Payload: map[string]interface{}{
+            "job": "contacts-sync",
+        },
+    },
+).WithTenantID("tenant-xyz")
+
+// Exemplo de system.alert
+systemAlert := events.NewEvent(
+    topics.SystemAlert,
+    "integration-test",
+    events.SystemAlertEvent{
+        AlertID:   "alert-1",
+        Severity:  "critical",
+        Service:   "analytics-query-service",
+        Message:   "Kafka lag above threshold",
+        CreatedAt: time.Now().UTC(),
+        Labels: map[string]string{
+            "tenant_id": "tenant-xyz",
+        },
+    },
+)
+
+// Exemplo de system.error
+systemError := events.NewEvent(
+    topics.SystemError,
+    "integration-test",
+    events.SystemErrorEvent{
+        Service:    "analytics-query-service",
+        Error:      "timeout contacting ClickHouse",
+        Severity:   "error",
+        OccurredAt: time.Now().UTC(),
+        TraceID:    "trace-123",
+        Labels: map[string]string{
+            "tenant_id": "tenant-xyz",
+        },
+    },
+)
+
+## Versionamento de eventos
+
+- Versão padrão é `1.0` em todos os eventos.
+- Mudanças aditivas e compatíveis (novos campos opcionais) mantêm a mesma versão.
+- Mudanças breaking exigem aumento de versão e tratamento nos consumers.
+- Prefira adicionar campos opcionais em vez de alterar/remover existentes.
+```
 
 ## 📖 Uso Avançado
 
@@ -487,12 +568,7 @@ func TestUserService(t *testing.T) {
 
 ## 📚 Exemplos Completos
 
-Ver pasta `examples/` para exemplos completos de:
-- Publicação básica
-- Consumo básico
-- Batch processing
-- Filtros de eventos
-- Retry logic
+Ver pasta `examples/` para exemplos de modelagem de payloads (tooling/system) com build tag `examples`.
 
 ## 🔜 Roadmap
 
@@ -507,7 +583,7 @@ Ver pasta `examples/` para exemplos completos de:
 ## Documentação Relacionada
 
 - [Implementation Guide](./IMPLEMENTATION_GUIDE-pt-BR.md)
-- [Mapa de Tópicos e Payloads](./TOPICS.md)
+- [Mapa de Tópicos e Payloads](./TOPICS-pt-BR.md)
 - [Guia de Arquitetura](../../../docs/architecture/LIBS_VS_SERVICES.md)
 - [Auth Gateway](../../services/auth-gateway/README.md)
 - [Tenant Manager](../../services/tenant-manager/README.md)
