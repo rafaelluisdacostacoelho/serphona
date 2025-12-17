@@ -106,9 +106,23 @@ func TestIntegrationToolingAndSystem(t *testing.T) {
 		},
 	)
 
-	batch := []*events.Event{toolRegistered, toolFailed, systemHealth, systemAlert, configUpdated}
+	if err := pub.Publish(ctx, topics.ToolRegistered, toolRegistered); err != nil {
+		t.Fatalf("failed to publish tool.registered: %v", err)
+	}
 
-	if err := pub.PublishBatch(ctx, topics.ToolRegistered, batch); err != nil {
-		t.Fatalf("failed to publish batch: %v", err)
+	if err := pub.Publish(ctx, topics.ToolFailed, toolFailed); err != nil {
+		t.Fatalf("failed to publish tool.failed: %v", err)
+	}
+
+	if err := pub.Publish(ctx, topics.SystemHealthCheck, systemHealth); err != nil {
+		t.Fatalf("failed to publish system.health.check: %v", err)
+	}
+
+	if err := pub.Publish(ctx, topics.SystemAlert, systemAlert); err != nil {
+		t.Fatalf("failed to publish system.alert: %v", err)
+	}
+
+	if err := pub.Publish(ctx, topics.ConfigurationUpdated, configUpdated); err != nil {
+		t.Fatalf("failed to publish system.configuration.updated: %v", err)
 	}
 }
