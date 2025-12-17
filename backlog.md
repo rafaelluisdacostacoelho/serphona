@@ -5,9 +5,9 @@
 - [x] Fase 2: Payloads Tenant (deleted, suspended, activated, member added/removed)
 - [x] Fase 3: Payloads Billing (subscription updated/cancelled, payment failed, invoice generated)
 - [x] Fase 4: Payloads Agent (updated, deleted, deployed, started, stopped, message received)
-- [ ] Fase 5: Payloads Analytics (interaction logged, metric recorded, report generated, data exported)
-- [ ] Fase 6: Payloads Tooling (registered, failed)
-- [ ] Fase 7: Payloads System (health check, alert, configuration updated)
+- [x] Fase 5: Payloads Analytics (interaction logged, metric recorded, report generated, data exported)
+- [x] Fase 6: Payloads Tooling (registered, failed)
+- [x] Fase 7: Payloads System (health check, alert, configuration updated)
 
 ## Docs e exemplos
 - [ ] Corrigir encoding/acentos nos READMEs e guia (README.md, README-pt-BR.md, IMPLEMENTATION_GUIDE-pt-BR.md)

@@ -53,23 +53,23 @@ Tabela que relaciona cada tópico ao struct de payload esperado. Tópicos sem st
 ## Analytics
 | Tópico | Struct de payload | Status | Notas |
 | --- | --- | --- | --- |
-| `analytics.interaction.logged` | - | Pendente | Needs interaction id, tenant id, user/agent id, channel, timestamp, metadata. |
-| `analytics.metric.recorded` | - | Pendente | Needs metric name, value, dimensions/tags, captured_at. |
-| `analytics.report.generated` | - | Pendente | Needs report id, tenant id, type, period, generated_at, link. |
-| `analytics.data.exported` | - | Pendente | Needs export id, tenant id, format, size, requested_by, exported_at, destination. |
+| `analytics.interaction.logged` | `events.InteractionLoggedEvent` | Definido | interaction_id, tenant_id, user/agent, channel, logged_at, metadata |
+| `analytics.metric.recorded` | `events.MetricRecordedEvent` | Definido | metric, value, unit, dimensions, captured_at |
+| `analytics.report.generated` | `events.ReportGeneratedEvent` | Definido | report_id, report_type, period_start/end, generated_at, link |
+| `analytics.data.exported` | `events.DataExportedEvent` | Definido | export_id, format, destination, size_bytes, exported_at |
 
 ## Tooling
 | Tópico | Struct de payload | Status | Notas |
 | --- | --- | --- | --- |
-| `tool.registered` | - | Pendente | Needs tool id, tenant id, name, version, registered_at, registered_by. |
+| `tool.registered` | `events.ToolRegisteredEvent` | Definido | tool_id, tenant_id, name, version, registered_at |
 | `tool.invoked` | `events.ToolInvokedEvent` | Definido | |
 | `tool.completed` | `events.ToolCompletedEvent` | Definido | |
-| `tool.failed` | - | Pendente | Needs tool id, tenant id, action, error, duration, failed_at. |
+| `tool.failed` | `events.ToolFailedEvent` | Definido | tool_id, tenant_id, action, error, duration_ms, failed_at |
 
 ## System
 | Tópico | Struct de payload | Status | Notas |
 | --- | --- | --- | --- |
-| `system.health.check` | - | Pendente | Needs service name, status, checked_at, details. |
+| `system.health.check` | `events.SystemHealthCheckEvent` | Definido | service, status, checked_at, details |
 | `system.error` | `events.SystemErrorEvent` | Definido | |
-| `system.alert` | - | Pendente | Needs alert id, severity, service, message, created_at, labels. |
-| `system.configuration.updated` | - | Pendente | Needs service, config keys changed, updated_by, updated_at. |
+| `system.alert` | `events.SystemAlertEvent` | Definido | alert_id, severity, service, message, labels |
+| `system.configuration.updated` | `events.ConfigurationUpdatedEvent` | Definido | service, changes, updated_by, updated_at |

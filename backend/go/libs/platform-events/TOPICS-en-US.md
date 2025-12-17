@@ -53,23 +53,23 @@ This table maps each topic constant to the expected payload struct. Topics witho
 ## Analytics
 | Topic | Payload struct | Status | Notes |
 | --- | --- | --- | --- |
-| `analytics.interaction.logged` | - | Pending | Needs interaction id, tenant id, user/agent id, channel, timestamp, metadata. |
-| `analytics.metric.recorded` | - | Pending | Needs metric name, value, dimensions/tags, captured_at. |
-| `analytics.report.generated` | - | Pending | Needs report id, tenant id, type, period, generated_at, link. |
-| `analytics.data.exported` | - | Pending | Needs export id, tenant id, format, size, requested_by, exported_at, destination. |
+| `analytics.interaction.logged` | `events.InteractionLoggedEvent` | Defined | interaction_id, tenant_id, user/agent, channel, logged_at, metadata |
+| `analytics.metric.recorded` | `events.MetricRecordedEvent` | Defined | metric, value, unit, dimensions, captured_at |
+| `analytics.report.generated` | `events.ReportGeneratedEvent` | Defined | report_id, report_type, period_start/end, generated_at, link |
+| `analytics.data.exported` | `events.DataExportedEvent` | Defined | export_id, format, destination, size_bytes, exported_at |
 
 ## Tooling
 | Topic | Payload struct | Status | Notes |
 | --- | --- | --- | --- |
-| `tool.registered` | - | Pending | Needs tool id, tenant id, name, version, registered_at, registered_by. |
+| `tool.registered` | `events.ToolRegisteredEvent` | Defined | tool_id, tenant_id, name, version, registered_at |
 | `tool.invoked` | `events.ToolInvokedEvent` | Defined | |
 | `tool.completed` | `events.ToolCompletedEvent` | Defined | |
-| `tool.failed` | - | Pending | Needs tool id, tenant id, action, error, duration, failed_at. |
+| `tool.failed` | `events.ToolFailedEvent` | Defined | tool_id, tenant_id, action, error, duration_ms, failed_at |
 
 ## System
 | Topic | Payload struct | Status | Notes |
 | --- | --- | --- | --- |
-| `system.health.check` | - | Pending | Needs service name, status, checked_at, details. |
+| `system.health.check` | `events.SystemHealthCheckEvent` | Defined | service, status, checked_at, details |
 | `system.error` | `events.SystemErrorEvent` | Defined | |
-| `system.alert` | - | Pending | Needs alert id, severity, service, message, created_at, labels. |
-| `system.configuration.updated` | - | Pending | Needs service, config keys changed, updated_by, updated_at. |
+| `system.alert` | `events.SystemAlertEvent` | Defined | alert_id, severity, service, message, labels |
+| `system.configuration.updated` | `events.ConfigurationUpdatedEvent` | Defined | service, changes, updated_by, updated_at |
