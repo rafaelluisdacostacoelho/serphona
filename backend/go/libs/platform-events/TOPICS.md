@@ -18,11 +18,11 @@ This table maps each topic constant to the expected payload struct. Topics witho
 | --- | --- | --- | --- |
 | `tenant.created` | `events.TenantCreatedEvent` | Defined | |
 | `tenant.updated` | `events.TenantUpdatedEvent` | Defined | |
-| `tenant.deleted` | - | Pending | Define fields (tenant id, deleted_by, reason, deleted_at). |
-| `tenant.suspended` | - | Pending | Define fields (tenant id, reason, suspended_by, suspended_at, until). |
-| `tenant.activated` | - | Pending | Define fields (tenant id, activated_by, activated_at). |
-| `tenant.member.added` | - | Pending | Needs tenant id, user id, role, added_by, added_at. |
-| `tenant.member.removed` | - | Pending | Needs tenant id, user id, removed_by, reason, removed_at. |
+| `tenant.deleted` | `events.TenantDeletedEvent` | Defined | tenant_id, deleted_at, reason, deleted_by, hard_delete |
+| `tenant.suspended` | `events.TenantSuspendedEvent` | Defined | tenant_id, suspended_at, reason, suspended_by, expires_at |
+| `tenant.activated` | `events.TenantActivatedEvent` | Defined | tenant_id, activated_at, activated_by, reason |
+| `tenant.member.added` | `events.TenantMemberAddedEvent` | Defined | tenant_id, member_id, email, role, added_at, added_by |
+| `tenant.member.removed` | `events.TenantMemberRemovedEvent` | Defined | tenant_id, member_id, removed_at, removed_by, reason |
 
 ## Billing
 | Topic | Payload struct | Status | Notes |

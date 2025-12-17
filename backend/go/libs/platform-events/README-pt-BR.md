@@ -79,9 +79,11 @@ func main() {
 package main
 
 import (
+    "log"
     "github.com/serphona/serphona/backend/go/libs/platform-events/config"
     "github.com/serphona/serphona/backend/go/libs/platform-events/consumer"
     "github.com/serphona/serphona/backend/go/libs/platform-events/topics"
+    "github.com/serphona/serphona/backend/go/libs/platform-events/types"
 )
 
 func main() {
@@ -502,12 +504,25 @@ Ver pasta `examples/` para exemplos completos de:
 - [ ] Métricas Prometheus
 - [ ] Tracing OpenTelemetry
 
-## 📝 Documentação Relacionada
+## Documentação Relacionada
 
 - [Implementation Guide](./IMPLEMENTATION_GUIDE-pt-BR.md)
+- [Mapa de Tópicos e Payloads](./TOPICS.md)
 - [Guia de Arquitetura](../../../docs/architecture/LIBS_VS_SERVICES.md)
 - [Auth Gateway](../../services/auth-gateway/README.md)
 - [Tenant Manager](../../services/tenant-manager/README.md)
+
+## Cabeçalhos e Metadados
+
+O publisher envia headers `event_type`, `source`, `version` e, quando existirem, `tenant_id`, `user_id`, `trace_id`, `span_id`. O consumer hidrata esses valores em `types.Event` e coloca headers extras em `Metadata`.
+
+## Helper de Payload Tipado
+
+Use `types.Bind[T]` para decodificar `event.Data` para um tipo forte:
+
+```go
+payload, err := types.Bind[events.UserCreatedEvent](event)
+```
 
 ---
 

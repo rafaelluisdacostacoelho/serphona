@@ -2,6 +2,7 @@ package types
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -83,3 +84,39 @@ type EventHandler func(*Event) error
 
 // EventFilter permite filtrar eventos antes de processar
 type EventFilter func(*Event) bool
+
+// Bind converte event.Data para um tipo forte (struct esperado) usando JSON.
+func Bind[T any](event *Event) (T, error) {
+	var zero T
+	if event == nil {
+		return zero, fmt.Errorf("event is nil")
+	}
+	if event.Data == nil {
+		return zero, fmt.Errorf("event data is nil")
+	}
+
+	switch v := event.Data.(type) {
+	case json.RawMessage:
+		var out T
+		if err := json.Unmarshal(v, &out); err != nil {
+			return zero, err
+		}
+		return out, nil
+	case []byte:
+		var out T
+		if err := json.Unmarshal(v, &out); err != nil {
+			return zero, err
+		}
+		return out, nil
+	default:
+		b, err := json.Marshal(v)
+		if err != nil {
+			return zero, err
+		}
+		var out T
+		if err := json.Unmarshal(b, &out); err != nil {
+			return zero, err
+		}
+		return out, nil
+	}
+}

@@ -2,7 +2,7 @@
 
 ## Fases (payloads)
 - [x] Fase 1: Payloads Auth (deleted, logged_in/out, password changed/reset)
-- [ ] Fase 2: Payloads Tenant (deleted, suspended, activated, member added/removed)
+- [x] Fase 2: Payloads Tenant (deleted, suspended, activated, member added/removed)
 - [ ] Fase 3: Payloads Billing (subscription updated/cancelled, payment failed, invoice generated)
 - [ ] Fase 4: Payloads Agent (updated, deleted, deployed, started, stopped, message received)
 - [ ] Fase 5: Payloads Analytics (interaction logged, metric recorded, report generated, data exported)

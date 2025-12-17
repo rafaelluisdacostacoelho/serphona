@@ -15,6 +15,7 @@ type Config struct {
 	ClientID         string
 	EnableAutoCommit bool
 	SessionTimeout   time.Duration
+	CommitInterval   time.Duration
 
 	// Publisher configuration
 	PublisherBatchSize     int
@@ -26,6 +27,13 @@ type Config struct {
 	ConsumerMaxRetries    int
 	ConsumerRetryInterval time.Duration
 	ConsumerConcurrency   int
+
+	// Security (optional)
+	UseTLS                bool
+	TLSInsecureSkipVerify bool
+	SASLMechanism         string
+	SASLUsername          string
+	SASLPassword          string
 
 	// General configuration
 	ServiceName string
@@ -41,6 +49,7 @@ func DefaultConfig() *Config {
 		ClientID:               "serphona-client",
 		EnableAutoCommit:       false,
 		SessionTimeout:         10 * time.Second,
+		CommitInterval:         1 * time.Second,
 		PublisherBatchSize:     100,
 		PublisherBatchTimeout:  100 * time.Millisecond,
 		PublisherMaxRetries:    3,
@@ -96,6 +105,13 @@ func LoadFromEnv() *Config {
 		cfg.EnableAutoCommit = parseBool(autoCommit)
 	}
 
+	// Commit interval
+	if interval := os.Getenv("KAFKA_COMMIT_INTERVAL"); interval != "" {
+		if d, err := time.ParseDuration(interval); err == nil {
+			cfg.CommitInterval = d
+		}
+	}
+
 	// Session timeout
 	if timeout := os.Getenv("KAFKA_SESSION_TIMEOUT"); timeout != "" {
 		if d, err := time.ParseDuration(timeout); err == nil {
@@ -110,11 +126,65 @@ func LoadFromEnv() *Config {
 		}
 	}
 
+	// Publisher batch timeout
+	if batchTimeout := os.Getenv("KAFKA_PUBLISHER_BATCH_TIMEOUT"); batchTimeout != "" {
+		if d, err := time.ParseDuration(batchTimeout); err == nil {
+			cfg.PublisherBatchTimeout = d
+		}
+	}
+
+	// Publisher max retries
+	if maxRetries := os.Getenv("KAFKA_PUBLISHER_MAX_RETRIES"); maxRetries != "" {
+		if r, err := strconv.Atoi(maxRetries); err == nil {
+			cfg.PublisherMaxRetries = r
+		}
+	}
+
+	// Publisher retry interval
+	if retryInterval := os.Getenv("KAFKA_PUBLISHER_RETRY_INTERVAL"); retryInterval != "" {
+		if d, err := time.ParseDuration(retryInterval); err == nil {
+			cfg.PublisherRetryInterval = d
+		}
+	}
+
+	// Consumer max retries
+	if maxRetries := os.Getenv("KAFKA_CONSUMER_MAX_RETRIES"); maxRetries != "" {
+		if r, err := strconv.Atoi(maxRetries); err == nil {
+			cfg.ConsumerMaxRetries = r
+		}
+	}
+
+	// Consumer retry interval
+	if retryInterval := os.Getenv("KAFKA_CONSUMER_RETRY_INTERVAL"); retryInterval != "" {
+		if d, err := time.ParseDuration(retryInterval); err == nil {
+			cfg.ConsumerRetryInterval = d
+		}
+	}
+
 	// Consumer concurrency
 	if concurrency := os.Getenv("KAFKA_CONSUMER_CONCURRENCY"); concurrency != "" {
 		if c, err := strconv.Atoi(concurrency); err == nil {
 			cfg.ConsumerConcurrency = c
 		}
+	}
+
+	// TLS
+	if tlsEnabled := os.Getenv("KAFKA_TLS"); tlsEnabled != "" {
+		cfg.UseTLS = parseBool(tlsEnabled)
+	}
+	if insecure := os.Getenv("KAFKA_TLS_INSECURE_SKIP_VERIFY"); insecure != "" {
+		cfg.TLSInsecureSkipVerify = parseBool(insecure)
+	}
+
+	// SASL
+	if mechanism := os.Getenv("KAFKA_SASL_MECHANISM"); mechanism != "" {
+		cfg.SASLMechanism = strings.ToLower(mechanism)
+	}
+	if user := os.Getenv("KAFKA_SASL_USERNAME"); user != "" {
+		cfg.SASLUsername = user
+	}
+	if pass := os.Getenv("KAFKA_SASL_PASSWORD"); pass != "" {
+		cfg.SASLPassword = pass
 	}
 
 	return cfg
@@ -136,8 +206,21 @@ func (c *Config) Validate() error {
 		return ErrNoGroupID
 	}
 
+	if c.ClientID == "" {
+		return ErrNoClientID
+	}
+
 	if c.ServiceName == "" {
 		return ErrNoServiceName
+	}
+
+	if c.SASLMechanism != "" {
+		if c.SASLMechanism != "plain" && c.SASLMechanism != "scram-sha256" && c.SASLMechanism != "scram-sha512" {
+			return ErrUnsupportedSASL
+		}
+		if c.SASLUsername == "" || c.SASLPassword == "" {
+			return ErrMissingSASLCreds
+		}
 	}
 
 	return nil
@@ -145,9 +228,12 @@ func (c *Config) Validate() error {
 
 // Errors
 var (
-	ErrNoBrokers     = &ConfigError{Message: "no Kafka brokers configured"}
-	ErrNoGroupID     = &ConfigError{Message: "no group ID configured"}
-	ErrNoServiceName = &ConfigError{Message: "no service name configured"}
+	ErrNoBrokers        = &ConfigError{Message: "no Kafka brokers configured"}
+	ErrNoGroupID        = &ConfigError{Message: "no group ID configured"}
+	ErrNoClientID       = &ConfigError{Message: "no client ID configured"}
+	ErrNoServiceName    = &ConfigError{Message: "no service name configured"}
+	ErrUnsupportedSASL  = &ConfigError{Message: "unsupported SASL mechanism (supported: plain, scram-sha256, scram-sha512)"}
+	ErrMissingSASLCreds = &ConfigError{Message: "SASL mechanism configured but username or password missing"}
 )
 
 // ConfigError representa um erro de configuração

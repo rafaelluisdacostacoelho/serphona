@@ -2,12 +2,15 @@ package publisher
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log"
 	"sync"
 	"time"
 
 	"github.com/segmentio/kafka-go"
+	"github.com/segmentio/kafka-go/sasl/plain"
+	"github.com/segmentio/kafka-go/sasl/scram"
 	"github.com/serphona/serphona/backend/go/libs/platform-events/config"
 	"github.com/serphona/serphona/backend/go/libs/platform-events/types"
 )
@@ -26,17 +29,25 @@ func New(cfg *config.Config) (*Publisher, error) {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 
+	dialer, err := newDialer(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("invalid dialer config: %w", err)
+	}
+
 	writer := &kafka.Writer{
-		Addr:         kafka.TCP(cfg.Brokers...),
-		Balancer:     &kafka.LeastBytes{},
-		BatchSize:    cfg.PublisherBatchSize,
-		BatchTimeout: cfg.PublisherBatchTimeout,
-		MaxAttempts:  cfg.PublisherMaxRetries,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		RequiredAcks: kafka.RequireOne,
-		Async:        false,
-		Compression:  kafka.Snappy,
+		Addr:            kafka.TCP(cfg.Brokers...),
+		Balancer:        &kafka.LeastBytes{},
+		BatchSize:       cfg.PublisherBatchSize,
+		BatchTimeout:    cfg.PublisherBatchTimeout,
+		MaxAttempts:     cfg.PublisherMaxRetries,
+		ReadTimeout:     10 * time.Second,
+		WriteTimeout:    10 * time.Second,
+		RequiredAcks:    kafka.RequireOne,
+		Async:           false,
+		Compression:     kafka.Snappy,
+		WriteBackoffMin: cfg.PublisherRetryInterval,
+		WriteBackoffMax: cfg.PublisherRetryInterval,
+		Dialer:          dialer,
 	}
 
 	p := &Publisher{
@@ -87,10 +98,24 @@ func (p *Publisher) Publish(ctx context.Context, topic string, event *types.Even
 		})
 	}
 
+	if event.UserID != "" {
+		msg.Headers = append(msg.Headers, kafka.Header{
+			Key:   "user_id",
+			Value: []byte(event.UserID),
+		})
+	}
+
 	if event.TraceID != "" {
 		msg.Headers = append(msg.Headers, kafka.Header{
 			Key:   "trace_id",
 			Value: []byte(event.TraceID),
+		})
+	}
+
+	if event.SpanID != "" {
+		msg.Headers = append(msg.Headers, kafka.Header{
+			Key:   "span_id",
+			Value: []byte(event.SpanID),
 		})
 	}
 
@@ -148,10 +173,24 @@ func (p *Publisher) PublishBatch(ctx context.Context, topic string, events []*ty
 			})
 		}
 
+		if event.UserID != "" {
+			msg.Headers = append(msg.Headers, kafka.Header{
+				Key:   "user_id",
+				Value: []byte(event.UserID),
+			})
+		}
+
 		if event.TraceID != "" {
 			msg.Headers = append(msg.Headers, kafka.Header{
 				Key:   "trace_id",
 				Value: []byte(event.TraceID),
+			})
+		}
+
+		if event.SpanID != "" {
+			msg.Headers = append(msg.Headers, kafka.Header{
+				Key:   "span_id",
+				Value: []byte(event.SpanID),
 			})
 		}
 
@@ -202,3 +241,40 @@ func (p *Publisher) Stats() kafka.WriterStats {
 var (
 	ErrPublisherClosed = fmt.Errorf("publisher is closed")
 )
+
+func newDialer(cfg *config.Config) (*kafka.Dialer, error) {
+	dialer := &kafka.Dialer{
+		ClientID: cfg.ClientID,
+		Timeout:  10 * time.Second,
+	}
+
+	if cfg.UseTLS {
+		dialer.TLS = &tls.Config{
+			InsecureSkipVerify: cfg.TLSInsecureSkipVerify,
+		}
+	}
+
+	if cfg.SASLMechanism != "" {
+		switch cfg.SASLMechanism {
+		case "plain":
+			dialer.SASLMechanism = plain.Mechanism{
+				Username: cfg.SASLUsername,
+				Password: cfg.SASLPassword,
+			}
+		case "scram-sha256":
+			mech, err := scram.Mechanism(scram.SHA256, cfg.SASLUsername, cfg.SASLPassword)
+			if err != nil {
+				return nil, err
+			}
+			dialer.SASLMechanism = mech
+		case "scram-sha512":
+			mech, err := scram.Mechanism(scram.SHA512, cfg.SASLUsername, cfg.SASLPassword)
+			if err != nil {
+				return nil, err
+			}
+			dialer.SASLMechanism = mech
+		}
+	}
+
+	return dialer, nil
+}

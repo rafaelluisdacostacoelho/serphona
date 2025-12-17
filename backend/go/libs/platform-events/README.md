@@ -60,9 +60,11 @@ func main() {
 package main
 
 import (
+    "log"
     "github.com/serphona/serphona/backend/go/libs/platform-events/config"
     "github.com/serphona/serphona/backend/go/libs/platform-events/consumer"
     "github.com/serphona/serphona/backend/go/libs/platform-events/topics"
+    "github.com/serphona/serphona/backend/go/libs/platform-events/types"
 )
 
 func main() {
@@ -81,9 +83,23 @@ func main() {
 
 ## Documentation
 
-- [🇧🇷 Portuguese README](./README-pt-BR.md) - Complete documentation in Portuguese
-- [🇧🇷 Implementation Guide (PT-BR)](./IMPLEMENTATION_GUIDE-pt-BR.md) - Step-by-step integration guide
-- [📁 Examples](./examples/) - Complete usage examples
+- [Portuguese README](./README-pt-BR.md) - Complete documentation in Portuguese
+- [Implementation Guide (PT-BR)](./IMPLEMENTATION_GUIDE-pt-BR.md) - Step-by-step integration guide
+- [Examples](./examples/) - Complete usage examples
+- [Topics and Payloads](./TOPICS.md) - Topic-to-payload map and pending contracts
+
+## Headers and Metadata
+
+The publisher sets headers for `event_type`, `source`, `version` and, when present, `tenant_id`, `user_id`, `trace_id`, `span_id`. The consumer hydrates these into `types.Event` and stores any extra headers in `Metadata`.
+
+## Typed Payload Helper
+
+Use `types.Bind[T]` to decode `event.Data` into a strong type:
+
+```go
+var payload events.UserCreatedEvent
+payload, err := types.Bind[events.UserCreatedEvent](event)
+```
 
 ## Available Topics
 

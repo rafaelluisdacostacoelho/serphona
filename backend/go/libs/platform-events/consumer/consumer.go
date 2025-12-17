@@ -2,12 +2,15 @@ package consumer
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log"
 	"sync"
 	"time"
 
 	"github.com/segmentio/kafka-go"
+	"github.com/segmentio/kafka-go/sasl/plain"
+	"github.com/segmentio/kafka-go/sasl/scram"
 	"github.com/serphona/serphona/backend/go/libs/platform-events/config"
 	"github.com/serphona/serphona/backend/go/libs/platform-events/types"
 )
@@ -35,6 +38,11 @@ func New(cfg *config.Config, topics []string) (*Consumer, error) {
 		return nil, ErrNoTopics
 	}
 
+	dialer, err := newDialer(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("invalid dialer config: %w", err)
+	}
+
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:        cfg.Brokers,
 		GroupID:        cfg.GroupID,
@@ -44,6 +52,13 @@ func New(cfg *config.Config, topics []string) (*Consumer, error) {
 		MaxWait:        1 * time.Second,
 		SessionTimeout: cfg.SessionTimeout,
 		StartOffset:    kafka.LastOffset,
+		CommitInterval: func() time.Duration {
+			if cfg.EnableAutoCommit {
+				return cfg.CommitInterval
+			}
+			return 0 // manual commits
+		}(),
+		Dialer: dialer,
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -144,9 +159,11 @@ func (c *Consumer) worker(id int) {
 				continue
 			}
 
-			// Commitar mensagem
-			if err := c.reader.CommitMessages(c.ctx, msg); err != nil {
-				log.Printf("[platform-events] Worker %d: error committing message: %v", id, err)
+			// Commitar mensagem quando o commit é manual
+			if !c.config.EnableAutoCommit {
+				if err := c.reader.CommitMessages(c.ctx, msg); err != nil {
+					log.Printf("[platform-events] Worker %d: error committing message: %v", id, err)
+				}
 			}
 		}
 	}
@@ -159,6 +176,7 @@ func (c *Consumer) processMessage(msg kafka.Message) error {
 	if err != nil {
 		return fmt.Errorf("failed to deserialize event: %w", err)
 	}
+	hydrateHeaders(event, msg)
 
 	if c.config.Debug {
 		log.Printf("[platform-events] Processing event: type=%s, id=%s, topic=%s",
@@ -263,3 +281,78 @@ var (
 	ErrNoTopics       = fmt.Errorf("no topics configured")
 	ErrConsumerClosed = fmt.Errorf("consumer is closed")
 )
+
+func hydrateHeaders(event *types.Event, msg kafka.Message) {
+	if event.Metadata == nil {
+		event.Metadata = make(map[string]string)
+	}
+
+	for _, h := range msg.Headers {
+		val := string(h.Value)
+		switch h.Key {
+		case "tenant_id":
+			if event.TenantID == "" {
+				event.TenantID = val
+			}
+		case "user_id":
+			if event.UserID == "" {
+				event.UserID = val
+			}
+		case "trace_id":
+			if event.TraceID == "" {
+				event.TraceID = val
+			}
+		case "span_id":
+			if event.SpanID == "" {
+				event.SpanID = val
+			}
+		case "version":
+			if event.Version == "" {
+				event.Version = val
+			}
+		case "source":
+			if event.Source == "" {
+				event.Source = val
+			}
+		default:
+			event.Metadata[h.Key] = val
+		}
+	}
+}
+
+func newDialer(cfg *config.Config) (*kafka.Dialer, error) {
+	dialer := &kafka.Dialer{
+		ClientID: cfg.ClientID,
+		Timeout:  10 * time.Second,
+	}
+
+	if cfg.UseTLS {
+		dialer.TLS = &tls.Config{
+			InsecureSkipVerify: cfg.TLSInsecureSkipVerify,
+		}
+	}
+
+	if cfg.SASLMechanism != "" {
+		switch cfg.SASLMechanism {
+		case "plain":
+			dialer.SASLMechanism = plain.Mechanism{
+				Username: cfg.SASLUsername,
+				Password: cfg.SASLPassword,
+			}
+		case "scram-sha256":
+			mech, err := scram.Mechanism(scram.SHA256, cfg.SASLUsername, cfg.SASLPassword)
+			if err != nil {
+				return nil, err
+			}
+			dialer.SASLMechanism = mech
+		case "scram-sha512":
+			mech, err := scram.Mechanism(scram.SHA512, cfg.SASLUsername, cfg.SASLPassword)
+			if err != nil {
+				return nil, err
+			}
+			dialer.SASLMechanism = mech
+		}
+	}
+
+	return dialer, nil
+}
