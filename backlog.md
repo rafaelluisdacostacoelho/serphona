@@ -13,7 +13,7 @@
 - [ ] Corrigir encoding/acentos nos READMEs e guia (README.md, README-pt-BR.md, IMPLEMENTATION_GUIDE-pt-BR.md)
 - [ ] Atualizar TOPICS.md com os novos payloads e status "Defined"
 - [ ] Atualizar READMEs/guia com contratos e snippets para os novos eventos
-- [ ] Revisar exemplos em `examples/` e adicionar exemplos para eventos novos
+- [x] Revisar exemplos em `examples/` e adicionar exemplos para eventos novos
 
 ## Testes
 - [ ] Serializacao/desserializacao e Bind[T] para cada payload
