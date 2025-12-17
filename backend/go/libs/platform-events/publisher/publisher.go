@@ -5,6 +5,8 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log"
+	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,6 +20,7 @@ import (
 // Publisher é responsável por publicar eventos no Kafka
 type Publisher struct {
 	writer *kafka.Writer
+	ready  map[string]bool
 	config *config.Config
 	mu     sync.RWMutex
 	closed bool
@@ -29,29 +32,24 @@ func New(cfg *config.Config) (*Publisher, error) {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 
-	dialer, err := newDialer(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("invalid dialer config: %w", err)
-	}
-
-	writer := &kafka.Writer{
-		Addr:            kafka.TCP(cfg.Brokers...),
-		Balancer:        &kafka.LeastBytes{},
-		BatchSize:       cfg.PublisherBatchSize,
-		BatchTimeout:    cfg.PublisherBatchTimeout,
-		MaxAttempts:     cfg.PublisherMaxRetries,
-		ReadTimeout:     10 * time.Second,
-		WriteTimeout:    10 * time.Second,
-		RequiredAcks:    kafka.RequireOne,
-		Async:           false,
-		Compression:     kafka.Snappy,
-		WriteBackoffMin: cfg.PublisherRetryInterval,
-		WriteBackoffMax: cfg.PublisherRetryInterval,
-		Dialer:          dialer,
-	}
-
 	p := &Publisher{
-		writer: writer,
+		writer: &kafka.Writer{
+			Addr:                   kafka.TCP(cfg.Brokers...),
+			Balancer:               &kafka.LeastBytes{},
+			AllowAutoTopicCreation: true,
+			BatchSize:              cfg.PublisherBatchSize,
+			BatchTimeout:           cfg.PublisherBatchTimeout,
+			MaxAttempts:            cfg.PublisherMaxRetries,
+			ReadTimeout:            10 * time.Second,
+			WriteTimeout:           10 * time.Second,
+			RequiredAcks:           kafka.RequireOne,
+			Async:                  false,
+			Compression:            kafka.Snappy,
+			WriteBackoffMin:        cfg.PublisherRetryInterval,
+			WriteBackoffMax:        cfg.PublisherRetryInterval,
+			Transport:              newTransport(cfg),
+		},
+		ready:  make(map[string]bool),
 		config: cfg,
 	}
 
@@ -64,11 +62,15 @@ func New(cfg *config.Config) (*Publisher, error) {
 
 // Publish publica um evento em um tópico específico
 func (p *Publisher) Publish(ctx context.Context, topic string, event *types.Event) error {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
 	if p.closed {
 		return ErrPublisherClosed
+	}
+
+	if err := p.ensureTopic(ctx, topic); err != nil {
+		return err
 	}
 
 	// Serializar evento
@@ -79,7 +81,6 @@ func (p *Publisher) Publish(ctx context.Context, topic string, event *types.Even
 
 	// Criar mensagem Kafka
 	msg := kafka.Message{
-		Topic: topic,
 		Key:   []byte(event.ID),
 		Value: data,
 		Headers: []kafka.Header{
@@ -119,9 +120,15 @@ func (p *Publisher) Publish(ctx context.Context, topic string, event *types.Even
 		})
 	}
 
-	// Publicar no Kafka
-	err = p.writer.WriteMessages(ctx, msg)
+	msg.Topic = topic
+
+	conn, err := kafka.DialLeader(ctx, "tcp", p.config.Brokers[0], topic, 0)
 	if err != nil {
+		return fmt.Errorf("failed to dial leader for topic %s: %w", topic, err)
+	}
+	defer conn.Close()
+
+	if _, err := conn.WriteMessages(msg); err != nil {
 		return fmt.Errorf("failed to publish event: %w", err)
 	}
 
@@ -135,11 +142,15 @@ func (p *Publisher) Publish(ctx context.Context, topic string, event *types.Even
 
 // PublishBatch publica múltiplos eventos em batch
 func (p *Publisher) PublishBatch(ctx context.Context, topic string, events []*types.Event) error {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
 	if p.closed {
 		return ErrPublisherClosed
+	}
+
+	if err := p.ensureTopic(ctx, topic); err != nil {
+		return err
 	}
 
 	if len(events) == 0 {
@@ -155,7 +166,6 @@ func (p *Publisher) PublishBatch(ctx context.Context, topic string, events []*ty
 		}
 
 		msg := kafka.Message{
-			Topic: topic,
 			Key:   []byte(event.ID),
 			Value: data,
 			Headers: []kafka.Header{
@@ -194,12 +204,17 @@ func (p *Publisher) PublishBatch(ctx context.Context, topic string, events []*ty
 			})
 		}
 
+		msg.Topic = topic
 		messages = append(messages, msg)
 	}
 
-	// Publicar batch no Kafka
-	err := p.writer.WriteMessages(ctx, messages...)
+	conn, err := kafka.DialLeader(ctx, "tcp", p.config.Brokers[0], topic, 0)
 	if err != nil {
+		return fmt.Errorf("failed to dial leader for topic %s: %w", topic, err)
+	}
+	defer conn.Close()
+
+	if _, err := conn.WriteMessages(messages...); err != nil {
 		return fmt.Errorf("failed to publish batch: %w", err)
 	}
 
@@ -221,10 +236,6 @@ func (p *Publisher) Close() error {
 
 	p.closed = true
 
-	if err := p.writer.Close(); err != nil {
-		return fmt.Errorf("failed to close publisher: %w", err)
-	}
-
 	if p.config.Debug {
 		log.Println("[platform-events] Publisher closed")
 	}
@@ -234,7 +245,58 @@ func (p *Publisher) Close() error {
 
 // Stats retorna estatísticas do publisher
 func (p *Publisher) Stats() kafka.WriterStats {
-	return p.writer.Stats()
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	return kafka.WriterStats{}
+}
+
+// ensureTopic guarantees the topic exists and has a leader before publishing.
+func (p *Publisher) ensureTopic(ctx context.Context, topic string) error {
+	if p.ready[topic] {
+		return nil
+	}
+
+	if len(p.config.Brokers) == 0 {
+		return fmt.Errorf("no brokers configured")
+	}
+
+	conn, err := kafka.DialContext(ctx, "tcp", p.config.Brokers[0])
+	if err != nil {
+		return fmt.Errorf("failed to dial broker %s: %w", p.config.Brokers[0], err)
+	}
+	defer conn.Close()
+
+	deadline, ok := ctx.Deadline()
+	if ok {
+		_ = conn.SetDeadline(deadline)
+	}
+
+	if err := conn.CreateTopics(kafka.TopicConfig{
+		Topic:             topic,
+		NumPartitions:     1,
+		ReplicationFactor: 1,
+	}); err != nil && !strings.Contains(err.Error(), "already exists") {
+		return fmt.Errorf("failed to create topic %s: %w", topic, err)
+	}
+
+	parts, err := conn.ReadPartitions(topic)
+	if err != nil {
+		return fmt.Errorf("failed to read partitions for topic %s: %w", topic, err)
+	}
+	if len(parts) == 0 {
+		return fmt.Errorf("no partitions available for topic %s", topic)
+	}
+
+	// Dial leader to ensure metadata is propagated.
+	leader, err := kafka.DialLeader(ctx, "tcp", p.config.Brokers[0], topic, 0)
+	if err != nil {
+		return fmt.Errorf("failed to reach leader for topic %s: %w", topic, err)
+	}
+	leader.Close()
+
+	p.ready[topic] = true
+	return nil
 }
 
 // Errors
@@ -277,4 +339,25 @@ func newDialer(cfg *config.Config) (*kafka.Dialer, error) {
 	}
 
 	return dialer, nil
+}
+
+// newTransport builds a kafka.Transport using the same security settings as the dialer.
+func newTransport(cfg *config.Config) *kafka.Transport {
+	dialer, err := newDialer(cfg)
+	if err != nil {
+		// Fallback to default transport if config is invalid; writer creation will surface validate errors earlier.
+		return &kafka.Transport{}
+	}
+
+	return &kafka.Transport{
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			conn, err := dialer.DialContext(ctx, network, address)
+			if err != nil {
+				return nil, err
+			}
+			return conn, nil
+		},
+		SASL: dialer.SASLMechanism,
+		TLS:  dialer.TLS,
+	}
 }

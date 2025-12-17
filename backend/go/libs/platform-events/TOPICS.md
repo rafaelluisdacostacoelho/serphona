@@ -28,27 +28,27 @@ This table maps each topic constant to the expected payload struct. Topics witho
 | Topic | Payload struct | Status | Notes |
 | --- | --- | --- | --- |
 | `billing.subscription.created` | `events.SubscriptionCreatedEvent` | Defined | |
-| `billing.subscription.updated` | - | Pending | Define fields (subscription id, tenant id, changes, updated_at, updated_by). |
-| `billing.subscription.cancelled` | - | Pending | Needs subscription id, tenant id, reason, cancelled_at, cancelled_by. |
+| `billing.subscription.updated` | `events.SubscriptionUpdatedEvent` | Defined | subscription_id, tenant_id, changes, updated_at, updated_by |
+| `billing.subscription.cancelled` | `events.SubscriptionCancelledEvent` | Defined | subscription_id, tenant_id, reason, cancelled_at, cancelled_by, refunded |
 | `billing.payment.succeeded` | `events.PaymentSucceededEvent` | Defined | |
-| `billing.payment.failed` | - | Pending | Needs payment id, tenant id, amount, currency, failure reason, failed_at. |
+| `billing.payment.failed` | `events.PaymentFailedEvent` | Defined | payment_id, tenant_id, amount_cents, currency, failure_code, failure_reason, failed_at, retryable |
 | `billing.credits.purchased` | `events.CreditsPurchasedEvent` | Defined | |
 | `billing.credits.consumed` | `events.CreditsConsumedEvent` | Defined | |
-| `billing.invoice.generated` | - | Pending | Needs invoice id, tenant id, period, amount, currency, due date, link. |
+| `billing.invoice.generated` | `events.InvoiceGeneratedEvent` | Defined | invoice_id, tenant_id, period_start, period_end, amount_cents, currency, due_date, link, generated_at |
 
 ## Agent
 | Topic | Payload struct | Status | Notes |
 | --- | --- | --- | --- |
-| `agent.created` | `events.AgentCreatedEvent` | Defined | |
-| `agent.updated` | - | Pending | Needs agent id, tenant id, changes, updated_at, updated_by. |
-| `agent.deleted` | - | Pending | Needs agent id, tenant id, deleted_at, deleted_by. |
-| `agent.deployed` | - | Pending | Needs agent id, tenant id, environment, version, deployed_at. |
-| `agent.started` | - | Pending | Needs agent id, tenant id, started_at, node/host. |
-| `agent.stopped` | - | Pending | Needs agent id, tenant id, stopped_at, reason. |
-| `agent.conversation.started` | `events.ConversationStartedEvent` | Defined | |
-| `agent.conversation.ended` | `events.ConversationEndedEvent` | Defined | |
-| `agent.message.sent` | `events.MessageSentEvent` | Defined | |
-| `agent.message.received` | - | Pending | Likely similar to sent, plus source (customer/channel). |
+| `agent.created` | `events.AgentCreatedEvent` | Defined | agent_id, tenant_id, name, channel, model, created_at |
+| `agent.updated` | `events.AgentUpdatedEvent` | Defined | agent_id, tenant_id, changes, updated_at, updated_by |
+| `agent.deleted` | `events.AgentDeletedEvent` | Defined | agent_id, tenant_id, deleted_at, deleted_by, reason |
+| `agent.deployed` | `events.AgentDeployedEvent` | Defined | agent_id, tenant_id, environment, version, deployed_at |
+| `agent.started` | `events.AgentStartedEvent` | Defined | agent_id, tenant_id, started_at, node, cluster |
+| `agent.stopped` | `events.AgentStoppedEvent` | Defined | agent_id, tenant_id, stopped_at, reason, code |
+| `agent.conversation.started` | `events.ConversationStartedEvent` | Defined | conversation_id, agent_id, tenant_id, channel, started_at |
+| `agent.conversation.ended` | `events.ConversationEndedEvent` | Defined | conversation_id, agent_id, tenant_id, ended_at, duration, reason |
+| `agent.message.sent` | `events.MessageSentEvent` | Defined | message_id, conversation_id, agent_id, tenant_id, content, sent_at |
+| `agent.message.received` | `events.MessageReceivedEvent` | Defined | message_id, conversation_id, agent_id, tenant_id, content, source, received_at |
 
 ## Analytics
 | Topic | Payload struct | Status | Notes |
