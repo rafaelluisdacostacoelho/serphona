@@ -1,62 +1,53 @@
 @echo off
-setlocal enabledelayedexpansion
+setlocal EnableExtensions EnableDelayedExpansion
 
 rem Runs Go library test suites (integration, e2e) with optional docker-compose stack.
 rem Usage: run-tests.bat [--suite integration^|e2e^|all] [--with-compose] [--keep-compose] [-- go test args]
 rem Defaults to integration when no suite is provided.
 
-set SUITE=integration
-set USE_COMPOSE=0
-set KEEP_COMPOSE=0
-set PASSTHRU=0
-set GO_ARGS=
+set "SUITE=integration"
+set "USE_COMPOSE=0"
+set "KEEP_COMPOSE=0"
+set "GO_ARGS="
 
-:parse_args
-if "%~1"=="" goto after_parse
-if %PASSTHRU%==1 (
-  set GO_ARGS=%GO_ARGS% %1
+:argloop
+if "%~1"=="" goto args_done
+if /I "%~1"=="--suite" goto handle_suite
+if /I "%~1"=="--with-compose" (
+  set "USE_COMPOSE=1"
   shift
-  goto parse_args
+  goto argloop
 )
-if "%~1"=="--suite" (
-  if "%~2"=="" (
-    echo [error] --suite requires a value (integration^|e2e^|all)
-    endlocal & exit /b 1
-  )
-  if /I "%~2"=="integration" set SUITE=integration
-  if /I "%~2"=="e2e" set SUITE=e2e
-  if /I "%~2"=="all" set SUITE=all
+if /I "%~1"=="--keep-compose" (
+  set "KEEP_COMPOSE=1"
   shift
-  shift
-  goto parse_args
+  goto argloop
 )
-if "%~1"=="--with-compose" (
-  set USE_COMPOSE=1
-  shift
-  goto parse_args
-)
-if "%~1"=="--keep-compose" (
-  set KEEP_COMPOSE=1
-  shift
-  goto parse_args
-)
-if "%~1"=="--" (
-  set PASSTHRU=1
-  shift
-  goto parse_args
-)
-if "%~1"=="--help" goto show_help
-if "%~1"=="-h" goto show_help
-set GO_ARGS=%GO_ARGS% %1
+if "%~1"=="--" goto passthru_loop
+
+set "GO_ARGS=%GO_ARGS% %~1"
 shift
-goto parse_args
+goto argloop
 
-:show_help
-echo Usage: %~n0 [--suite integration^|e2e^|all] [--with-compose] [--keep-compose] [-- go test args]
-endlocal & exit /b 0
+:handle_suite
+if "%~2"=="" goto suite_error
+set "SUITE=%~2"
+shift
+shift
+goto argloop
 
-:after_parse
-set SCRIPT_DIR=%~dp0
+:suite_error
+echo [error] --suite requires a value (integration^|e2e^|all)
+endlocal & exit /b 1
+
+:passthru_loop
+if "%~1"=="" goto args_done
+set "GO_ARGS=%GO_ARGS% %~1"
+shift
+goto passthru_loop
+
+:args_done
+set "SCRIPT_DIR=%~dp0"
 set ROOT_DIR=
 
 pushd "%SCRIPT_DIR%" >nul
@@ -73,9 +64,11 @@ if "%ROOT_DIR%"=="" (
   endlocal & exit /b 1
 )
 
+echo [info] suite=%SUITE% compose=%USE_COMPOSE% keep=%KEEP_COMPOSE%
+
 pushd "%ROOT_DIR%" >nul
-set COMPOSE_FILE=%ROOT_DIR%\docker-compose.tests.yml
-set STACK_STARTED=0
+set "COMPOSE_FILE=%ROOT_DIR%\docker-compose.tests.yml"
+set "STACK_STARTED=0"
 set COMPOSE_CMD=
 set TOPICS=auth.user.created tenant.created agent.created
 
@@ -94,14 +87,14 @@ if "%USE_COMPOSE%"=="1" (
     popd >nul
     endlocal & exit /b 1
   )
-  set STACK_STARTED=1
+  set "STACK_STARTED=1"
 
   echo [info] waiting for stack to be ready
   timeout /t 8 /nobreak >nul
 
   for %%T in (%TOPICS%) do (
     echo [info] ensuring topic %%T exists
-    %COMPOSE_CMD% -f "%COMPOSE_FILE%" exec -T kafka kafka-topics --bootstrap-server localhost:9092 --create --if-not-exists --topic %%T --partitions 1 --replication-factor 1
+    !COMPOSE_CMD! -f "%COMPOSE_FILE%" exec -T kafka kafka-topics --bootstrap-server localhost:9092 --create --if-not-exists --topic %%T --partitions 1 --replication-factor 1
   )
 )
 
@@ -116,7 +109,7 @@ for %%L in (%LIBS%) do (
 )
 
 if "%STACK_STARTED%"=="1" if not "%KEEP_COMPOSE%"=="1" (
-  %COMPOSE_CMD% -f "%COMPOSE_FILE%" down
+  !COMPOSE_CMD! -f "%COMPOSE_FILE%" down
 ) else if "%STACK_STARTED%"=="1" (
   echo [info] leaving test stack running (requested with --keep-compose)
 )
@@ -125,10 +118,10 @@ popd >nul
 endlocal & exit /b 0
 
 :run_suite
-set SUITE_NAME=%1
-set LIB_NAME=%2
-set LIB_DIR=%ROOT_DIR%\backend\go\libs\%LIB_NAME%
-set TEST_DIR=!LIB_DIR!\test\%SUITE_NAME%
+set "SUITE_NAME=%~1"
+set "LIB_NAME=%~2"
+set "LIB_DIR=%ROOT_DIR%\backend\go\libs\%LIB_NAME%"
+set "TEST_DIR=!LIB_DIR!\test\%SUITE_NAME%"
 
 if not exist "!TEST_DIR!" (
   echo [skip] %LIB_NAME% has no test\%SUITE_NAME%; skipping
@@ -142,20 +135,22 @@ if errorlevel 1 (
 )
 
 if /I "%LIB_NAME%"=="platform-events" if /I "%SUITE_NAME%"=="integration" (
-  if "%KAFKA_BROKERS%"=="" set KAFKA_BROKERS=localhost:9092
+  if "%KAFKA_BROKERS%"=="" set "KAFKA_BROKERS=localhost:9092"
 )
 
 echo [info] running %SUITE_NAME% tests for %LIB_NAME%
 pushd "!LIB_DIR!" >nul
 go test -tags=%SUITE_NAME% ./test/%SUITE_NAME% %GO_ARGS%
-set TEST_RESULT=!ERRORLEVEL!
+set "TEST_RESULT=!ERRORLEVEL!"
 popd >nul
-if not "!TEST_RESULT!"=="0" (
-  if "%STACK_STARTED%"=="1" if not "%KEEP_COMPOSE%"=="1" %COMPOSE_CMD% -f "%COMPOSE_FILE%" down
+if not "%TEST_RESULT%"=="0" (
+  echo [error] %LIB_NAME% %SUITE_NAME% tests failed with code %TEST_RESULT%
+  if "%STACK_STARTED%"=="1" if not "%KEEP_COMPOSE%"=="1" !COMPOSE_CMD! -f "%COMPOSE_FILE%" down
   popd >nul
-  endlocal & exit /b !TEST_RESULT!
+  endlocal & exit /b %TEST_RESULT%
 )
 
+echo [info] %LIB_NAME% %SUITE_NAME% tests passed
 goto :eof
 
 :detect_compose
