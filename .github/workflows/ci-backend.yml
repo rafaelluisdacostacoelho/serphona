@@ -41,6 +41,31 @@ jobs:
           version: latest
           working-directory: backend/go
 
+  go-platform-events:
+    name: Go Platform Events
+    runs-on: ubuntu-latest
+    needs: go-lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Check gofmt (platform-events)
+        working-directory: backend/go/libs/platform-events
+        run: |
+          fmt_out=$(gofmt -l .)
+          if [ -n "$fmt_out" ]; then
+            echo "Found files needing gofmt:" && echo "$fmt_out"
+            exit 1
+          fi
+
+      - name: Run tests (platform-events)
+        working-directory: backend/go/libs/platform-events
+        run: go test ./...
+
   go-test:
     name: Go Test
     runs-on: ubuntu-latest

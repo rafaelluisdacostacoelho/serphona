@@ -1,6 +1,7 @@
 package consumer
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -131,5 +132,123 @@ func TestProcessMessageFiltersAndRetries(t *testing.T) {
 	}
 	if handler2Calls != 2 {
 		t.Fatalf("handler2 should be retried once, got %d calls", handler2Calls)
+	}
+}
+
+type stubReader struct {
+	msgs        []kafka.Message
+	idx         int
+	commitCount int
+}
+
+func (r *stubReader) FetchMessage(context.Context) (kafka.Message, error) {
+	if r.idx >= len(r.msgs) {
+		return kafka.Message{}, context.Canceled
+	}
+	m := r.msgs[r.idx]
+	r.idx++
+	return m, nil
+}
+
+func (r *stubReader) CommitMessages(context.Context, ...kafka.Message) error {
+	r.commitCount++
+	return nil
+}
+
+func (r *stubReader) Close() error             { return nil }
+func (r *stubReader) Stats() kafka.ReaderStats { return kafka.ReaderStats{} }
+
+func TestWorkerCommitsWhenAutoCommitDisabled(t *testing.T) {
+	event := types.NewEvent("event.test", "svc-a", map[string]string{"foo": "bar"})
+	data, err := event.ToJSON()
+	if err != nil {
+		t.Fatalf("failed to marshal event: %v", err)
+	}
+
+	r := &stubReader{msgs: []kafka.Message{{Value: data}}}
+	c := &Consumer{
+		reader: r,
+		config: &config.Config{EnableAutoCommit: false, ConsumerMaxRetries: 1, ConsumerRetryInterval: 1},
+		handlers: map[string][]types.EventHandler{
+			event.Type: {func(*types.Event) error { return nil }},
+		},
+		filters: make(map[string][]types.EventFilter),
+	}
+
+	c.ctx, c.cancel = context.WithCancel(context.Background())
+	c.wg.Add(1)
+	go c.worker(0)
+	c.wg.Wait()
+
+	if r.commitCount != 1 {
+		t.Fatalf("expected manual commit to be called once, got %d", r.commitCount)
+	}
+}
+
+func TestWorkerSkipsCommitWhenAutoCommitEnabled(t *testing.T) {
+	event := types.NewEvent("event.test", "svc-a", map[string]string{"foo": "bar"})
+	data, err := event.ToJSON()
+	if err != nil {
+		t.Fatalf("failed to marshal event: %v", err)
+	}
+
+	r := &stubReader{msgs: []kafka.Message{{Value: data}}}
+	c := &Consumer{
+		reader: r,
+		config: &config.Config{EnableAutoCommit: true, ConsumerMaxRetries: 1, ConsumerRetryInterval: 1},
+		handlers: map[string][]types.EventHandler{
+			event.Type: {func(*types.Event) error { return nil }},
+		},
+		filters: make(map[string][]types.EventFilter),
+	}
+
+	c.ctx, c.cancel = context.WithCancel(context.Background())
+	c.wg.Add(1)
+	go c.worker(0)
+	c.wg.Wait()
+
+	if r.commitCount != 0 {
+		t.Fatalf("expected no manual commits when auto-commit is enabled, got %d", r.commitCount)
+	}
+}
+
+func TestProcessMessageContinuesOnHandlerError(t *testing.T) {
+	event := types.NewEvent("event.test", "svc-a", map[string]string{"foo": "bar"})
+	data, err := event.ToJSON()
+	if err != nil {
+		t.Fatalf("failed to marshal event: %v", err)
+	}
+
+	errCount := 0
+	successCount := 0
+
+	c := &Consumer{
+		config: &config.Config{ConsumerMaxRetries: 1, ConsumerRetryInterval: 1},
+		handlers: map[string][]types.EventHandler{
+			event.Type: {
+				func(*types.Event) error {
+					errCount++
+					return fmt.Errorf("boom")
+				},
+				func(*types.Event) error {
+					successCount++
+					return nil
+				},
+			},
+		},
+		filters: make(map[string][]types.EventFilter),
+	}
+
+	msg := kafka.Message{Value: data}
+
+	if err := c.processMessage(msg); err != nil {
+		t.Fatalf("processMessage returned error: %v", err)
+	}
+
+	if errCount != 1 {
+		t.Fatalf("expected first handler to fail once, got %d", errCount)
+	}
+	if successCount != 1 {
+		t.Fatalf("expected second handler to run despite first failing, got %d", successCount)
 	}
 }

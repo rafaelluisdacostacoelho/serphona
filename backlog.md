@@ -10,19 +10,19 @@
 - [x] Fase 7: Payloads System (health check, alert, configuration updated)
 
 ## Docs e exemplos
-- [ ] Corrigir encoding/acentos nos READMEs e guia (README.md, README-pt-BR.md, IMPLEMENTATION_GUIDE-pt-BR.md)
+- [x] Corrigir encoding/acentos nos READMEs e guia (README.md, README-pt-BR.md, IMPLEMENTATION_GUIDE-pt-BR.md)
 - [x] Atualizar TOPICS.md com os novos payloads e status "Defined" (ou marcar como Pending se o struct ainda nao existir)
 - [x] Atualizar READMEs/guia com contratos e snippets para os novos eventos (tooling/system) e tabelas de headers obrigatorios/opcionais
 
 - [x] Serializacao/desserializacao e Bind[T] para payloads (coberto: auth, tenant, billing, agent, analytics, tooling, system)
 - [x] Publisher: headers obrigatorios/opcionais + comportamento quando faltam (event_type, source, version, tenant_id, user_id, trace_id, span_id)
-- [ ] Consumer: filtros, retries, auto-commit vs manual, handlers multiplos, erro por handler (filtros+retry cobertos)
+- [x] Consumer: filtros, retries, auto-commit vs manual, handlers multiplos, erro por handler (filtros+retry cobertos)
 - [x] Stats: validar exposicao de metrics basicas (WriterStats/ReaderStats) e formato esperado
 
 ## Qualidade e release
 - [x] Definir estrategia de versionamento dos eventos (campo Version, compatibilidade backward, politica de breaking changes)
 - [x] Garantir go test rodando no modulo (adicionar alvo no CI se necessario) e incluir suite de integracao opcional
-- [ ] Checar gofmt e lints basicos (sem alterar estilo existente) e adicionar pre-check no CI
+- [x] Checar gofmt e lints basicos (sem alterar estilo existente) e adicionar pre-check no CI
 
 ## Payloads pendentes
 - [x] Definir/implementar `ToolInvokedEvent` e `ToolCompletedEvent` (payloads usados nos topicos `tool.invoked` e `tool.completed`)
