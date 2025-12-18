@@ -66,6 +66,11 @@ services/voc-processor/
         │   └── clickhouse_repo.py      # ClickHouse repository
         └── utils/
             └── metrics.py              # Prometheus metrics
+
+    ## Tests
+
+    - Unit/coverage: `python -m venv .venv && .venv\Scripts\activate && pip install -r requirements.txt && pip install pytest pytest-cov pytest-asyncio && pytest -v --cov=src --cov-report=xml`
+    - Integration (optional): use `docker-compose -f docker-compose.dev.yml up -d kafka clickhouse` and run any integration suite with `--with-compose` when available.
 ```
 
 ## Event Schemas (Pydantic)

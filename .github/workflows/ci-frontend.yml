@@ -80,6 +80,65 @@ jobs:
           flags: frontend
 
   # ============================================================================
+  # MFEs & Website - Lint/Test/Build (with coverage when available)
+  # ============================================================================
+  mfe-test:
+    name: Frontend (${{ matrix.app.name }}) Lint/Test/Build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app:
+          - name: auth-mfe
+            path: frontend/auth-mfe
+          - name: billing-mfe
+            path: frontend/billing-mfe
+          - name: website
+            path: frontend/website
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ matrix.app.path }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.app.path }}
+        run: npm ci
+
+      - name: Run ESLint
+        working-directory: ${{ matrix.app.path }}
+        run: npm run lint
+
+      - name: Type check
+        working-directory: ${{ matrix.app.path }}
+        run: npx tsc --noEmit
+
+      - name: Run tests (coverage when available)
+        working-directory: ${{ matrix.app.path }}
+        run: |
+          if npm run | grep -q "test:coverage"; then
+            npm run test:coverage
+          elif npm run | grep -q "test"; then
+            npm run test -- --coverage
+          else
+            echo "No test script defined; skipping tests"
+          fi
+
+      - name: Upload coverage
+        if: hashFiles(format('{0}/coverage/lcov.info', matrix.app.path)) != ''
+        uses: codecov/codecov-action@v3
+        with:
+          file: ${{ matrix.app.path }}/coverage/lcov.info
+          flags: ${{ matrix.app.name }}
+
+      - name: Build
+        working-directory: ${{ matrix.app.path }}
+        run: npm run build
+
+  # ============================================================================
   # Build
   # ============================================================================
   build:
