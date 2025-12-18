@@ -41,6 +41,74 @@ jobs:
           version: latest
           working-directory: backend/go
 
+  go-services-gofmt:
+    name: Go Services Gofmt
+    runs-on: ubuntu-latest
+    needs: go-lint
+    strategy:
+      matrix:
+        service:
+          - tenant-manager
+          - auth-gateway
+          - billing-service
+          - analytics-query-service
+          - agent-orchestrator
+          - tools-gateway
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Check gofmt
+        working-directory: backend/go/services/${{ matrix.service }}
+        run: |
+          fmt_out=$(gofmt -l .)
+          if [ -n "$fmt_out" ]; then
+            echo "Found files needing gofmt:" && echo "$fmt_out"
+            exit 1
+          fi
+
+  go-libs:
+    name: Go Libs
+    runs-on: ubuntu-latest
+    needs: go-lint
+    strategy:
+      matrix:
+        lib:
+          - platform-core
+          - platform-auth
+          - platform-observability
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: backend/go/libs/${{ matrix.lib }}/go.sum
+
+      - name: Check gofmt (libs)
+        working-directory: backend/go/libs/${{ matrix.lib }}
+        run: |
+          fmt_out=$(gofmt -l .)
+          if [ -n "$fmt_out" ]; then
+            echo "Found files needing gofmt:" && echo "$fmt_out"
+            exit 1
+          fi
+
+      - name: Run tests (libs)
+        working-directory: backend/go/libs/${{ matrix.lib }}
+        run: go test -coverprofile=coverage.out ./...
+
+      - name: Upload coverage (libs)
+        uses: codecov/codecov-action@v3
+        with:
+          file: backend/go/libs/${{ matrix.lib }}/coverage.out
+          flags: go-${{ matrix.lib }}
+
   go-platform-events:
     name: Go Platform Events
     runs-on: ubuntu-latest
