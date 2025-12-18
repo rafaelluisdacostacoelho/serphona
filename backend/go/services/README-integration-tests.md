@@ -1,13 +1,14 @@
-# Go Services — Integration Tests
+# Go Services — Integration/E2E Tests
 
-This helper standardizes how to run Go service integration tests using the `integration` build tag.
+Unified helpers to run Go service suites under `test/integration` (build tag `integration`) and `test/e2e` (build tag `e2e`).
 
 ## How to run
-- Windows: `backend\go\services\run-integration-tests.bat --with-compose`
-- Linux/macOS: `backend/go/services/run-integration-tests.sh --with-compose`
-- Append any `go test` arguments after the script, e.g. `-- -run TestUserFlow`.
+- Windows: `backend\go\services\test\integration\run-tests.bat --suite integration --with-compose`
+- Linux/macOS: `backend/go/services/test/integration/run-tests.sh --suite integration --with-compose`
+- To run both suites: add `--suite all`. Append `go test` args after `--`, e.g. `-- --run TestUserFlow`.
+- Legacy shims still work: `run-integration-tests.*` delegates to `test/integration/run-tests.* --suite integration`.
 
 ## Notes
-- The helper optionally starts the root `docker-compose.tests.yml` (Kafka stack). Service-specific deps (e.g., `DATABASE_URL`) must be provided by your env or your own compose stack.
-- Services without `test/integration/*_test.go` are skipped.
-- Tests run with `-tags=integration` in each service directory under `backend/go/services`.
+- The helper optionally starts the root `docker-compose.tests.yml` (Kafka stack). Service-specific deps (e.g., `DATABASE_URL`) must come from your environment or a service-specific compose stack.
+- Services without `test/<suite>/*_test.go` are skipped automatically.
+- CI/CD entrypoint: call `backend/go/services/test/integration/run-tests.sh --suite integration` (or `--suite all`) from the repo root; pass `--with-compose` when ephemeral deps are needed.

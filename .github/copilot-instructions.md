@@ -36,7 +36,8 @@ Purpose: provide immediate, actionable context so an AI code agent can be produc
   - Processor batch logic: `backend/python/analytics-processor-service/src/voc_processor/worker.py` — keep BATCH_SIZE/BATCH_FLUSH_SECONDS and offset commit semantics.
 
 - Testing & coverage patterns:
-  - Go: table-driven tests; inject fakes/stubs (see platform-events writer/reader fakes). `go test -cover ./...` for unit; `-tags=integration` with docker-compose for integration. Gate gofmt (`gofmt -l`) and golangci-lint in CI.
+  - Go: table-driven tests; inject fakes/stubs (see platform-events writer/reader fakes). `go test -cover ./...` for unit; `-tags=integration` and `-tags=e2e` with docker-compose for heavier suites. Gate gofmt (`gofmt -l`) and golangci-lint in CI.
+  - Go integration/e2e: place suites under `test/integration` and `test/e2e` with matching build tags; ship helper scripts + README inside `test/integration`. Services use `backend/go/services/test/integration/run-tests.(sh|bat)` (legacy `run-integration-tests.*` should delegate) and libs use `backend/go/libs/test/integration/run-tests.(sh|bat)`. Helpers may start `docker-compose.tests.yml` when `--with-compose` and must be added whenever introducing integration/e2e tests (mirror platform-events pattern, including Kafka topic setup when needed).
   - Python: pytest with fakes/mocks for Kafka/ClickHouse/Redis; avoid real services. `pytest --cov=src --cov-report=xml` in CI.
   - Frontend (Angular/Fuse): Angular Testing Library/Jasmine/Karma; stub HTTP with `HttpTestingController`; avoid real network. `ng test --watch=false --code-coverage` (or template equivalent); consider Cypress e2e separately.
   - Integration tests: place under `test/integration` with wrapper script (e.g., `run-integration-tests`), optional `--with-compose` to start deps.

@@ -44,7 +44,7 @@ func TestTenantCreateIntegration(t *testing.T) {
 			seed: func(r *fakeTenantRepo) {
 				existing := tenant.NewTenant("Existing", "owner@acme.test", tenant.PlanStarter)
 				existing.Slug = "existing"
-				_ = r.Create(nil, existing)
+				_ = r.Create(context.Background(), existing)
 			},
 			payload: map[string]any{
 				"name":  "Acme Corp",
