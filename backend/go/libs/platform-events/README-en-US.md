@@ -244,6 +244,12 @@ ENVIRONMENT=development
 DEBUG=true
 ```
 
+## Testing & Coverage
+
+- Unit tests: run `make test` (or `go test ./...`) from `backend/go/libs/platform-events`.
+- Coverage report: run `make test-coverage` to generate `coverage.out` and `coverage.html`; view the HTML locally or use `go tool cover -func=coverage.out` for a summary.
+- Integration tests: run `make test-integration` (supports `TEST_ARGS="--with-compose"` to start the docker-compose Kafka stack and forward extra `go test` flags).
+
 ## Architecture
 
 ```

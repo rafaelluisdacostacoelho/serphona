@@ -194,6 +194,12 @@ cfg := &config.Config{
 }
 ```
 
+## 🧪 Testes e Cobertura
+
+- Testes unitários: `make test` (ou `go test ./...`) dentro de `backend/go/libs/platform-events`.
+- Relatório de cobertura: `make test-coverage` gera `coverage.out` e `coverage.html`; abra o HTML localmente ou use `go tool cover -func=coverage.out` para ver o resumo no terminal.
+- Testes de integração: `make test-integration` (aceita `TEST_ARGS="--with-compose"` para subir o Kafka via docker-compose e repassa flags extras do `go test`).
+
 ## 📬 Tópicos Disponíveis
 
 ### Auth Events
