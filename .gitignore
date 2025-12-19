@@ -178,4 +178,4 @@ temp/
 
 # ==== Tests ====
 coverage/
-**/coverage.*
+**/*/coverage.*

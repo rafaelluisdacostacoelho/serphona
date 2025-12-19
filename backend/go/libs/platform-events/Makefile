@@ -4,6 +4,7 @@ GO_TEST ?= go test
 GO_COVER ?= go tool cover
 PKG ?= ./...
 TEST_ARGS ?=
+COBERTURA_DIR ?= coverage
 GOCOV ?= $(shell command -v gocov 2>/dev/null)
 GOCOV_HTML ?= $(shell command -v gocov-html 2>/dev/null)
 
@@ -26,9 +27,10 @@ test-unit: ## Run unit tests
 	@$(GO_TEST) $(PKG)
 
 test-coverage: ## Run unit tests with coverage report
-	@$(GO_TEST) -coverprofile=coverage.out $(PKG)
-	@$(GO_COVER) -func=coverage.out
-	@$(GO_COVER) -html=coverage.out -o coverage.html
+	@mkdir -p $(COBERTURA_DIR)
+	@$(GO_TEST) -coverprofile=$(COBERTURA_DIR)/coverage.out $(PKG)
+	@$(GO_COVER) -func=$(COBERTURA_DIR)/coverage.out
+	@$(GO_COVER) -html=$(COBERTURA_DIR)/coverage.out -o $(COBERTURA_DIR)/coverage.html
 
 coverage-tools-check:
 	@command -v gocov >/dev/null || { \
@@ -44,12 +46,13 @@ coverage-tools-check:
 	}
 
 test-coverage-html: coverage-tools-check ## Run unit tests with richer HTML coverage (requires gocov + gocov-html)
-	@$(GO_TEST) -coverprofile=coverage.out $(PKG)
-	@gocov convert coverage.out > coverage.json
-	@gocov-html coverage.json > coverage.html
+	@mkdir -p $(COBERTURA_DIR)
+	@$(GO_TEST) -coverprofile=$(COBERTURA_DIR)/coverage.out $(PKG)
+	@gocov convert $(COBERTURA_DIR)/coverage.out > $(COBERTURA_DIR)/coverage.json
+	@gocov-html $(COBERTURA_DIR)/coverage.json > $(COBERTURA_DIR)/coverage.html
 
 test-integration: ## Run integration tests (Kafka required; pass --with-compose to start stack)
 	@$(INTEGRATION_RUNNER) $(TEST_ARGS)
 
 clean: ## Remove coverage artifacts
-	@$(RM) coverage.out coverage.html coverage.json
+	@$(RM) -r $(COBERTURA_DIR)
