@@ -175,7 +175,3 @@ temp/
 *.seed
 *.pid.lock
 .cache/
-
-# ==== Tests ====
-coverage/
-**/*/coverage.*
