@@ -36,6 +36,8 @@ type leaderConn interface {
 	Close() error
 }
 
+var scramMechanism = scram.Mechanism
+
 // newWriter is overridden in tests to avoid dialing real brokers. It respects Dialer (TLS/SASL).
 var newWriter = func(cfg *config.Config) (writerInterface, error) {
 	dialer, err := newDialer(cfg)
@@ -86,13 +88,13 @@ var (
 					Password: cfg.SASLPassword,
 				}
 			case "scram-sha256":
-				mech, err := scram.Mechanism(scram.SHA256, cfg.SASLUsername, cfg.SASLPassword)
+				mech, err := scramMechanism(scram.SHA256, cfg.SASLUsername, cfg.SASLPassword)
 				if err != nil {
 					return nil, err
 				}
 				dialer.SASLMechanism = mech
 			case "scram-sha512":
-				mech, err := scram.Mechanism(scram.SHA512, cfg.SASLUsername, cfg.SASLPassword)
+				mech, err := scramMechanism(scram.SHA512, cfg.SASLUsername, cfg.SASLPassword)
 				if err != nil {
 					return nil, err
 				}
