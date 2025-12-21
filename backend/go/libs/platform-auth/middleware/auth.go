@@ -4,9 +4,9 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	autherrors "github.com/serphona/serphona/backend/go/libs/platform-auth/errors"
-	authjwt "github.com/serphona/serphona/backend/go/libs/platform-auth/jwt"
-	"github.com/serphona/serphona/backend/go/libs/platform-auth/types"
+	autherrors "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/errors"
+	authjwt "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/jwt"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/types"
 )
 
 // RequireAuth is a Gin middleware that validates a JWT and injects claims into the request context.

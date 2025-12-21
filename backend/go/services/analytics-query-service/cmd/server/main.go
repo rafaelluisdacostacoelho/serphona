@@ -14,12 +14,12 @@ import (
 	_ "github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
-	"github.com/serphona/serphona/backend/go/services/analytics-query-service/internal/adapter/http/handler"
-	"github.com/serphona/serphona/backend/go/services/analytics-query-service/internal/domain/repository"
-	"github.com/serphona/serphona/backend/go/services/analytics-query-service/internal/infrastructure/middleware"
-	"github.com/serphona/serphona/backend/go/services/analytics-query-service/internal/infrastructure/repository/cached"
-	"github.com/serphona/serphona/backend/go/services/analytics-query-service/internal/infrastructure/repository/clickhouse"
-	"github.com/serphona/serphona/backend/go/services/analytics-query-service/internal/usecase"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/analytics-query-service/internal/adapter/http/handler"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/analytics-query-service/internal/domain/repository"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/analytics-query-service/internal/infrastructure/middleware"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/analytics-query-service/internal/infrastructure/repository/cached"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/analytics-query-service/internal/infrastructure/repository/clickhouse"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/analytics-query-service/internal/usecase"
 )
 
 func main() {

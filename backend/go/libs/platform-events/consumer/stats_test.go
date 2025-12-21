@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/segmentio/kafka-go"
-	"github.com/serphona/serphona/backend/go/libs/platform-events/config"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/config"
 )
 
 // fakeReader minimal Stats provider to avoid network calls.

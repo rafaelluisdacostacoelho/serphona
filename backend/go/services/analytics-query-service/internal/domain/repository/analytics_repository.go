@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/serphona/serphona/backend/go/services/analytics-query-service/internal/domain/model"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/analytics-query-service/internal/domain/model"
 )
 
 // AnalyticsRepository defines methods for querying analytics data

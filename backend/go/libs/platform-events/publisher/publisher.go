@@ -13,8 +13,8 @@ import (
 	"github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/sasl/plain"
 	"github.com/segmentio/kafka-go/sasl/scram"
-	"github.com/serphona/serphona/backend/go/libs/platform-events/config"
-	"github.com/serphona/serphona/backend/go/libs/platform-events/types"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/config"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/types"
 )
 
 // Publisher é responsável por publicar eventos no Kafka
@@ -23,6 +23,20 @@ type writerInterface interface {
 	Stats() kafka.WriterStats
 	Close() error
 }
+
+// topicConn abstrai operações de metadados para garantir a existência do tópico (testável sem rede).
+type topicConn interface {
+	CreateTopics(...kafka.TopicConfig) error
+	ReadPartitions(...string) ([]kafka.Partition, error)
+	SetDeadline(time.Time) error
+	Close() error
+}
+
+type leaderConn interface {
+	Close() error
+}
+
+var scramMechanism = scram.Mechanism
 
 // newWriter is overridden in tests to avoid dialing real brokers. It respects Dialer (TLS/SASL).
 var newWriter = func(cfg *config.Config) (writerInterface, error) {
@@ -51,6 +65,54 @@ var newWriter = func(cfg *config.Config) (writerInterface, error) {
 
 	return w, nil
 }
+
+// dial helpers to allow fakes in tests
+var (
+	newDialer = func(cfg *config.Config) (*kafka.Dialer, error) {
+		dialer := &kafka.Dialer{
+			ClientID: cfg.ClientID,
+			Timeout:  10 * time.Second,
+		}
+
+		if cfg.UseTLS {
+			dialer.TLS = &tls.Config{
+				InsecureSkipVerify: cfg.TLSInsecureSkipVerify,
+			}
+		}
+
+		if cfg.SASLMechanism != "" {
+			switch cfg.SASLMechanism {
+			case "plain":
+				dialer.SASLMechanism = plain.Mechanism{
+					Username: cfg.SASLUsername,
+					Password: cfg.SASLPassword,
+				}
+			case "scram-sha256":
+				mech, err := scramMechanism(scram.SHA256, cfg.SASLUsername, cfg.SASLPassword)
+				if err != nil {
+					return nil, err
+				}
+				dialer.SASLMechanism = mech
+			case "scram-sha512":
+				mech, err := scramMechanism(scram.SHA512, cfg.SASLUsername, cfg.SASLPassword)
+				if err != nil {
+					return nil, err
+				}
+				dialer.SASLMechanism = mech
+			}
+		}
+
+		return dialer, nil
+	}
+
+	dialContext = func(dialer *kafka.Dialer, ctx context.Context, network, address string) (topicConn, error) {
+		return dialer.DialContext(ctx, network, address)
+	}
+
+	dialLeader = func(dialer *kafka.Dialer, ctx context.Context, network, address, topic string, partition int) (leaderConn, error) {
+		return dialer.DialLeader(ctx, network, address, topic, partition)
+	}
+)
 
 type Publisher struct {
 	writer writerInterface
@@ -287,7 +349,7 @@ func (p *Publisher) ensureTopic(ctx context.Context, topic string) error {
 		return fmt.Errorf("failed to build dialer: %w", err)
 	}
 
-	conn, err := dialer.DialContext(ctx, "tcp", p.config.Brokers[0])
+	conn, err := dialContext(dialer, ctx, "tcp", p.config.Brokers[0])
 	if err != nil {
 		return fmt.Errorf("failed to dial broker %s: %w", p.config.Brokers[0], err)
 	}
@@ -315,7 +377,7 @@ func (p *Publisher) ensureTopic(ctx context.Context, topic string) error {
 	}
 
 	// Dial leader to ensure metadata is propagated.
-	leader, err := dialer.DialLeader(ctx, "tcp", p.config.Brokers[0], topic, 0)
+	leader, err := dialLeader(dialer, ctx, "tcp", p.config.Brokers[0], topic, 0)
 	if err != nil {
 		return fmt.Errorf("failed to reach leader for topic %s: %w", topic, err)
 	}
@@ -329,43 +391,6 @@ func (p *Publisher) ensureTopic(ctx context.Context, topic string) error {
 var (
 	ErrPublisherClosed = fmt.Errorf("publisher is closed")
 )
-
-func newDialer(cfg *config.Config) (*kafka.Dialer, error) {
-	dialer := &kafka.Dialer{
-		ClientID: cfg.ClientID,
-		Timeout:  10 * time.Second,
-	}
-
-	if cfg.UseTLS {
-		dialer.TLS = &tls.Config{
-			InsecureSkipVerify: cfg.TLSInsecureSkipVerify,
-		}
-	}
-
-	if cfg.SASLMechanism != "" {
-		switch cfg.SASLMechanism {
-		case "plain":
-			dialer.SASLMechanism = plain.Mechanism{
-				Username: cfg.SASLUsername,
-				Password: cfg.SASLPassword,
-			}
-		case "scram-sha256":
-			mech, err := scram.Mechanism(scram.SHA256, cfg.SASLUsername, cfg.SASLPassword)
-			if err != nil {
-				return nil, err
-			}
-			dialer.SASLMechanism = mech
-		case "scram-sha512":
-			mech, err := scram.Mechanism(scram.SHA512, cfg.SASLUsername, cfg.SASLPassword)
-			if err != nil {
-				return nil, err
-			}
-			dialer.SASLMechanism = mech
-		}
-	}
-
-	return dialer, nil
-}
 
 // newTransport builds a kafka.Transport using the same security settings as the dialer.
 func newTransport(cfg *config.Config) *kafka.Transport {

@@ -3,7 +3,7 @@ package dto
 
 import (
 	"github.com/google/uuid"
-	"github.com/serphona/serphona/backend/go/services/tools-gateway/internal/domain/entity"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/entity"
 )
 
 // CreateIntegrationRequest represents a create integration request.

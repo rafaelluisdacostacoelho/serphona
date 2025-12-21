@@ -7,7 +7,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/serphona/serphona/backend/go/services/auth-gateway/internal/usecase/auth"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/auth-gateway/internal/usecase/auth"
 	"golang.org/x/oauth2"
 )
 

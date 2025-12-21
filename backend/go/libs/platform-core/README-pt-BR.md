@@ -13,7 +13,7 @@ Utilitários centrais compartilhados pelos serviços da Serphona. Atualmente ofe
 
 ## Instalação
 ```bash
-go get github.com/serphona/serphona/backend/go/libs/platform-core
+go get github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-core
 ```
 
 ## Uso rápido
@@ -23,7 +23,7 @@ package main
 import (
     "log"
 
-    "github.com/serphona/serphona/backend/go/libs/platform-core/config"
+    "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-core/config"
 )
 
 func main() {

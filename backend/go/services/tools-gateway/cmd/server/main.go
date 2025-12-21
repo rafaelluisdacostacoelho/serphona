@@ -16,10 +16,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/serphona/serphona/backend/go/services/tools-gateway/internal/adapter/http/handler"
-	"github.com/serphona/serphona/backend/go/services/tools-gateway/internal/domain/service"
-	postgresrepo "github.com/serphona/serphona/backend/go/services/tools-gateway/internal/infrastructure/repository/postgres"
-	"github.com/serphona/serphona/backend/go/services/tools-gateway/internal/usecase"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/adapter/http/handler"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/service"
+	postgresrepo "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/infrastructure/repository/postgres"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/usecase"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )

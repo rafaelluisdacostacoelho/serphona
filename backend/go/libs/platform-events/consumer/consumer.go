@@ -11,8 +11,8 @@ import (
 	"github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/sasl/plain"
 	"github.com/segmentio/kafka-go/sasl/scram"
-	"github.com/serphona/serphona/backend/go/libs/platform-events/config"
-	"github.com/serphona/serphona/backend/go/libs/platform-events/types"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/config"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/types"
 )
 
 type reader interface {
@@ -20,6 +20,13 @@ type reader interface {
 	CommitMessages(context.Context, ...kafka.Message) error
 	Close() error
 	Stats() kafka.ReaderStats
+}
+
+var scramMechanism = scram.Mechanism
+
+// allows test injection
+var newReader = func(cfg kafka.ReaderConfig) reader {
+	return kafka.NewReader(cfg)
 }
 
 // Consumer é responsável por consumir eventos do Kafka
@@ -50,7 +57,7 @@ func New(cfg *config.Config, topics []string) (*Consumer, error) {
 		return nil, fmt.Errorf("invalid dialer config: %w", err)
 	}
 
-	reader := kafka.NewReader(kafka.ReaderConfig{
+	reader := newReader(kafka.ReaderConfig{
 		Brokers:        cfg.Brokers,
 		GroupID:        cfg.GroupID,
 		GroupTopics:    topics,
@@ -327,7 +334,7 @@ func hydrateHeaders(event *types.Event, msg kafka.Message) {
 	}
 }
 
-func newDialer(cfg *config.Config) (*kafka.Dialer, error) {
+var newDialer = func(cfg *config.Config) (*kafka.Dialer, error) {
 	dialer := &kafka.Dialer{
 		ClientID: cfg.ClientID,
 		Timeout:  10 * time.Second,
@@ -347,13 +354,13 @@ func newDialer(cfg *config.Config) (*kafka.Dialer, error) {
 				Password: cfg.SASLPassword,
 			}
 		case "scram-sha256":
-			mech, err := scram.Mechanism(scram.SHA256, cfg.SASLUsername, cfg.SASLPassword)
+			mech, err := scramMechanism(scram.SHA256, cfg.SASLUsername, cfg.SASLPassword)
 			if err != nil {
 				return nil, err
 			}
 			dialer.SASLMechanism = mech
 		case "scram-sha512":
-			mech, err := scram.Mechanism(scram.SHA512, cfg.SASLUsername, cfg.SASLPassword)
+			mech, err := scramMechanism(scram.SHA512, cfg.SASLUsername, cfg.SASLPassword)
 			if err != nil {
 				return nil, err
 			}

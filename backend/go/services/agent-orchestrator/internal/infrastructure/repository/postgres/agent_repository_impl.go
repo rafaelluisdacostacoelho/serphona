@@ -7,8 +7,8 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/domain/entity"
-	"github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/domain/repository"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/domain/entity"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/domain/repository"
 )
 
 // agentRepositoryImpl implements repository.AgentRepository using PostgreSQL

@@ -35,6 +35,10 @@ npm run dev
 
 # Build for production
 npm run build
+
+# Tests (Vitest + RTL + msw)
+npm test
+npm run test:coverage
 ```
 
 ## 🔧 Configuration
