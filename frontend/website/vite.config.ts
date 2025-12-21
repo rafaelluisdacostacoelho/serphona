@@ -11,6 +11,11 @@ export default defineConfig({
       '@pages': '/src/pages',
     },
   },
+  test: {
+    environment: 'jsdom',
+    setupFiles: './src/setupTests.ts',
+    globals: true,
+  },
   server: {
     port: 3000,
     host: true,

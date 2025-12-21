@@ -21,6 +21,11 @@ export default defineConfig({
       shared: ['react', 'react-dom'],
     }),
   ],
+  test: {
+    environment: 'jsdom',
+    setupFiles: './src/setupTests.ts',
+    globals: true,
+  },
   build: {
     modulePreload: false,
     target: 'esnext',
