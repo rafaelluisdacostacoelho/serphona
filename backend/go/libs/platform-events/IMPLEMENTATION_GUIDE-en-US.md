@@ -9,6 +9,10 @@
 3. [Consumer - Consuming Events](#consumer---consuming-events)
 4. [Patterns and Best Practices](#patterns-and-best-practices)
 5. [Troubleshooting](#troubleshooting)
+6. [Headers Reference](#headers-reference)
+7. [Tooling/System Payloads](#toolingsystem-payloads)
+8. [Integration Checklist](#integration-checklist)
+9. [Next Steps](#next-steps)
 
 ---
 
@@ -337,6 +341,56 @@ Wrap handlers that call external dependencies with a circuit breaker; send to re
 
 ---
 
+## Monitoring (logs, metrics)
+
+- **Logs**: set `DEBUG=true` to get publisher/consumer logs. Prefer wiring your service logger (e.g., zap via platform-observability) and wrap publishes/handlers with contextual fields like tenant/user/trace.
+- **Metrics**: export kafka-go stats to Prometheus (example below) and scrape with your service registry (attach the same labels you use elsewhere: `service`, `env`, `tenant` when relevant).
+
+```go
+// metrics/registry.go
+var (
+    pubWrites = promauto.NewGauge(prometheus.GaugeOpts{Name: "platform_events_publisher_writes_total", Help: "Total writes reported by kafka writer"})
+    pubErrors = promauto.NewGauge(prometheus.GaugeOpts{Name: "platform_events_publisher_errors_total", Help: "Total write errors"})
+    consLag   = promauto.NewGauge(prometheus.GaugeOpts{Name: "platform_events_consumer_lag", Help: "Consumer group lag (approx)"})
+)
+
+func StartMetrics(pub *publisher.Publisher, cons *consumer.Consumer) {
+    go func() {
+        ticker := time.NewTicker(15 * time.Second)
+        defer ticker.Stop()
+        for range ticker.C {
+            w := pub.Stats()
+            pubWrites.Set(float64(w.Writes))
+            pubErrors.Set(float64(w.Errors))
+
+            if cons != nil {
+                r := cons.Stats()
+                consLag.Set(float64(r.Lag))
+            }
+        }
+    }()
+}
+```
+
+- Expose the Prometheus handler in your HTTP server (e.g., `/metrics`) and add alerts for high `pubErrors` or growing `consLag`.
+
+## Document published/consumed events
+
+Add a short table to your service README with the topics and payloads you publish/consume so other teams can integrate quickly.
+
+```markdown
+### Events
+
+| Direction | Topic | Payload | Notes |
+| --- | --- | --- | --- |
+| Publish | auth.user.created | events.UserCreatedEvent | Emitted after user creation; carries tenant_id/user_id |
+| Consume | tenant.created | events.TenantCreatedEvent | Triggers billing bootstrap |
+```
+
+Keep the table in sync with your use cases and link back to [TOPICS-en-US.md](./TOPICS-en-US.md) when you reuse shared payloads.
+
+---
+
 ## Troubleshooting
 
 ### Events are not published
@@ -380,21 +434,31 @@ log.Printf("Registered handlers: %+v", eventHandlers)
 
 ---
 
-## Integration Checklist
+## Headers Reference
 
-- [ ] Add dependency to `go.mod`
-- [ ] Set environment variables
-- [ ] Add Kafka to docker-compose
-- [ ] Create global publisher
-- [ ] Initialize publisher in main
-- [ ] Publish events in key use cases
-- [ ] Create global consumer
-- [ ] Implement handlers for relevant topics
-- [ ] Register handlers in main
-- [ ] Make handlers idempotent
-- [ ] Add integration tests
-- [ ] Configure monitoring (logs, metrics)
-- [ ] Document published/consumed events in README
+| Header | Required | Description |
+| --- | --- | --- |
+| event_type | Yes | Event type (aligns with topic) |
+| source | Yes | Service that published the event |
+| version | Yes | Event schema version (default 1.0) |
+| tenant_id | Optional | Tenant that owns the event |
+| user_id | Optional | User that triggered the event |
+| trace_id | Optional | Trace ID for distributed tracing |
+| span_id | Optional | Span ID for distributed tracing |
+
+## Tooling/System Payloads
+
+### Tooling
+- `tool.registered` → `ToolRegisteredEvent` (tool_id, tenant_id, name, version, registered_at, registered_by?, metadata?)
+- `tool.invoked` → `ToolInvokedEvent` (tool_id, tenant_id, action, invoked_at, correlation_id?, payload?)
+- `tool.completed` → `ToolCompletedEvent` (tool_id, tenant_id, action, result, duration_ms?, completed_at, correlation_id?)
+- `tool.failed` → `ToolFailedEvent` (tool_id, tenant_id, action, error, duration_ms?, failed_at, context?, correlation_id?)
+
+### System
+- `system.health.check` → `SystemHealthCheckEvent` (service, status, checked_at, details?)
+- `system.error` → `SystemErrorEvent` (service, error, severity?, occurred_at, trace_id?, span_id?, labels?)
+- `system.alert` → `SystemAlertEvent` (alert_id, severity, service, message, created_at, labels?)
+- `system.configuration.updated` → `ConfigurationUpdatedEvent` (service, updated_by?, updated_at, changes?)
 
 ---
 
@@ -406,4 +470,6 @@ log.Printf("Registered handlers: %+v", eventHandlers)
 4. Optimize: batching and compression.
 5. Scale: increase partitions/consumers.
 
-Questions? See the [README-en-US](./README-en-US.md) or open an issue.
+---
+
+**Questions?** See the [README-en-US](./README-en-US.md) or open an issue.
