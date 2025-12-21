@@ -348,19 +348,19 @@ kafka_consumergroup_lag{consumergroup="voc-processor"}
 
 ## Testes
 
-### Testes Unitários
+### Unitários (offline)
 
-```bash
-pytest tests/ -v
-```
+- Comando: `pytest -v --cov=src --cov-report=xml`
+- Usa fakes em memória em `tests/fakes.py` (consumer Kafka, repositório ClickHouse, cache Redis) para evitar brokers/bancos reais.
+- Exemplo: `tests/test_worker.py` aciona `ConsumerWorker` com `FakeConsumer` e `InMemoryClickHouseRepo` e valida commits de offset sem Kafka/ClickHouse.
 
-### Testes de Integração
+### Integração (opcional)
 
 ```bash
 # Iniciar dependências
 docker-compose up -d kafka clickhouse
 
-# Executar testes de integração
+# Executar testes de integração (quando existirem)
 pytest tests/integration/ -v --integration
 ```
 
