@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/serphona/serphona/backend/go/services/auth-gateway/internal/service/jwt"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/auth-gateway/internal/service/jwt"
 )
 
 // AuthMiddleware validates JWT tokens

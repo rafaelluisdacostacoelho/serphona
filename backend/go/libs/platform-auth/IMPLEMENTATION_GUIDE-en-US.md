@@ -41,7 +41,7 @@ Complete guide to implement the platform-auth library in your microservices.
 
 `go.mod`
 ```go
-require github.com/serphona/serphona/backend/go/libs/platform-auth v1.0.0
+require github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth v1.0.0
 ```
 
 Run:

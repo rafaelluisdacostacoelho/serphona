@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/serphona/serphona/backend/go/services/tools-gateway/internal/domain/entity"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/entity"
 )
 
 // OAuth2Service handles OAuth 2.0 flows.

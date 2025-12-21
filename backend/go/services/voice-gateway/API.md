@@ -461,7 +461,7 @@ SDKs oficiais em desenvolvimento:
 ## 🆘 Suporte
 
 - **Documentação**: https://docs.serphona.com/voice-gateway
-- **Issues**: https://github.com/serphona/serphona/issues
+- **Issues**: https://github.com/rafaelluisdacostacoelho/serphona/issues
 - **Email**: support@serphona.com
 
 ---

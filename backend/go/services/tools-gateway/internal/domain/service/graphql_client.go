@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/serphona/serphona/backend/go/services/tools-gateway/internal/domain/entity"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/entity"
 )
 
 // GraphQLClient handles GraphQL API requests.

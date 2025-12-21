@@ -6,8 +6,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
-	"github.com/serphona/serphona/backend/go/services/auth-gateway/internal/service/jwt"
-	"github.com/serphona/serphona/backend/go/services/auth-gateway/internal/usecase/auth"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/auth-gateway/internal/service/jwt"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/auth-gateway/internal/usecase/auth"
 	"go.uber.org/zap"
 )
 

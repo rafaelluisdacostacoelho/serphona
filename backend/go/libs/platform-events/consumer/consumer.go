@@ -11,8 +11,8 @@ import (
 	"github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/sasl/plain"
 	"github.com/segmentio/kafka-go/sasl/scram"
-	"github.com/serphona/serphona/backend/go/libs/platform-events/config"
-	"github.com/serphona/serphona/backend/go/libs/platform-events/types"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/config"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/types"
 )
 
 type reader interface {

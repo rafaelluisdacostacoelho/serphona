@@ -20,7 +20,7 @@ This library **provides**:
 ## Installation
 
 ```bash
-go get github.com/serphona/serphona/backend/go/libs/platform-auth
+go get github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth
 ```
 
 ## Usage
@@ -32,7 +32,7 @@ package main
 
 import (
     "github.com/gin-gonic/gin"
-    "github.com/serphona/serphona/backend/go/libs/platform-auth/middleware"
+    "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 )
 
 func main() {
@@ -71,7 +71,7 @@ func getInvoices(c *gin.Context) {
 ### 3. HTTP Client for Auth Gateway
 
 ```go
-import "github.com/serphona/serphona/backend/go/libs/platform-auth/client"
+import "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/client"
 
 func main() {
     authClient := client.New("http://auth-gateway:8080")
@@ -84,7 +84,7 @@ func main() {
 ### 4. Manual JWT Validation
 
 ```go
-import authjwt "github.com/serphona/serphona/backend/go/libs/platform-auth/jwt"
+import authjwt "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/jwt"
 
 claims, err := authjwt.ValidateToken(tokenString)
 

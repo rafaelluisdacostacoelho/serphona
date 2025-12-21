@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/avast/retry-go/v4"
-	"github.com/serphona/serphona/backend/go/services/tools-gateway/internal/domain/entity"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/entity"
 )
 
 // HTTPClient defines the interface for making HTTP requests

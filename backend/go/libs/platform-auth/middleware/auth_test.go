@@ -9,10 +9,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
-	autherrors "github.com/serphona/serphona/backend/go/libs/platform-auth/errors"
-	authjwt "github.com/serphona/serphona/backend/go/libs/platform-auth/jwt"
-	"github.com/serphona/serphona/backend/go/libs/platform-auth/middleware"
-	"github.com/serphona/serphona/backend/go/libs/platform-auth/types"
+	autherrors "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/errors"
+	authjwt "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/jwt"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/types"
 )
 
 const middlewareTestSecret = "test-secret-key-32-characters-minimum!"

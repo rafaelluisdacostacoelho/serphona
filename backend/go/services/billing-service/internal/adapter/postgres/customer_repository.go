@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/serphona/serphona/backend/go/services/billing-service/internal/domain/customer"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/billing-service/internal/domain/customer"
 	"gorm.io/gorm"
 )
 

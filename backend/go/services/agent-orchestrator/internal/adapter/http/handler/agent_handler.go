@@ -5,8 +5,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/adapter/http/dto"
-	"github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/usecase"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/adapter/http/dto"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/usecase"
 )
 
 // AgentHandler handles agent-related HTTP requests

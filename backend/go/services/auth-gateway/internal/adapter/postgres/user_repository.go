@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/serphona/serphona/backend/go/services/auth-gateway/internal/domain/user"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/auth-gateway/internal/domain/user"
 	"gorm.io/gorm"
 )
 

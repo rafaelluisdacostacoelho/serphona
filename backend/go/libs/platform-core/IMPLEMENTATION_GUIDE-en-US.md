@@ -13,7 +13,7 @@ Guide to adopt the platform-core library in your services.
 ## Setup Steps
 1) Add dependency to your service `go.mod`:
 ```go
-require github.com/serphona/serphona/backend/go/libs/platform-core v1.0.0
+require github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-core v1.0.0
 ```
 Run `go mod tidy`.
 

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/serphona/serphona/backend/go/services/tools-gateway/internal/domain/entity"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/entity"
 )
 
 // SOAPClient handles SOAP/WebService requests.

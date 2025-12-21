@@ -1,4 +1,4 @@
-module github.com/serphona/serphona/backend/go/services/tools-gateway
+module github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway
 
 go 1.24.0
 

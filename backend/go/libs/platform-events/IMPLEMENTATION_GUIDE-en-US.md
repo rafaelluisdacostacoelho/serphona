@@ -18,7 +18,7 @@
 
 ```bash
 d cd backend/go/services/your-service
-go get github.com/serphona/serphona/backend/go/libs/platform-events
+go get github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events
 ```
 
 ### 2. Configure Environment Variables
@@ -69,8 +69,8 @@ volumes:
 package events
 
 import (
-    "github.com/serphona/serphona/backend/go/libs/platform-events/config"
-    "github.com/serphona/serphona/backend/go/libs/platform-events/publisher"
+    "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/config"
+    "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/publisher"
 )
 
 var globalPublisher *publisher.Publisher
@@ -128,8 +128,8 @@ package user
 import (
     "context"
 
-    "github.com/serphona/serphona/backend/go/libs/platform-events/events"
-    "github.com/serphona/serphona/backend/go/libs/platform-events/topics"
+    "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/events"
+    "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/topics"
     "your-service/internal/infrastructure/events"
 )
 
@@ -181,9 +181,9 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, input CreateUserInput)
 package events
 
 import (
-    "github.com/serphona/serphona/backend/go/libs/platform-events/config"
-    "github.com/serphona/serphona/backend/go/libs/platform-events/consumer"
-    "github.com/serphona/serphona/backend/go/libs/platform-events/topics"
+    "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/config"
+    "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/consumer"
+    "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/topics"
 )
 
 var globalConsumer *consumer.Consumer
@@ -234,7 +234,7 @@ package handlers
 import (
     "log"
 
-    "github.com/serphona/serphona/backend/go/libs/platform-events/types"
+    "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/types"
     "your-service/internal/usecase/billing"
 )
 
@@ -271,7 +271,7 @@ import (
     "your-service/internal/infrastructure/events"
     "your-service/internal/infrastructure/events/handlers"
 
-    "github.com/serphona/serphona/backend/go/libs/platform-events/topics"
+    "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/topics"
 )
 
 func main() {

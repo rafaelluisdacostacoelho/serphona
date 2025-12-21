@@ -6,9 +6,9 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
-	"github.com/serphona/serphona/backend/go/libs/platform-auth/client"
-	authjwt "github.com/serphona/serphona/backend/go/libs/platform-auth/jwt"
-	"github.com/serphona/serphona/backend/go/libs/platform-auth/middleware"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/client"
+	authjwt "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/jwt"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 )
 
 func main() {

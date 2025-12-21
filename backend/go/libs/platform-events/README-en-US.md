@@ -29,10 +29,10 @@ package main
 
 import (
     "context"
-    "github.com/serphona/serphona/backend/go/libs/platform-events/config"
-    "github.com/serphona/serphona/backend/go/libs/platform-events/events"
-    "github.com/serphona/serphona/backend/go/libs/platform-events/publisher"
-    "github.com/serphona/serphona/backend/go/libs/platform-events/topics"
+    "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/config"
+    "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/events"
+    "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/publisher"
+    "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/topics"
 )
 
 func main() {
@@ -61,10 +61,10 @@ package main
 
 import (
     "log"
-    "github.com/serphona/serphona/backend/go/libs/platform-events/config"
-    "github.com/serphona/serphona/backend/go/libs/platform-events/consumer"
-    "github.com/serphona/serphona/backend/go/libs/platform-events/topics"
-    "github.com/serphona/serphona/backend/go/libs/platform-events/types"
+    "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/config"
+    "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/consumer"
+    "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/topics"
+    "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/types"
 )
 
 func main() {

@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
-	autherrors "github.com/serphona/serphona/backend/go/libs/platform-auth/errors"
-	"github.com/serphona/serphona/backend/go/libs/platform-auth/types"
+	autherrors "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/errors"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/types"
 )
 
 const (
