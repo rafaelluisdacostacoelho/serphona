@@ -126,6 +126,32 @@ func TestRequireAuthExpiredToken(t *testing.T) {
 	}
 }
 
+func TestRequireAuthInvalidToken(t *testing.T) {
+	authjwt.SetSecret(middlewareTestSecret)
+
+	router := gin.New()
+	router.Use(middleware.RequireAuth())
+	router.GET("/protected", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	req.Header.Set("Authorization", "Bearer invalid-token")
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", w.Code)
+	}
+
+	var body map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &body)
+	if body["code"] != autherrors.CodeInvalidToken {
+		t.Fatalf("expected code %s, got %v", autherrors.CodeInvalidToken, body["code"])
+	}
+}
+
 func TestRequireRoleDenied(t *testing.T) {
 	authjwt.SetSecret(middlewareTestSecret)
 
@@ -176,4 +202,55 @@ func TestRequireAdminAllowsAdmin(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
+}
+
+func TestRequireSuperAdmin(t *testing.T) {
+	authjwt.SetSecret(middlewareTestSecret)
+
+	router := gin.New()
+	router.Use(middleware.RequireAuth())
+	router.Use(middleware.RequireSuperAdmin())
+	router.GET("/super", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	superToken := signedMiddlewareToken(t, "superadmin", time.Now().Add(time.Hour))
+	adminToken := signedMiddlewareToken(t, "admin", time.Now().Add(time.Hour))
+
+	// allow superadmin
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/super", nil)
+	req.Header.Set("Authorization", "Bearer "+superToken)
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	// deny admin
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/super", nil)
+	req.Header.Set("Authorization", "Bearer "+adminToken)
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", w.Code)
+	}
+}
+
+func TestRequireAuthPanicsWhenSecretMissing(t *testing.T) {
+	authjwt.SetSecret("")
+	authjwt.ResetSecretOnceForTests()
+
+	router := gin.New()
+	router.Use(middleware.RequireAuth())
+
+	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	w := httptest.NewRecorder()
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatalf("expected panic when JWT secret is not configured")
+		}
+	}()
+
+	router.ServeHTTP(w, req)
 }
