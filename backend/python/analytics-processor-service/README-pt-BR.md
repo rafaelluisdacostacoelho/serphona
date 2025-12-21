@@ -70,7 +70,7 @@ services/voc-processor/
     ## Testes
 
     - Unit/cobertura: `python -m venv .venv && .venv\Scripts\activate && pip install -r requirements.txt && pip install pytest pytest-cov pytest-asyncio && pytest -v --cov=src --cov-report=xml`
-    - Integração (opcional): suba deps com `docker-compose -f docker-compose.dev.yml up -d kafka clickhouse` e execute suites de integração com `--with-compose` quando disponível.
+    - Integração (opcional): suba deps com `docker-compose -f docker-compose.yml up -d kafka` (adicione um serviço de ClickHouse se precisar) e execute suites de integração com `--with-compose` quando disponível.
 ```
 
 ## Schemas de Eventos (Pydantic)

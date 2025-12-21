@@ -38,7 +38,7 @@ DEBUG=true
 
 ### 3. Configurar Kafka (Docker Compose)
 
-Adicione ao `docker-compose.dev.yml`:
+Adicione ao `docker-compose.yml`:
 
 ```yaml
 services:
