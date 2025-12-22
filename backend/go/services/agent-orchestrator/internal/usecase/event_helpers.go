@@ -3,8 +3,8 @@ package usecase
 import (
 	"context"
 
-	"github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/domain/entity"
-	"github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/domain/events"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/domain/entity"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/domain/events"
 )
 
 // EventHelpers provides helper methods for publishing events

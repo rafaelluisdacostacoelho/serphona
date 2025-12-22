@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/serphona/serphona/backend/go/libs/platform-events/config"
-	"github.com/serphona/serphona/backend/go/libs/platform-events/events"
-	"github.com/serphona/serphona/backend/go/libs/platform-events/publisher"
-	"github.com/serphona/serphona/backend/go/libs/platform-events/topics"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/config"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/events"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/publisher"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/topics"
 )
 
 // TestIntegrationToolingAndSystem publishes a minimal set of tooling/system events

@@ -6,9 +6,9 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/serphona/serphona/backend/go/services/tools-gateway/internal/domain/entity"
-	"github.com/serphona/serphona/backend/go/services/tools-gateway/internal/domain/repository"
-	"github.com/serphona/serphona/backend/go/services/tools-gateway/internal/domain/service"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/entity"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/repository"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/service"
 )
 
 // OAuthService orchestrates OAuth 2.0 flows.

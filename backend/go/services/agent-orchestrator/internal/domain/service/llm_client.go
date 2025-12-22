@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 
-	"github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/domain/entity"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/domain/entity"
 )
 
 // LLMClient defines the interface for LLM providers

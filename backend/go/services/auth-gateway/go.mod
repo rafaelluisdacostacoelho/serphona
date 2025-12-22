@@ -1,4 +1,4 @@
-module github.com/serphona/serphona/backend/go/services/auth-gateway
+module github.com/rafaelluisdacostacoelho/serphona/backend/go/services/auth-gateway
 
 go 1.23
 

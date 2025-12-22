@@ -31,6 +31,10 @@ Auth MFE com Module Federation - Autenticação, Autorização e Permissionament
 ```bash
 npm install
 npm run dev  # Port 3002
+
+# Tests (Vitest + RTL + msw)
+npm test
+npm run test:coverage
 ```
 
 ## 🔧 Config

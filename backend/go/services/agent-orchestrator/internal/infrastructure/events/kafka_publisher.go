@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/domain/events"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/domain/events"
 )
 
 // KafkaPublisher implements EventPublisher using Kafka

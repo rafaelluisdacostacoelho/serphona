@@ -1,4 +1,4 @@
-module github.com/serphona/serphona/backend/go/libs/platform-auth
+module github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth
 
 go 1.24.0
 

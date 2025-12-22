@@ -21,25 +21,26 @@ help: ## Show this help
 # ==============================================================================
 
 dev: ## Start full development environment
-	docker-compose -f docker-compose.dev.yml up -d
+	docker-compose -f docker-compose.yml up -d
 	@echo "$(GREEN)Infrastructure started!$(RESET)"
 	@echo ""
 	@echo "Services:"
 	@echo "  PostgreSQL:  localhost:5432"
-	@echo "  ClickHouse:  localhost:8123"
-	@echo "  Kafka:       localhost:9092"
 	@echo "  Redis:       localhost:6379"
-	@echo "  MinIO:       localhost:9000"
-	@echo "  MinIO Console: localhost:9001"
+	@echo "  Kafka:       localhost:9092"
+	@echo "  Console:     http://localhost:3000"
+	@echo "  Auth MFE:    http://localhost:3001"
+	@echo "  Billing MFE: http://localhost:3002"
+	@echo "  Website:     http://localhost:3003"
 
 down: ## Stop development environment
-	docker-compose -f docker-compose.dev.yml down
+	docker-compose -f docker-compose.yml down
 
 logs: ## Show logs from dev environment
-	docker-compose -f docker-compose.dev.yml logs -f
+	docker-compose -f docker-compose.yml logs -f
 
 ps: ## Show running containers
-	docker-compose -f docker-compose.dev.yml ps
+	docker-compose -f docker-compose.yml ps
 
 # ==============================================================================
 # FRONTEND

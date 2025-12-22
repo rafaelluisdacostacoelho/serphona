@@ -1,4 +1,4 @@
-module github.com/serphona/serphona/backend/go/libs/platform-core
+module github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-core
 
 go 1.24.0
 

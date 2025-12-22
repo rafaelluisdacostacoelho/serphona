@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/domain/entity"
-	"github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/domain/service"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/domain/entity"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/domain/service"
 )
 
 // clientPoolImpl implements service.LLMClientPool

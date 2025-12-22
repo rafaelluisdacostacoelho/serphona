@@ -13,13 +13,13 @@ import (
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
-	"github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/adapter/http/handler"
-	"github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/domain/repository"
-	toolsHTTP "github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/infrastructure/http"
-	"github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/infrastructure/llm"
-	postgresRepo "github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/infrastructure/repository/postgres"
-	redisRepo "github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/infrastructure/repository/redis"
-	"github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/usecase"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/adapter/http/handler"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/domain/repository"
+	toolsHTTP "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/infrastructure/http"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/infrastructure/llm"
+	postgresRepo "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/infrastructure/repository/postgres"
+	redisRepo "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/infrastructure/repository/redis"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/usecase"
 )
 
 func main() {

@@ -45,7 +45,10 @@ class ConsumerWorker:
                     # TODO: push to DLQ
                     continue
 
-                batch.append((msg, event.dict()))
+                event_dict = event.dict()
+                # normalize timestamp for storage
+                event_dict["ts"] = event_dict.pop("timestamp", None)
+                batch.append((msg, event_dict))
                 M_CONSUMED.inc()
                 now = time.monotonic()
                 if len(batch) >= BATCH_SIZE or (now - last_flush) >= BATCH_FLUSH_SECONDS:

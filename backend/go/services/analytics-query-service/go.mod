@@ -1,4 +1,4 @@
-module github.com/serphona/serphona/backend/go/services/analytics-query-service
+module github.com/rafaelluisdacostacoelho/serphona/backend/go/services/analytics-query-service
 
 go 1.24.0
 

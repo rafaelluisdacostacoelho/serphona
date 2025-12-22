@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/domain/service"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/domain/service"
 )
 
 // toolsClientImpl implements the ToolsClient interface using HTTP

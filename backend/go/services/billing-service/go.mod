@@ -1,4 +1,4 @@
-module github.com/serphona/serphona/backend/go/services/billing-service
+module github.com/rafaelluisdacostacoelho/serphona/backend/go/services/billing-service
 
 go 1.23
 

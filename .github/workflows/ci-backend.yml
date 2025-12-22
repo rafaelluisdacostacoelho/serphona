@@ -54,6 +54,7 @@ jobs:
           - analytics-query-service
           - agent-orchestrator
           - tools-gateway
+          - voice-gateway
     steps:
       - uses: actions/checkout@v4
 
@@ -162,6 +163,7 @@ jobs:
           - analytics-query-service
           - agent-orchestrator
           - tools-gateway
+          - voice-gateway
     
     steps:
       - uses: actions/checkout@v4
@@ -197,6 +199,7 @@ jobs:
           - analytics-query-service
           - agent-orchestrator
           - tools-gateway
+          - voice-gateway
     
     steps:
       - uses: actions/checkout@v4
@@ -278,7 +281,7 @@ jobs:
       
       - name: Run tests
         working-directory: backend/python/${{ matrix.service }}
-        run: pytest -v --cov=. --cov-report=xml
+        run: pytest -v --cov=src --cov-report=xml
         env:
           CLICKHOUSE_HOST: localhost
           KAFKA_BOOTSTRAP: localhost:9092

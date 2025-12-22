@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/serphona/serphona/backend/go/libs/platform-events/topics"
-	"github.com/serphona/serphona/backend/go/libs/platform-events/types"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/topics"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/types"
 )
 
 func TestToolInvokedEventBind(t *testing.T) {

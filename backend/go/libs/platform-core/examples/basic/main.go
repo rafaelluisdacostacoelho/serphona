@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/serphona/serphona/backend/go/libs/platform-core/config"
-	"github.com/serphona/serphona/backend/go/libs/platform-core/health"
-	"github.com/serphona/serphona/backend/go/libs/platform-core/logger"
-	"github.com/serphona/serphona/backend/go/libs/platform-core/secrets"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-core/config"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-core/health"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-core/logger"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-core/secrets"
 	"go.uber.org/zap"
 )
 
