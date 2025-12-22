@@ -3,12 +3,21 @@ package observability
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/serphona/backend/go/libs/platform-observability/anomaly"
 	"github.com/serphona/backend/go/libs/platform-observability/config"
+	"github.com/serphona/backend/go/libs/platform-observability/exporter"
+	"github.com/serphona/backend/go/libs/platform-observability/metrics"
+	"github.com/serphona/backend/go/libs/platform-observability/tracing"
 	"github.com/serphona/backend/go/libs/platform-observability/types"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
 // Observer é a interface principal para observabilidade
@@ -19,6 +28,88 @@ type Observer struct {
 	eventChan     chan interface{}
 	shutdownChan  chan struct{}
 	wg            sync.WaitGroup
+	tp            *sdktrace.TracerProvider
+	kafkaExp      *exporter.KafkaExporter
+	lokiExp       *exporter.LokiExporter
+	logger        *zap.Logger
+	shutdownTracer func(context.Context) error
+	metricsServer *http.Server
+	detector      *anomaly.Detector
+}
+
+func (o *Observer) recordSpan(ctx context.Context, tracer trace.Tracer, name, tenant string, attrs map[string]any) {
+	if o.tp == nil {
+		return
+	}
+	var otelAttrs []attribute.KeyValue
+	if tenant != "" {
+		otelAttrs = append(otelAttrs, attribute.String("tenant_id", tenant))
+	}
+	for k, v := range attrs {
+		switch val := v.(type) {
+		case string:
+			otelAttrs = append(otelAttrs, attribute.String(k, val))
+		case int:
+			otelAttrs = append(otelAttrs, attribute.Int(k, val))
+		case int64:
+			otelAttrs = append(otelAttrs, attribute.Int64(k, val))
+		case float64:
+			otelAttrs = append(otelAttrs, attribute.Float64(k, val))
+		}
+	}
+	ctx, span := tracer.Start(ctx, name, trace.WithAttributes(otelAttrs...))
+	span.End()
+	_ = ctx
+}
+
+func (o *Observer) logEvent(kind string, event any) {
+	if o.logger == nil {
+		return
+	}
+	o.logger.Info("observability event", zap.String("kind", kind), zap.Any("event", event))
+}
+
+func (o *Observer) detectAndAlert(ctx context.Context, key, tenant string) {
+	if o.detector == nil {
+		return
+	}
+	alert := o.detector.Observe(key, tenant, time.Now())
+	if alert == nil {
+		return
+	}
+
+	o.logEvent("anomaly", alert)
+	_ = o.kafkaExp.Export(ctx, alert)
+	if o.lokiExp != nil {
+		_ = o.lokiExp.Export(ctx, map[string]string{
+			"kind":   "anomaly",
+			"tenant": alert.TenantID,
+			"key":    alert.Key,
+		}, alert)
+	}
+
+	if o.config != nil && o.config.MLAlertsEnabled {
+		mlAlert := &types.AlertEvent{
+			AlertID:   uuid.New().String(),
+			TenantID:  alert.TenantID,
+			EventType: "alert.ml",
+			Source:    "ml-alerts",
+			Severity:  "info",
+			Message:   "ml alert candidate for key " + key,
+			Metadata: map[string]any{
+				"anomaly_alert_id": alert.AlertID,
+			},
+			Timestamp: time.Now(),
+		}
+		o.logEvent("ml_alert", mlAlert)
+		_ = o.kafkaExp.Export(ctx, mlAlert)
+		if o.lokiExp != nil {
+			_ = o.lokiExp.Export(ctx, map[string]string{
+				"kind":   "ml_alert",
+				"tenant": mlAlert.TenantID,
+			}, mlAlert)
+		}
+	}
 }
 
 var (
@@ -30,16 +121,71 @@ var (
 func Init(cfg *config.Config) (*Observer, error) {
 	var err error
 	once.Do(func() {
+		logger, _ := zap.NewProduction()
+
+		tp, shutdownTracer, tracerErr := tracing.Setup(context.Background(), cfg)
+		if tracerErr != nil {
+			err = tracerErr
+			return
+		}
+
+		kafkaExp, expErr := exporter.NewKafka(cfg)
+		if expErr != nil {
+			err = expErr
+			return
+		}
+
+		lokiExp, lokiErr := exporter.NewLoki(cfg)
+		if lokiErr != nil {
+			err = lokiErr
+			return
+		}
+
+		var detector *anomaly.Detector
+		if cfg.AnomalyDetectionEnabled {
+			detector = anomaly.NewDetector(
+				cfg.AnomalyBucketMinutes,
+				cfg.AnomalyWindowMinutes,
+				cfg.AnomalyZScoreThreshold,
+				cfg.AnomalyMinCount,
+				cfg.AnomalyCooldownSeconds,
+			)
+		}
+
 		globalObserver = &Observer{
 			config:        cfg,
 			conversations: make(map[string]*types.Conversation),
 			eventChan:     make(chan interface{}, 1000),
 			shutdownChan:  make(chan struct{}),
+			tp:            tp,
+			kafkaExp:      kafkaExp,
+			lokiExp:       lokiExp,
+			logger:        logger,
+			shutdownTracer: shutdownTracer,
+			detector:      detector,
+		}
+
+		if cfg.MetricsEnabled {
+			mux := http.NewServeMux()
+			mux.Handle(cfg.MetricsPath, metrics.Handler())
+			globalObserver.metricsServer = &http.Server{
+				Addr:    fmt.Sprintf(":%d", cfg.MetricsPort),
+				Handler: mux,
+			}
+
+			globalObserver.wg.Add(1)
+			go func() {
+				defer globalObserver.wg.Done()
+				if err := globalObserver.metricsServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+					logger.Warn("metrics server stopped", zap.Error(err))
+				}
+			}()
 		}
 
 		// Iniciar processador de eventos
 		globalObserver.wg.Add(1)
 		go globalObserver.processEvents()
+
 	})
 
 	return globalObserver, err
@@ -281,16 +427,64 @@ func (o *Observer) GetConversation(conversationID string) (*types.Conversation, 
 // processEvents processa eventos de forma assíncrona
 func (o *Observer) processEvents() {
 	defer o.wg.Done()
+	tracer := tracing.Tracer()
 
 	for {
 		select {
 		case event := <-o.eventChan:
-			// Aqui você pode processar eventos:
-			// - Enviar para ClickHouse
-			// - Enviar para Loki (logs)
-			// - Criar spans OpenTelemetry
-			// - Atualizar métricas Prometheus
-			_ = event
+			ctx := context.Background()
+			switch e := event.(type) {
+			case types.InteractionEvent:
+				if e.EventType == "conversation.started" || e.EventType == "conversation.ended" {
+					metrics.TrackConversation(e.EventType, e.TenantID)
+				}
+				metrics.TrackInteraction(e.Speaker, e.TenantID)
+				o.recordSpan(ctx, tracer, e.EventType, e.TenantID, map[string]any{
+					"conversation_id": e.ConversationID,
+					"speaker":        e.Speaker,
+					"channel":        e.Channel,
+					"language":       e.Language,
+					"sentiment":      e.Sentiment,
+					"intent":         e.Intent,
+				})
+				o.logEvent("interaction", e)
+				_ = o.kafkaExp.Export(ctx, e)
+				if o.lokiExp != nil {
+					_ = o.lokiExp.Export(ctx, map[string]string{
+						"kind":   "interaction",
+						"tenant": e.TenantID,
+						"event":  e.EventType,
+					}, e)
+				}
+				o.detectAndAlert(ctx, fmt.Sprintf("interaction.%s", e.Speaker), e.TenantID)
+
+			case types.DecisionEvent:
+				metrics.TrackDecision(e.DecisionType, e.TenantID)
+				o.recordSpan(ctx, tracer, e.EventType, e.TenantID, map[string]any{
+					"decision_type": e.DecisionType,
+					"option":        e.Option,
+				})
+				o.logEvent("decision", e)
+				_ = o.kafkaExp.Export(ctx, e)
+				if o.lokiExp != nil {
+					_ = o.lokiExp.Export(ctx, map[string]string{
+						"kind":   "decision",
+						"tenant": e.TenantID,
+						"event":  e.EventType,
+					}, e)
+				}
+				o.detectAndAlert(ctx, fmt.Sprintf("decision.%s", e.DecisionType), e.TenantID)
+
+			default:
+				o.logEvent("event", e)
+				_ = o.kafkaExp.Export(ctx, e)
+				if o.lokiExp != nil {
+					_ = o.lokiExp.Export(ctx, map[string]string{
+						"kind":  "event",
+						"event": fmt.Sprintf("%T", e),
+					}, e)
+				}
+			}
 
 		case <-o.shutdownChan:
 			return
@@ -303,5 +497,21 @@ func (o *Observer) Shutdown(ctx context.Context) error {
 	close(o.shutdownChan)
 	o.wg.Wait()
 	close(o.eventChan)
+
+	if o.kafkaExp != nil {
+		_ = o.kafkaExp.Close(ctx)
+	}
+
+	if o.metricsServer != nil {
+		_ = o.metricsServer.Shutdown(ctx)
+	}
+
+	if o.shutdownTracer != nil {
+		_ = o.shutdownTracer(ctx)
+	}
+
+	if o.logger != nil {
+		_ = o.logger.Sync()
+	}
 	return nil
 }
