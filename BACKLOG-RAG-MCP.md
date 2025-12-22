@@ -19,6 +19,13 @@
 
 ## Epics and Items
 
+### Execution Order (services & phases)
+- Phase 1: Auth/Tenant + Agent Router/Guardrails + RAG Retrieval API (tenant filters, citations) + MCP skeleton with authz/logging.
+- Phase 2: Domain MCPs (billing, ticketing, CRM) wrapping existing services; telephony-control MCP after voice flows stabilize.
+- Phase 3: RAG ingestion/indexing for first domain (20–100 curated docs, tenant filters, validity, re-rank/threshold) and click-through path to LLM with citations.
+- Phase 4: Expand MCP tool catalog (3–5 critical tools first), enforce policies/rate limits per tenant, and wire tool calls into agent orchestrator.
+- Phase 5: Python analytics processor once Kafka events carry tenant_id and schemas; reporting/export after ClickHouse is populated.
+
 ### 1) RAG Foundation
 - [ ] Decide vector store (pgvector vs ClickHouse) with latency/cost benchmarks and per-tenant limits.
 - [ ] Define metadata schema: {tenant_id, namespace, document_id, version/etag, tags, acl, ttl}.
@@ -60,6 +67,7 @@
 - [ ] Map provider types: REST, GraphQL, gRPC, S3, `rag_query`.
 - [ ] MCP observability: tracing, per-resource metrics, logs to reconcile with billing.
 - [ ] Client shim in Agent Orchestrator to resolve tools via MCP with HTTP fallback.
+ - [ ] Define tool catalog v1 (lookup_customer, create_ticket, send_whatsapp, transfer_call, billing.get_open_invoices, billing.generate_second_copy, rag_query) with schemas, error codes, idempotency keys where needed.
 
 ### 7) Security and Governance
 - [ ] Quota and rate-limit policies per tenant/namespace for ingestion and retrieval.

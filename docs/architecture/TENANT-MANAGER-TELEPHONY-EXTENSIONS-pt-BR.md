@@ -1,8 +1,8 @@
-# Tenant Manager - Telephony Extensions
+# Tenant Manager - Extensões de Telefonia
 
-## 1. Overview
+## 1. Visão Geral
 
-This document describes the extensions needed in the `tenant-manager` service to support telephony configuration for voice-based AI agents. These extensions follow the existing hexagonal architecture pattern already in place.
+Este documento descreve as extensões necessárias no serviço `tenant-manager` para suportar configuração de telefonia para agentes de voz com IA. As extensões seguem o padrão de arquitetura hexagonal já adotado.
 
 ## 2. New Domain Entities
 
