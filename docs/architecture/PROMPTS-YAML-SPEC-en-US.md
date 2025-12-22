@@ -1,9 +1,11 @@
 # prompts.yaml Specification (en-US)
 
 ## 1. Overview
+
 `prompts.yaml` defines AI agents per tenant in Serphona. It captures routing, behavior, safety, tools, and now RAG/MCP settings (v1.1). Multi-tenant isolation is assumed (`tenant_id` present end-to-end).
 
 ## 2. Schema (v1.1, backward-compatible with 1.0)
+
 ```yaml
 # prompts.yaml schema (v1.1)
 version: "1.1"              # 1.1 adds RAG + MCP fields
