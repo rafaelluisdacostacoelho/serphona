@@ -1,3 +1,5 @@
+PATH := $(PATH):$(shell go env GOPATH)/bin
+
 .PHONY: help test test-unit test-coverage test-coverage-html coverage-tools-check test-integration clean
 
 GO_TEST ?= go test
