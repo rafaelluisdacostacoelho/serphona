@@ -12,6 +12,12 @@ import (
 
 const testSecret = "test-secret-key-32-characters-minimum!"
 
+func resetSecretForTests() {
+	authjwt.SetSecret("")
+	// reset the once so EnsureSecretLoaded can run again
+	authjwt.ResetSecretOnceForTests()
+}
+
 func signedToken(t *testing.T, exp time.Time, role string) string {
 	t.Helper()
 
@@ -106,6 +112,7 @@ func TestValidateTokenFromHeader(t *testing.T) {
 }
 
 func TestSetSecretFromEnvSuccess(t *testing.T) {
+	resetSecretForTests()
 	t.Setenv(authjwt.EnvJWTSecret, "env-secret-value")
 
 	if err := authjwt.SetSecretFromEnv(); err != nil {
@@ -118,9 +125,31 @@ func TestSetSecretFromEnvSuccess(t *testing.T) {
 }
 
 func TestSetSecretFromEnvMissing(t *testing.T) {
+	resetSecretForTests()
 	t.Setenv(authjwt.EnvJWTSecret, "")
 
 	if err := authjwt.SetSecretFromEnv(); err == nil {
 		t.Fatalf("expected error when env secret is missing")
+	}
+}
+
+func TestEnsureSecretLoadedMissing(t *testing.T) {
+	resetSecretForTests()
+	t.Setenv(authjwt.EnvJWTSecret, "")
+
+	if err := authjwt.EnsureSecretLoaded(); err != autherrors.ErrSecretNotConfigured {
+		t.Fatalf("expected ErrSecretNotConfigured, got %v", err)
+	}
+}
+
+func TestEnsureSecretLoadedFromEnv(t *testing.T) {
+	resetSecretForTests()
+	t.Setenv(authjwt.EnvJWTSecret, "env-secret-value")
+
+	if err := authjwt.EnsureSecretLoaded(); err != nil {
+		t.Fatalf("expected secret to load, got %v", err)
+	}
+	if authjwt.GetSecret() != "env-secret-value" {
+		t.Fatalf("expected secret to be set, got %s", authjwt.GetSecret())
 	}
 }

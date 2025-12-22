@@ -249,21 +249,41 @@ router.GET("/protected", middleware.RequireAuth(), func(c *gin.Context) {
 
 ---
 
-## Implementation Checklist
+## Document protected endpoints
 
-- [ ] Add dependency to `go.mod`
-- [ ] Run `go mod tidy`
-- [ ] Set `JWT_SECRET` in environment (fail fast if missing)
-- [ ] Set `AUTH_GATEWAY_URL` when using the HTTP client
-- [ ] Call `authjwt.SetSecret` during startup (once)
-- [ ] Initialize auth client with `client.New` if you need gateway validation
-- [ ] Protect routes with `RequireAuth`
-- [ ] Guard admin/superadmin routes with `RequireAdmin`/`RequireSuperAdmin` or `RequireRole`
-- [ ] Read `userId`/`tenantId` from context where needed
-- [ ] Handle auth errors consistently
-- [ ] Test middleware/JWT with valid and invalid tokens
-- [ ] Document protected endpoints
-- [ ] Configure CORS if required
+- Keep a short table of the routes that use `RequireAuth`, `RequireAdmin`, `RequireSuperAdmin`, or `RequireRole` so reviewers and auditors know what is locked down.
+- Include the required role/tenant scope and the service that owns the route. Example:
+
+| Route | Method | Middleware | Role | Notes |
+| --- | --- | --- | --- | --- |
+| `/api/v1/billing/invoices` | GET | `RequireAuth` | any | user/tenant scoped |
+| `/api/v1/billing/users/:id` | DELETE | `RequireAdmin` | admin | admin only |
+| `/api/v1/system/tenants` | GET | `RequireSuperAdmin` | superadmin | platform control |
+
+Keep this list close to your service README or runbook and update it when new routes are added.
+
+## Configure CORS
+
+Enable CORS on the API server to allow browser clients (console/MFEs) to call protected endpoints with the `Authorization` header.
+
+```go
+import "github.com/gin-contrib/cors"
+import "time"
+
+corsCfg := cors.Config{
+    AllowOrigins:     []string{"http://localhost:5173", "https://console.serphona.com"},
+    AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+    AllowHeaders:     []string{"Authorization", "Content-Type", "Accept", "X-Request-ID"},
+    ExposeHeaders:    []string{"X-Request-ID"},
+    AllowCredentials: true,
+    MaxAge:           12 * time.Hour,
+}
+
+router := gin.Default()
+router.Use(cors.New(corsCfg))
+```
+
+Adjust `AllowOrigins` per environment (dev vs prod) and keep `Authorization` in `AllowHeaders` so JWT bearer headers flow correctly.
 
 ---
 

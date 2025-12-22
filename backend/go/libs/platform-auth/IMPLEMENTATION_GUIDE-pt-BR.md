@@ -241,21 +241,41 @@ go test ./...
 
 ---
 
-## Checklist de implementacao
+## Documentar endpoints protegidos
 
-- [ ] Adicionar dependencia em `go.mod`
-- [ ] Rodar `go mod tidy`
-- [ ] Definir `JWT_SECRET` no ambiente (falhar se ausente)
-- [ ] Definir `AUTH_GATEWAY_URL` ao usar o cliente HTTP
-- [ ] Chamar `authjwt.SetSecret` na inicializacao (uma vez)
-- [ ] Inicializar o cliente com `client.New` se precisar validar via gateway
-- [ ] Proteger rotas com `RequireAuth`
-- [ ] Restringir rotas admin/superadmin com `RequireAdmin`/`RequireSuperAdmin` ou `RequireRole`
-- [ ] Ler `userId`/`tenantId` do contexto quando necessario
-- [ ] Tratar erros de auth de forma consistente
-- [ ] Testar middleware/JWT com tokens validos e invalidos
-- [ ] Documentar endpoints protegidos
-- [ ] Configurar CORS se necessario
+- Mantenha uma tabela curta das rotas que usam `RequireAuth`, `RequireAdmin`, `RequireSuperAdmin` ou `RequireRole` para que revisores saibam o que esta protegido.
+- Inclua role exigida/escopo de tenant e o servico dono da rota. Exemplo:
+
+| Rota | Metodo | Middleware | Role | Observacao |
+| --- | --- | --- | --- | --- |
+| `/api/v1/billing/faturas` | GET | `RequireAuth` | qualquer | escopo do tenant |
+| `/api/v1/billing/usuarios/:id` | DELETE | `RequireAdmin` | admin | somente admin |
+| `/api/v1/system/tenants` | GET | `RequireSuperAdmin` | superadmin | controle da plataforma |
+
+Mantenha essa lista no README do servico ou runbook e atualize quando novas rotas forem adicionadas.
+
+## Configurar CORS
+
+Habilite CORS no servidor API para permitir que os clientes web (console/MFEs) chamem endpoints protegidos com o header `Authorization`.
+
+```go
+import "github.com/gin-contrib/cors"
+import "time"
+
+corsCfg := cors.Config{
+    AllowOrigins:     []string{"http://localhost:5173", "https://console.serphona.com"},
+    AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+    AllowHeaders:     []string{"Authorization", "Content-Type", "Accept", "X-Request-ID"},
+    ExposeHeaders:    []string{"X-Request-ID"},
+    AllowCredentials: true,
+    MaxAge:           12 * time.Hour,
+}
+
+router := gin.Default()
+router.Use(cors.New(corsCfg))
+```
+
+Ajuste `AllowOrigins` por ambiente (dev vs prod) e mantenha `Authorization` em `AllowHeaders` para que o header Bearer flua corretamente.
 
 ---
 

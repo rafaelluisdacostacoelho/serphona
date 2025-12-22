@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/golang-jwt/jwt/v5"
 	autherrors "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/errors"
@@ -16,6 +17,8 @@ const (
 )
 
 var jwtSecret string
+var ensureSecretOnce sync.Once
+var ensureSecretErr error
 
 // SetSecret configures the JWT secret used for validation.
 func SetSecret(secret string) {
@@ -26,7 +29,7 @@ func SetSecret(secret string) {
 func SetSecretFromEnv() error {
 	secret := os.Getenv(EnvJWTSecret)
 	if secret == "" {
-		return fmt.Errorf("environment variable %s not set", EnvJWTSecret)
+		return autherrors.ErrSecretNotConfigured
 	}
 	SetSecret(secret)
 	return nil
@@ -39,6 +42,24 @@ func MustSetSecretFromEnv() {
 	}
 }
 
+// EnsureSecretLoaded loads the secret once, preferring the already set value and falling back to EnvJWTSecret.
+func EnsureSecretLoaded() error {
+	ensureSecretOnce.Do(func() {
+		if jwtSecret != "" {
+			return
+		}
+		ensureSecretErr = SetSecretFromEnv()
+	})
+	return ensureSecretErr
+}
+
+// MustEnsureSecretLoaded panics when the secret cannot be loaded.
+func MustEnsureSecretLoaded() {
+	if err := EnsureSecretLoaded(); err != nil {
+		panic(err)
+	}
+}
+
 // GetSecret returns the configured JWT secret.
 func GetSecret() string {
 	return jwtSecret
@@ -46,8 +67,8 @@ func GetSecret() string {
 
 // ValidateToken validates a JWT token and returns its claims using the configured secret.
 func ValidateToken(tokenString string) (*types.Claims, error) {
-	if jwtSecret == "" {
-		return nil, fmt.Errorf("JWT secret not configured")
+	if err := EnsureSecretLoaded(); err != nil {
+		return nil, err
 	}
 
 	return ValidateTokenWithSecret(tokenString, jwtSecret)

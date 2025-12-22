@@ -12,6 +12,7 @@ import (
 // RequireAuth is a Gin middleware that validates a JWT and injects claims into the request context.
 func RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		authjwt.MustEnsureSecretLoaded()
 		authHeader := c.GetHeader("Authorization")
 
 		claims, err := authjwt.ValidateTokenFromHeader(authHeader)

@@ -11,6 +11,8 @@
 5. [Troubleshooting](#troubleshooting)
 6. [Referência de Cabeçalhos](#referência-de-cabeçalhos)
 7. [Payloads Tooling/System](#payloads-toolingsystem)
+8. [Checklist de Integração](#checklist-de-integração)
+9. [Próximos Passos](#próximos-passos)
 
 ---
 
@@ -519,6 +521,56 @@ func (h *ResilientHandler) Handle(event *types.Event) error {
 
 ---
 
+## Monitoramento (logs, métricas)
+
+- **Logs**: use `DEBUG=true` para logs do publisher/consumer. Preferencialmente integre com o logger do serviço (ex.: zap via platform-observability) e inclua tenant/user/trace nos publishes/handlers.
+- **Métricas**: exporte os stats do kafka-go para Prometheus (exemplo abaixo) e faça scrape no registry do serviço (use labels `service`, `env` e, quando fizer sentido, `tenant`).
+
+```go
+// metrics/registry.go
+var (
+    pubWrites = promauto.NewGauge(prometheus.GaugeOpts{Name: "platform_events_publisher_writes_total", Help: "Total de writes reportados pelo writer do Kafka"})
+    pubErrors = promauto.NewGauge(prometheus.GaugeOpts{Name: "platform_events_publisher_errors_total", Help: "Total de erros de write"})
+    consLag   = promauto.NewGauge(prometheus.GaugeOpts{Name: "platform_events_consumer_lag", Help: "Lag aproximado do consumer group"})
+)
+
+func StartMetrics(pub *publisher.Publisher, cons *consumer.Consumer) {
+    go func() {
+        ticker := time.NewTicker(15 * time.Second)
+        defer ticker.Stop()
+        for range ticker.C {
+            w := pub.Stats()
+            pubWrites.Set(float64(w.Writes))
+            pubErrors.Set(float64(w.Errors))
+
+            if cons != nil {
+                r := cons.Stats()
+                consLag.Set(float64(r.Lag))
+            }
+        }
+    }()
+}
+```
+
+- Exponha o handler do Prometheus no servidor HTTP (ex.: `/metrics`) e crie alertas para `pubErrors` alto ou `consLag` crescente.
+
+## Documente os eventos publicados/consumidos
+
+Adicione na README do serviço uma tabela com os tópicos e payloads que você publica/consome para outras equipes integrarem rápido.
+
+```markdown
+### Eventos
+
+| Direção | Tópico | Payload | Notas |
+| --- | --- | --- | --- |
+| Publish | auth.user.created | events.UserCreatedEvent | Emitido após criar usuário; carrega tenant_id/user_id |
+| Consume | tenant.created | events.TenantCreatedEvent | Dispara bootstrap de billing |
+```
+
+Mantenha a tabela sincronizada com seus casos de uso e aponte para [TOPICS-pt-BR.md](./TOPICS-pt-BR.md) quando reaproveitar payloads compartilhados.
+
+---
+
 ## Troubleshooting
 
 ### Eventos não são publicados
@@ -602,24 +654,6 @@ KAFKA_CONSUMER_CONCURRENCY=10
 1. **Implementar idempotência** nos handlers
 2. **Usar transações** quando possível
 3. **Armazenar event IDs** já processados
-
----
-
-## Checklist de Integração
-
-- [ ] Adicionar dependência no go.mod
-- [ ] Configurar variáveis de ambiente
-- [ ] Adicionar Kafka no docker-compose
-- [ ] Criar publisher global
-- [ ] Inicializar publisher no main
-- [ ] Publicar eventos nos use cases importantes
-- [ ] Criar consumer global
-- [ ] Criar handlers para eventos relevantes
-- [ ] Registrar handlers no main
-- [ ] Implementar idempotência nos handlers
-- [ ] Adicionar testes de integração
-- [ ] Configurar monitoring (logs, metrics)
-- [ ] Documentar eventos publicados/consumidos no README
 
 ---
 

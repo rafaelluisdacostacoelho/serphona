@@ -84,19 +84,6 @@ LOG_LEVEL: "info"
 ENVIRONMENT: "development"
 ```
 
-## Checklist de implementacao
-- [ ] Adicionar dependencia e rodar `go mod tidy`
-- [ ] Criar `config.yaml` (opcional) sem segredos
-- [ ] Definir env vars para segredos (`DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, etc.)
-- [ ] Carregar config no start com `config.Load()`
-- [ ] Validar chaves obrigatorias com `config.ValidateRequired(...)`
-- [ ] Inicializar logger zap com `logger.New(cfg.LogLevel)`
-- [ ] Expor `/health` usando `health.Handler(...)`
-- [ ] Usar `secrets.Get` para segredos em env (ou secret manager) quando necessario
-- [ ] Ligar portas e clients usando os valores carregados
-- [ ] Documentar quais chaves o servico exige
-- [ ] Adicionar testes para validar env/fields obrigatorios (opcional)
-
 ## Troubleshooting
 - Sem arquivo: o loader funciona sem `config.yaml`; use env/defaults.
 - Sem env: defina a variavel ou coloque no arquivo de config.
