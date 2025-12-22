@@ -72,4 +72,4 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240125205218-1f4bbc51befe // indirect
 )
 
-replace github.com/serphona/serphona/backend/go/libs/platform-events => ../../libs/platform-events
+replace github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events => ../../libs/platform-events

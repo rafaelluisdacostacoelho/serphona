@@ -20,7 +20,7 @@ Esta biblioteca **fornece**:
 ## Instalacao
 
 ```bash
-go get github.com/serphona/serphona/backend/go/libs/platform-auth
+go get github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth
 ```
 
 ## Uso

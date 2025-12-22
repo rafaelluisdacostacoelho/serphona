@@ -73,7 +73,8 @@ serphona/
 ├── go.work                             # Go workspace (multiple modules)
 ├── package.json                        # Unified scripts (npm/yarn)
 ├── Makefile                            # Build commands
-├── docker-compose.dev.yml              # Local dev environment
+├── docker-compose.yml                  # Local dev environment
+├── docker-compose.tests.yml            # Lightweight test stack (Kafka)
 │
 ├── .github/
 │   └── workflows/
@@ -212,8 +213,8 @@ serphona/
 git clone https://github.com/your-org/serphona.git
 cd serphona
 
-# Start local infrastructure (Postgres, Kafka, ClickHouse, Redis, MinIO)
-docker-compose -f docker-compose.dev.yml up -d
+# Start local infrastructure (Postgres, Kafka, Redis, core services)
+docker-compose -f docker-compose.yml up -d
 
 # Frontend
 cd frontend/console

@@ -8,6 +8,7 @@ var (
 	ErrInvalidToken            = errors.New("invalid token")
 	ErrTokenExpired            = errors.New("token expired")
 	ErrMissingToken            = errors.New("missing token")
+	ErrSecretNotConfigured     = errors.New("jwt secret not configured")
 	ErrInsufficientPermissions = errors.New("insufficient permissions")
 	ErrInvalidCredentials      = errors.New("invalid credentials")
 	ErrUserNotFound            = errors.New("user not found")

@@ -8,8 +8,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
-	"github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/domain/entity"
-	"github.com/serphona/serphona/backend/go/services/agent-orchestrator/internal/domain/repository"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/domain/entity"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/domain/repository"
 )
 
 // sessionRepositoryImpl implements repository.SessionRepository using Redis

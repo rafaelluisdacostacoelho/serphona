@@ -13,7 +13,7 @@ Guia para adotar a biblioteca platform-core nos seus servicos.
 ## Passos de setup
 1) Adicione a dependencia no `go.mod` do servico:
 ```go
-require github.com/serphona/serphona/backend/go/libs/platform-core v1.0.0
+require github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-core v1.0.0
 ```
 Rode `go mod tidy`.
 
@@ -83,19 +83,6 @@ OTLP_ENDPOINT: "http://localhost:4317"
 LOG_LEVEL: "info"
 ENVIRONMENT: "development"
 ```
-
-## Checklist de implementacao
-- [ ] Adicionar dependencia e rodar `go mod tidy`
-- [ ] Criar `config.yaml` (opcional) sem segredos
-- [ ] Definir env vars para segredos (`DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, etc.)
-- [ ] Carregar config no start com `config.Load()`
-- [ ] Validar chaves obrigatorias com `config.ValidateRequired(...)`
-- [ ] Inicializar logger zap com `logger.New(cfg.LogLevel)`
-- [ ] Expor `/health` usando `health.Handler(...)`
-- [ ] Usar `secrets.Get` para segredos em env (ou secret manager) quando necessario
-- [ ] Ligar portas e clients usando os valores carregados
-- [ ] Documentar quais chaves o servico exige
-- [ ] Adicionar testes para validar env/fields obrigatorios (opcional)
 
 ## Troubleshooting
 - Sem arquivo: o loader funciona sem `config.yaml`; use env/defaults.

@@ -66,6 +66,11 @@ services/voc-processor/
         │   └── clickhouse_repo.py      # Repositório ClickHouse
         └── utils/
             └── metrics.py              # Métricas Prometheus
+
+    ## Testes
+
+    - Unit/cobertura: `python -m venv .venv && .venv\Scripts\activate && pip install -r requirements.txt && pip install pytest pytest-cov pytest-asyncio && pytest -v --cov=src --cov-report=xml`
+    - Integração (opcional): suba deps com `docker-compose -f docker-compose.yml up -d kafka` (adicione um serviço de ClickHouse se precisar) e execute suites de integração com `--with-compose` quando disponível.
 ```
 
 ## Schemas de Eventos (Pydantic)
@@ -343,19 +348,19 @@ kafka_consumergroup_lag{consumergroup="voc-processor"}
 
 ## Testes
 
-### Testes Unitários
+### Unitários (offline)
 
-```bash
-pytest tests/ -v
-```
+- Comando: `pytest -v --cov=src --cov-report=xml`
+- Usa fakes em memória em `tests/fakes.py` (consumer Kafka, repositório ClickHouse, cache Redis) para evitar brokers/bancos reais.
+- Exemplo: `tests/test_worker.py` aciona `ConsumerWorker` com `FakeConsumer` e `InMemoryClickHouseRepo` e valida commits de offset sem Kafka/ClickHouse.
 
-### Testes de Integração
+### Integração (opcional)
 
 ```bash
 # Iniciar dependências
 docker-compose up -d kafka clickhouse
 
-# Executar testes de integração
+# Executar testes de integração (quando existirem)
 pytest tests/integration/ -v --integration
 ```
 

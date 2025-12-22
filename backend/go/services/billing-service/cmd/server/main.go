@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/serphona/serphona/backend/go/services/billing-service/internal/config"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/billing-service/internal/config"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )

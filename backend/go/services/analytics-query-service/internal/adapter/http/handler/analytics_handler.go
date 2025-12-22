@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/serphona/serphona/backend/go/services/analytics-query-service/internal/domain/model"
-	"github.com/serphona/serphona/backend/go/services/analytics-query-service/internal/usecase"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/analytics-query-service/internal/domain/model"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/analytics-query-service/internal/usecase"
 )
 
 type AnalyticsHandler struct {

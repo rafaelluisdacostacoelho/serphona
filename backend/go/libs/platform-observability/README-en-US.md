@@ -444,16 +444,31 @@ go test -cover ./...
 go test -tags=integration ./...
 ```
 
-## 🔜 Roadmap
+## 📈 Grafana Dashboards
 
-- [ ] Multi-service distributed traces support
-- [ ] Auto-instrumentation for HTTP/gRPC handlers
-- [ ] Automatic anomaly detection
-- [ ] ML-based intelligent alerts
-- [ ] Apache Kafka exporter
-- [ ] Adaptive sampling support
-- [ ] Dashboard templates for Grafana
-- [ ] CLI for trace queries
+- Metrics overview at [grafana/observability-overview.json](backend/go/libs/platform-observability/grafana/observability-overview.json) (Prometheus datasource `DS_PROM`, `tenant` variable).
+- Traces and logs at [grafana/traces-and-logs.json](backend/go/libs/platform-observability/grafana/traces-and-logs.json) (Tempo datasource `DS_TEMPO`, Loki `DS_LOKI`, filters `service` and `tenant`).
+
+## 🛠️ `obsctl` CLI
+
+Minimal CLI to query Tempo via TraceQL or fetch a specific trace.
+
+```bash
+# Search traces by service
+go run ./cmd/obsctl --tempo-url http://tempo:3200 --tenant acme search --service agent-orchestrator --limit 20
+
+# Search with custom TraceQL
+go run ./cmd/obsctl --tempo-url http://tempo:3200 search --query '{ service.name = "agent-orchestrator" && duration > 500ms }'
+
+# Get a trace
+go run ./cmd/obsctl --tempo-url http://tempo:3200 --tenant acme get --trace-id <trace-id>
+```
+
+## 🚨 Anomaly detection and ML alerts
+
+- Enable with `ANOMALY_DETECTION_ENABLED=true`; tune window (`ANOMALY_WINDOW_MINUTES`), bucket (`ANOMALY_BUCKET_MINUTES`), z-score threshold (`ANOMALY_ZSCORE_THRESHOLD`) and minimum events (`ANOMALY_MIN_COUNT`).
+- Anomalies emit `anomaly.detected` (logger, Kafka, Loki) with score, mean, std.
+- Set `ML_ALERTS_ENABLED=true` to emit `alert.ml` candidates referencing detected anomalies.
 
 ## 📚 Related Documentation
 

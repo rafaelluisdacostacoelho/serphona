@@ -5,9 +5,9 @@ package integration
 import (
 	"testing"
 
-	"github.com/serphona/serphona/backend/go/libs/platform-events/config"
-	"github.com/serphona/serphona/backend/go/libs/platform-events/consumer"
-	"github.com/serphona/serphona/backend/go/libs/platform-events/topics"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/config"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/consumer"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/topics"
 )
 
 // TestIntegrationConsumer validates consumer wiring without fetching messages.

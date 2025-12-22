@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/serphona/serphona/backend/go/services/analytics-query-service/internal/domain/model"
-	"github.com/serphona/serphona/backend/go/services/analytics-query-service/internal/domain/repository"
-	"github.com/serphona/serphona/backend/go/services/analytics-query-service/internal/infrastructure/cache"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/analytics-query-service/internal/domain/model"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/analytics-query-service/internal/domain/repository"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/analytics-query-service/internal/infrastructure/cache"
 )
 
 // CachedAnalyticsRepository wraps a repository with Redis caching

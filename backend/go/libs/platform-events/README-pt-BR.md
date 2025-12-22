@@ -23,7 +23,7 @@ A `platform-events` fornece:
 ## 📦 Instalação
 
 ```bash
-go get github.com/serphona/serphona/backend/go/libs/platform-events
+go get github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events
 ```
 
 ## 🚀 Início Rápido
@@ -35,10 +35,10 @@ package main
 
 import (
     "context"
-    "github.com/serphona/serphona/backend/go/libs/platform-events/config"
-    "github.com/serphona/serphona/backend/go/libs/platform-events/events"
-    "github.com/serphona/serphona/backend/go/libs/platform-events/publisher"
-    "github.com/serphona/serphona/backend/go/libs/platform-events/topics"
+    "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/config"
+    "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/events"
+    "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/publisher"
+    "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/topics"
 )
 
 func main() {
@@ -80,10 +80,10 @@ package main
 
 import (
     "log"
-    "github.com/serphona/serphona/backend/go/libs/platform-events/config"
-    "github.com/serphona/serphona/backend/go/libs/platform-events/consumer"
-    "github.com/serphona/serphona/backend/go/libs/platform-events/topics"
-    "github.com/serphona/serphona/backend/go/libs/platform-events/types"
+    "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/config"
+    "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/consumer"
+    "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/topics"
+    "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/types"
 )
 
 func main() {
@@ -193,6 +193,12 @@ cfg := &config.Config{
     ConsumerConcurrency:    5,
 }
 ```
+
+## 🧪 Testes e Cobertura
+
+- Testes unitários: `make test` (ou `go test ./...`) dentro de `backend/go/libs/platform-events`.
+- Relatório de cobertura: `make test-coverage` gera `coverage.out` e `coverage.html`; abra o HTML localmente ou use `go tool cover -func=coverage.out` para ver o resumo no terminal.
+- Testes de integração: `make test-integration` (aceita `TEST_ARGS="--with-compose"` para subir o Kafka via docker-compose e repassa flags extras do `go test`).
 
 ## 📬 Tópicos Disponíveis
 

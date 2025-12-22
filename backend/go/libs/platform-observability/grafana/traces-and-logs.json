@@ -1,0 +1,78 @@
+{
+  "uid": "obs-traces",
+  "title": "Serphona Traces & Logs",
+  "schemaVersion": 38,
+  "version": 1,
+  "editable": true,
+  "time": { "from": "now-1h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "DS_TEMPO",
+        "type": "datasource",
+        "query": "tempo",
+        "label": "Tempo",
+        "current": { "text": "Tempo", "value": "Tempo" }
+      },
+      {
+        "name": "DS_LOKI",
+        "type": "datasource",
+        "query": "loki",
+        "label": "Loki",
+        "current": { "text": "Loki", "value": "Loki" }
+      },
+      {
+        "name": "service",
+        "type": "textbox",
+        "label": "service.name",
+        "query": "",
+        "current": { "text": "", "value": "" }
+      },
+      {
+        "name": "tenant",
+        "type": "textbox",
+        "label": "tenant_id",
+        "query": "",
+        "current": { "text": "", "value": "" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 10,
+      "type": "table",
+      "title": "Recent traces (TraceQL)",
+      "datasource": { "type": "tempo", "uid": "${DS_TEMPO}" },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "traceql",
+          "query": "{ service.name = \"$service\" } | tenant_id = '$tenant' | limit 50"
+        }
+      ],
+      "options": {
+        "showHeader": true
+      },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "id": 11,
+      "type": "logs",
+      "title": "Loki logs by tenant",
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{tenant=\"$tenant\"} |= \"observability\"",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "wrapLogMessage": true
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 10 }
+    }
+  ]
+}
