@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://serphona.dev/schemas/rag.ingestion.requested.schema.json",
+  "title": "rag.ingestion.requested",
+  "type": "object",
+  "required": ["tenant_id", "source", "document_id", "requested_at"],
+  "properties": {
+    "tenant_id": { "type": "string" },
+    "namespace": { "type": "string" },
+    "source": { "type": "string", "description": "Origin of the ingestion request (connector name, mcp tool, etc.)" },
+    "document_id": { "type": "string" },
+    "version": { "type": "string", "description": "Logical version of the document" },
+    "etag": { "type": "string", "description": "Content hash for idempotency" },
+    "uri": { "type": "string", "format": "uri" },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Arbitrary tags for routing/filtering"
+    },
+    "acl": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Allowed principals/groups for this document"
+    },
+    "ttl_seconds": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Optional TTL for the document/chunks"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "requested_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}

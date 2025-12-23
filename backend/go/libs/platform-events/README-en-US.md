@@ -144,6 +144,10 @@ payload, err := types.Bind[events.UserCreatedEvent](event)
 ### System Events
 - `system.health.check`, `system.error`, `system.alert`, `system.configuration.updated`
 
+### RAG Events
+- `rag.ingestion.requested` → `RAGIngestionRequestedEvent` (tenant_id, namespace?, source, document_id, version?, etag?, uri?, tags?, acl?, ttl_seconds?, metadata?, requested_at)
+- Schema: [schemas/rag.ingestion.requested.schema.json](schemas/rag.ingestion.requested.schema.json)
+
 ## Tooling & System payloads
 
 ### Tooling

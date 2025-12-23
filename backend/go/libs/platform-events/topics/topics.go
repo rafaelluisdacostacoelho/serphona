@@ -59,6 +59,9 @@ const (
 	SystemError          = "system.error"
 	SystemAlert          = "system.alert"
 	ConfigurationUpdated = "system.configuration.updated"
+
+	// RAG events
+	RAGIngestionRequested = "rag.ingestion.requested"
 )
 
 // TopicGroups agrupa tópicos por categoria
@@ -120,6 +123,9 @@ var TopicGroups = map[string][]string{
 		SystemError,
 		SystemAlert,
 		ConfigurationUpdated,
+	},
+	"rag": {
+		RAGIngestionRequested,
 	},
 }
 

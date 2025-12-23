@@ -12,10 +12,17 @@
 - Incremental testing and rollout by tenant/feature group.
 
 ## Initial Assumptions
-- Vector store to be chosen: pgvector (RLS) vs ClickHouse HNSW partitioned by tenant_id.
+- Vector store: pgvector (RLS) to start; revisit ClickHouse HNSW if latency/cost require.
 - MinIO/S3 available for blobs and metadata.
 - Kafka enabled for ingestion and reindex events.
 - platform-auth provides identity with tenant_id and scopes for MCP and Tools Gateway.
+
+### Near-term execution (Dec 22, 2025)
+1) Implement platform-rag lib with metadata structs (tenant_id, namespace, document_id, version, etag, tags, acl, ttl), filters/validators, and wire rag-gateway to use them.
+2) Align rag-gateway ingestion: validate new fields and emit `rag.ingestion.requested` via platform-events (flagged by RAG_EVENTS_ENABLED) with tests/docs.
+3) Define minimal chunking strategy (size/overlap/cleanup/lang) and add stub hook for the pipeline.
+4) Scaffold Python indexing worker: consume rag.ingestion.requested, fetch blob (S3/MinIO stub), chunk, embed, upsert pgvector with idempotency on document_id+etag.
+5) Observability/billing hooks: spans/metrics on ingest/query (tenant_id/namespace/top_k) and placeholders for billing counters.
 
 ## Epics and Items
 
@@ -27,25 +34,25 @@
 - Phase 5: Python analytics processor once Kafka events carry tenant_id and schemas; reporting/export after ClickHouse is populated.
 
 ### 1) RAG Foundation
-- [ ] Decide vector store (pgvector vs ClickHouse) with latency/cost benchmarks and per-tenant limits.
-- [ ] Define metadata schema: {tenant_id, namespace, document_id, version/etag, tags, acl, ttl}.
-- [ ] Standardize chunking strategy (size, overlap, text normalization, language handling).
+- [x] Decide vector store (pgvector to start) with latency/cost benchmarks and per-tenant limits.
+- [x] Define metadata schema: {tenant_id, namespace, document_id, version/etag, tags, acl, ttl}.
+- [x] Standardize chunking strategy (size, overlap, text normalization, language handling).
 - [ ] Select embedding provider (OpenAI/Azure/OSS) with fallback and quotas.
 - [ ] Define encryption at rest (KMS) and retention/TTL policies per namespace.
 
 ### 2) Ingestion
-- [ ] Create Kafka contract "ingestion.requested" with tenant_id, source, document_id, etag.
-- [ ] Implement S3/MinIO connector (pull) with versioning and dedup by etag.
+- [x] Create Kafka contract "ingestion.requested" with tenant_id, source, document_id, etag
+- [x] Implement S3/MinIO connector (pull) with versioning and dedup by etag.
 - [ ] REST/GraphQL/gRPC connector for dataset ingestion (pagination, backoff, per-tenant filters).
 - [ ] SAP connector (OData/REST) with per-tenant credentials and sensitive field masking.
 - [ ] Register all ingestions in Tools Gateway as ingestion tools (for audit/billing).
 
 ### 3) Indexing Pipeline
-- [ ] Python worker (based on analytics-processor-service) to: download blob, chunk, clean, embed, upsert into index.
+- [x] Python worker (based on analytics-processor-service) to: download blob, chunk, clean, embed, upsert into index.
 - [ ] Support idempotent reprocessing by document_id+etag.
 - [ ] Publish metrics (latency per phase, avg chunk size, error rate) to platform-observability.
 - [ ] Optional embedding cache in Redis to reduce cost for reindex.
-- [ ] Circuit breaker and DLQ for recurring failures.
+- [x] Circuit breaker and DLQ for recurring failures.
 
 ### 4) Retrieval
 - [ ] Retrieval service with filters by tenant_id, namespace, acl, score threshold, per-call limits.
@@ -67,7 +74,7 @@
 - [ ] Map provider types: REST, GraphQL, gRPC, S3, `rag_query`.
 - [ ] MCP observability: tracing, per-resource metrics, logs to reconcile with billing.
 - [ ] Client shim in Agent Orchestrator to resolve tools via MCP with HTTP fallback.
- - [ ] Define tool catalog v1 (lookup_customer, create_ticket, send_whatsapp, transfer_call, billing.get_open_invoices, billing.generate_second_copy, rag_query) with schemas, error codes, idempotency keys where needed.
+- [ ] Define tool catalog v1 (lookup_customer, create_ticket, send_whatsapp, transfer_call, billing.get_open_invoices, billing.generate_second_copy, rag_query) with schemas, error codes, idempotency keys where needed.
 
 ### 7) Security and Governance
 - [ ] Quota and rate-limit policies per tenant/namespace for ingestion and retrieval.

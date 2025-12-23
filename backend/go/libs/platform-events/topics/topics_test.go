@@ -21,6 +21,14 @@ func TestGetTopicsByGroup(t *testing.T) {
 	}
 }
 
+func TestGetTopicsByGroupRAG(t *testing.T) {
+	got := GetTopicsByGroup("rag")
+	want := []string{RAGIngestionRequested}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("rag topics mismatch: got %v, want %v", got, want)
+	}
+}
+
 func TestGetTopicsByGroupUnknown(t *testing.T) {
 	got := GetTopicsByGroup("unknown")
 	if got != nil && len(got) != 0 {

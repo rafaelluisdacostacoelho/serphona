@@ -121,7 +121,8 @@ platform-events/
 │   └── config.go           # Configuração do sistema
 ├── types/
 │   └── event.go            # Tipos base de eventos
-├── events/                 # Eventos pré-definidos do domínio (auth, tenant, billing, agent, analytics, tooling, system)
+├── events/                 # Eventos pré-definidos do domínio (auth, tenant, billing, agent, analytics, tooling, system, rag)
+│   └── rag.go              # Eventos relacionados a rag
 ├── topics/
 │   └── topics.go           # Tópicos Kafka padronizados
 ├── publisher/
@@ -193,6 +194,11 @@ cfg := &config.Config{
     ConsumerConcurrency:    5,
 }
 ```
+
+## Eventos de RAG
+
+- `rag.ingestion.requested` → `RAGIngestionRequestedEvent` (tenant_id, namespace?, source, document_id, version?, etag?, uri?, tags?, acl?, ttl_seconds?, metadata?, requested_at)
+- Schema: [schemas/rag.ingestion.requested.schema.json](schemas/rag.ingestion.requested.schema.json)
 
 ## 🧪 Testes e Cobertura
 
