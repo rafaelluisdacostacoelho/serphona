@@ -473,7 +473,7 @@ go run ./cmd/obsctl --tempo-url http://tempo:3200 --tenant acme get --trace-id <
 ## 📚 Documentação Relacionada
 
 - [Analytics Query Service](../../services/analytics-query-service/README.md)
-- [Analytics Processor Service](../../../python/analytics-processor-service/README.md)
+- [Analytics Processor Service](../../../python/services/analytics-processor-service/README.md)
 - [Guia de Observabilidade](../../../docs/architecture/OBSERVABILITY.md)
 
 ---

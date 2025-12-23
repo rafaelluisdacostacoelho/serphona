@@ -233,8 +233,8 @@ jobs:
       
       - name: Run ruff
         run: |
-          ruff check backend/python/analytics-processor-service
-          ruff check backend/python/reporting-export-service
+          ruff check backend/python/services/analytics-processor-service
+          ruff check backend/python/services/reporting-export-service
 
   python-test:
     name: Python Test
@@ -274,13 +274,13 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
       
       - name: Install dependencies
-        working-directory: backend/python/${{ matrix.service }}
+        working-directory: backend/python/services/${{ matrix.service }}
         run: |
           pip install -r requirements.txt
           pip install pytest pytest-cov pytest-asyncio
       
       - name: Run tests
-        working-directory: backend/python/${{ matrix.service }}
+        working-directory: backend/python/services/${{ matrix.service }}
         run: pytest -v --cov=src --cov-report=xml
         env:
           CLICKHOUSE_HOST: localhost
@@ -289,7 +289,7 @@ jobs:
       - name: Upload coverage
         uses: codecov/codecov-action@v3
         with:
-          file: backend/python/${{ matrix.service }}/coverage.xml
+          file: backend/python/services/${{ matrix.service }}/coverage.xml
           flags: python-${{ matrix.service }}
 
   # ============================================================================
@@ -311,7 +311,7 @@ jobs:
           - service: billing-service
             context: backend/go/services/billing-service
           - service: analytics-processor
-            context: backend/python/analytics-processor-service
+            context: backend/python/services/analytics-processor-service
     
     steps:
       - uses: actions/checkout@v4

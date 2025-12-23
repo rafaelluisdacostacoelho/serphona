@@ -117,24 +117,24 @@ PYTHON_SERVICES := analytics-processor-service reporting-export-service
 py-install: ## Install Python dependencies
 	@for svc in $(PYTHON_SERVICES); do \
 		echo "$(CYAN)Installing $$svc dependencies...$(RESET)"; \
-		cd backend/python/$$svc && pip install -r requirements.txt && cd -; \
+		cd backend/python/services/$$svc && pip install -r requirements.txt && cd -; \
 	done
 
 py-test: ## Run Python tests
 	@for svc in $(PYTHON_SERVICES); do \
 		echo "$(CYAN)Testing $$svc...$(RESET)"; \
-		cd backend/python/$$svc && pytest && cd -; \
+		cd backend/python/services/$$svc && pytest && cd -; \
 	done
 
 py-lint: ## Lint Python code
 	@which ruff > /dev/null || pip install ruff
 	@for svc in $(PYTHON_SERVICES); do \
 		echo "$(CYAN)Linting $$svc...$(RESET)"; \
-		cd backend/python/$$svc && ruff check . && cd -; \
+		cd backend/python/services/$$svc && ruff check . && cd -; \
 	done
 
 run-analytics-processor: ## Run analytics-processor service
-	cd backend/python/analytics-processor-service && python -m analytics_processor.main
+	cd backend/python/services/analytics-processor-service && python -m analytics_processor.main
 
 # ==============================================================================
 # BUILD & DEPLOY
@@ -150,7 +150,7 @@ docker-build: ## Build all Docker images
 	docker build -t serphona/tenant-manager:latest backend/go/services/tenant-manager
 	docker build -t serphona/auth-gateway:latest backend/go/services/auth-gateway
 	docker build -t serphona/billing-service:latest backend/go/services/billing-service
-	docker build -t serphona/analytics-processor:latest backend/python/analytics-processor-service
+	docker build -t serphona/analytics-processor:latest backend/python/services/analytics-processor-service
 	docker build -t serphona/frontend-console:latest frontend/console
 	@echo "$(GREEN)Docker images built!$(RESET)"
 

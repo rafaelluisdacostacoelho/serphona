@@ -239,7 +239,7 @@ services:
   # Analytics Processor Service
   analytics-processor:
     build:
-      context: ./backend/python/analytics-processor-service
+      context: ./backend/python/services/analytics-processor-service
       dockerfile: Dockerfile
     container_name: serphona-analytics-processor
     environment:

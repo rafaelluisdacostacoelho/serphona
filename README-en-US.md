@@ -122,11 +122,13 @@ serphona/
 │   │       └── platform-observability/ # Metrics, tracing
 │   │
 │   └── python/
-│       ├── analytics-processor-service/ # Kafka → NLP → ClickHouse
-│       ├── reporting-export-service/    # PDF, CSV exports
+│       ├── services/
+│       │   ├── analytics-processor-service/ # Kafka → NLP → ClickHouse
+│       │   ├── reporting-export-service/    # PDF, CSV exports
+│       │   └── rag-processor-service/       # RAG ingestion scaffold
 │       └── libs/
-│           ├── analytics-common/        # Shared analytics code
-│           └── nlp-utils/               # NLP utilities
+│           ├── analytics-common/            # Shared analytics code
+│           └── nlp-utils/                   # NLP utilities
 │
 ├── frontend/
 │   └── console/                        # React Admin SaaS (multi-tenant)
@@ -226,7 +228,7 @@ cd backend/go/services/tenant-manager
 go run cmd/server/main.go
 
 # Backend Python (analytics-processor)
-cd backend/python/analytics-processor-service
+cd backend/python/services/analytics-processor-service
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 python -m analytics_processor.main

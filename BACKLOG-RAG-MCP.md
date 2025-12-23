@@ -21,7 +21,7 @@
 1) Implement platform-rag lib with metadata structs (tenant_id, namespace, document_id, version, etag, tags, acl, ttl), filters/validators, and wire rag-gateway to use them.
 2) Align rag-gateway ingestion: validate new fields and emit `rag.ingestion.requested` via platform-events (flagged by RAG_EVENTS_ENABLED) with tests/docs.
 3) Define minimal chunking strategy (size/overlap/cleanup/lang) and add stub hook for the pipeline.
-4) Scaffold Python indexing worker: consume rag.ingestion.requested, fetch blob (S3/MinIO stub), chunk, embed, upsert pgvector with idempotency on document_id+etag.
+4) Scaffold Python indexing worker (backend/python/services/rag-processor-service): consume rag.ingestion.requested, fetch blob (S3/MinIO stub), chunk, embed, upsert pgvector with idempotency on document_id+etag; add DLQ/retry + metrics placeholders.
 5) Observability/billing hooks: spans/metrics on ingest/query (tenant_id/namespace/top_k) and placeholders for billing counters.
 
 ## Epics and Items
@@ -48,11 +48,11 @@
 - [ ] Register all ingestions in Tools Gateway as ingestion tools (for audit/billing).
 
 ### 3) Indexing Pipeline
-- [x] Python worker (based on analytics-processor-service) to: download blob, chunk, clean, embed, upsert into index.
-- [ ] Support idempotent reprocessing by document_id+etag.
+- [x] Python worker scaffold (now in backend/python/services/rag-processor-service) to: download blob, chunk, clean, embed, upsert into index.
+- [ ] Support idempotent reprocessing by document_id+etag and skip on etag match.
 - [ ] Publish metrics (latency per phase, avg chunk size, error rate) to platform-observability.
 - [ ] Optional embedding cache in Redis to reduce cost for reindex.
-- [x] Circuit breaker and DLQ for recurring failures.
+- [ ] DLQ/retry semantics wired (currently placeholder only).
 
 ### 4) Retrieval
 - [ ] Retrieval service with filters by tenant_id, namespace, acl, score threshold, per-call limits.
