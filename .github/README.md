@@ -47,6 +47,14 @@ jobs:
   - O delta do VERSION precisa bater com o label (patch = incrementa só patch; minor = incrementa minor; major = incrementa major). Novo VERSION exige `bump-major`.
 - Para bloquear merges, adicione esse status check como obrigatório na branch rule/ruleset da `main` (Settings → Branches → Rulesets ou Branch protection → "Require status checks to pass" → selecione **Check the bump label in the PR**).
 
+#### 🏷️ Tag automático das libs Go (push → main)
+- Workflow: `.github/workflows/tag-libs.yml`.
+- Dispara apenas em `push` para `main`.
+- Detecta libs alteradas em `backend/go/libs/*` no diff do push (`before` → `after`).
+- Para cada lib alterada, lê `backend/go/libs/<lib>/VERSION` e cria a tag `backend/go/libs/<lib>/vX.Y.Z` (Go Modules) se ela ainda não existir, empurrando-a para o remote.
+- Se a lib mudou e o `VERSION` estiver ausente ou fora de `X.Y.Z`, o workflow falha.
+- Orientação para o time: antes de merge para `main`, atualize o `VERSION` da lib que sofreu mudanças; o tagger rodará no push para `main` e publicará a tag automaticamente.
+
 ---
 
 ### ✅ Próximos Passos
