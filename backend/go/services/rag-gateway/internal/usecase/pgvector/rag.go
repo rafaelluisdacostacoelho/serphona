@@ -10,10 +10,10 @@ import (
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/events"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/topics"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/types"
-	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-rag/pkg/embedding"
-	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-rag/pkg/metadata"
-	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-rag/pkg/model"
-	vectorstore "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-rag/pkg/vector"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-rag/embedding"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-rag/metadata"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-rag/model"
+	vectorstore "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-rag/vector"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/rag-gateway/internal/domain"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -91,9 +91,17 @@ func (u IngestUsecase) Ingest(ctx context.Context, req domain.IngestRequest) err
 		DocumentID: meta.DocumentID,
 		ChunkID:    uuid.NewString(),
 		Content:    req.Content,
-		Metadata:   meta.Attributes,
-		Embedding:  embs[0],
-		ETag:       meta.ETag,
+		Metadata: model.ChunkMetadata{
+			Version:    meta.Version,
+			Source:     meta.Source,
+			URI:        meta.URI,
+			Tags:       meta.Tags,
+			ACL:        meta.ACL,
+			TTLSeconds: meta.TTLSeconds,
+			Attributes: meta.Attributes,
+		},
+		Embedding: embs[0],
+		ETag:      meta.ETag,
 	}
 
 	if err := u.store.UpsertChunks(ctx, []model.Chunk{chunk}); err != nil {

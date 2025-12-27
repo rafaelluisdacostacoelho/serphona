@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-rag/pkg/model"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-rag/model"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/rag-gateway/internal/domain"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/rag-gateway/internal/server"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/rag-gateway/internal/server/handler"

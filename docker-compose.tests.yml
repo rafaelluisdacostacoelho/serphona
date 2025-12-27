@@ -39,6 +39,25 @@ services:
     extra_hosts:
       - "kafka:127.0.0.1"
 
+  pgvector:
+    image: ankane/pgvector:latest
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: test
+    ports:
+      - "55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test -d test"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - pgvector-data:/var/lib/postgresql/data
+
 networks:
   default:
     name: serphona-tests
+
+volumes:
+  pgvector-data:

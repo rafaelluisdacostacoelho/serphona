@@ -1,17 +1,18 @@
-# ==============================================================================
-# CI Backend - Go & Python Services
-# ==============================================================================
-
 name: CI Backend
 
 on:
   push:
-    branches: [main, develop]
+    branches:
+      - main
+      - develop
+      - release/**
     paths:
       - 'backend/**'
       - '.github/workflows/ci-backend.yml'
   pull_request:
-    branches: [main, develop]
+    branches:
+      - main
+      - develop
     paths:
       - 'backend/**'
       - '.github/workflows/ci-backend.yml'
@@ -21,9 +22,6 @@ env:
   PYTHON_VERSION: '3.11'
 
 jobs:
-  # ============================================================================
-  # Go Services
-  # ============================================================================
   go-lint:
     name: Go Lint
     runs-on: ubuntu-latest
@@ -36,270 +34,143 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
       
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v6
         with:
           version: latest
           working-directory: backend/go
 
-  go-services-gofmt:
-    name: Go Services Gofmt
-    runs-on: ubuntu-latest
+  go-platform-core:
+    name: Go - platform-core (lib)
     needs: go-lint
-    strategy:
-      matrix:
-        service:
-          - tenant-manager
-          - auth-gateway
-          - billing-service
-          - analytics-query-service
-          - agent-orchestrator
-          - tools-gateway
-          - voice-gateway
-    steps:
-      - uses: actions/checkout@v4
+    uses: ./.github/workflows/reusable-go-service.yml
+    with:
+      service-path: backend/go/libs/platform-core
+      build-binary: false
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-
-      - name: Check gofmt
-        working-directory: backend/go/services/${{ matrix.service }}
-        run: |
-          fmt_out=$(gofmt -l .)
-          if [ -n "$fmt_out" ]; then
-            echo "Found files needing gofmt:" && echo "$fmt_out"
-            exit 1
-          fi
-
-  go-libs:
-    name: Go Libs
-    runs-on: ubuntu-latest
+  go-platform-auth:
+    name: Go - platform-auth (lib)
     needs: go-lint
-    strategy:
-      matrix:
-        lib:
-          - platform-core
-          - platform-auth
-          - platform-observability
-    steps:
-      - uses: actions/checkout@v4
+    uses: ./.github/workflows/reusable-go-service.yml
+    with:
+      service-path: backend/go/libs/platform-auth
+      build-binary: false
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: backend/go/libs/${{ matrix.lib }}/go.sum
-
-      - name: Check gofmt (libs)
-        working-directory: backend/go/libs/${{ matrix.lib }}
-        run: |
-          fmt_out=$(gofmt -l .)
-          if [ -n "$fmt_out" ]; then
-            echo "Found files needing gofmt:" && echo "$fmt_out"
-            exit 1
-          fi
-
-      - name: Run tests (libs)
-        working-directory: backend/go/libs/${{ matrix.lib }}
-        run: go test -coverprofile=coverage.out ./...
-
-      - name: Upload coverage (libs)
-        uses: codecov/codecov-action@v3
-        with:
-          file: backend/go/libs/${{ matrix.lib }}/coverage.out
-          flags: go-${{ matrix.lib }}
+  go-platform-observability:
+    name: Go - platform-observability (lib)
+    needs: go-lint
+    uses: ./.github/workflows/reusable-go-service.yml
+    with:
+      service-path: backend/go/libs/platform-observability
+      build-binary: false
 
   go-platform-events:
-    name: Go Platform Events
-    runs-on: ubuntu-latest
+    name: Go - platform-events (lib)
     needs: go-lint
-    steps:
-      - uses: actions/checkout@v4
+    uses: ./.github/workflows/reusable-go-service.yml
+    with:
+      service-path: backend/go/libs/platform-events
+      build-binary: false
+      cache-dependency-path: backend/go/libs/platform-events/go.sum
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-
-      - name: Check gofmt (platform-events)
-        working-directory: backend/go/libs/platform-events
-        run: |
-          fmt_out=$(gofmt -l .)
-          if [ -n "$fmt_out" ]; then
-            echo "Found files needing gofmt:" && echo "$fmt_out"
-            exit 1
-          fi
-
-      - name: Run tests (platform-events)
-        working-directory: backend/go/libs/platform-events
-        run: go test ./...
-
-  go-test:
-    name: Go Test
-    runs-on: ubuntu-latest
+  go-platform-mcp:
+    name: Go - platform-mcp (lib)
     needs: go-lint
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    
-    strategy:
-      matrix:
-        service:
-          - tenant-manager
-          - auth-gateway
-          - billing-service
-          - analytics-query-service
-          - agent-orchestrator
-          - tools-gateway
-          - voice-gateway
-    
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: backend/go/services/${{ matrix.service }}/go.sum
-      
-      - name: Run tests
-        working-directory: backend/go/services/${{ matrix.service }}
-        run: go test -v -race -coverprofile=coverage.out ./...
-        env:
-          DATABASE_URL: postgres://test:test@localhost:5432/test?sslmode=disable
-      
-      - name: Upload coverage
-        uses: codecov/codecov-action@v3
-        with:
-          file: backend/go/services/${{ matrix.service }}/coverage.out
-          flags: go-${{ matrix.service }}
+    uses: ./.github/workflows/reusable-go-service.yml
+    with:
+      service-path: backend/go/libs/platform-mcp
+      build-binary: false
+      cache-dependency-path: backend/go/libs/platform-mcp/go.sum
 
-  go-build:
-    name: Go Build
-    runs-on: ubuntu-latest
-    needs: go-test
-    strategy:
-      matrix:
-        service:
-          - tenant-manager
-          - auth-gateway
-          - billing-service
-          - analytics-query-service
-          - agent-orchestrator
-          - tools-gateway
-          - voice-gateway
-    
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: backend/go/services/${{ matrix.service }}/go.sum
-      
-      - name: Build
-        working-directory: backend/go/services/${{ matrix.service }}
-        run: go build -v -o bin/server ./cmd/server
+  go-platform-rag:
+    name: Go - platform-rag (lib)
+    needs: go-lint
+    uses: ./.github/workflows/reusable-go-service.yml
+    with:
+      service-path: backend/go/libs/platform-rag
+      build-binary: false
+      cache-dependency-path: backend/go/libs/platform-rag/go.sum
+      run-integration: true
+      integration-dsn: postgres://test:test@localhost:55432/test?sslmode=disable
 
-  # ============================================================================
-  # Python Services
-  # ============================================================================
-  python-lint:
-    name: Python Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      
-      - name: Install ruff
-        run: pip install ruff
-      
-      - name: Run ruff
-        run: |
-          ruff check backend/python/services/analytics-processor-service
-          ruff check backend/python/services/reporting-export-service
+  go-test-dir:
+    name: Go - test utilities
+    needs: go-lint
+    uses: ./.github/workflows/reusable-go-service.yml
+    with:
+      service-path: backend/go/libs/test
+      build-binary: false
+      cache-dependency-path: backend/go/libs/test/go.sum
 
-  python-test:
-    name: Python Test
-    runs-on: ubuntu-latest
-    needs: python-lint
-    services:
-      clickhouse:
-        image: clickhouse/clickhouse-server:24-alpine
-        ports:
-          - 8123:8123
-          - 9000:9000
-      
-      kafka:
-        image: bitnami/kafka:3.6
-        env:
-          KAFKA_CFG_NODE_ID: 0
-          KAFKA_CFG_PROCESS_ROLES: controller,broker
-          KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 0@localhost:9093
-          KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
-          KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-          KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
-        ports:
-          - 9092:9092
-    
-    strategy:
-      matrix:
-        service:
-          - analytics-processor-service
-          - reporting-export-service
-    
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      
-      - name: Install dependencies
-        working-directory: backend/python/services/${{ matrix.service }}
-        run: |
-          pip install -r requirements.txt
-          pip install pytest pytest-cov pytest-asyncio
-      
-      - name: Run tests
-        working-directory: backend/python/services/${{ matrix.service }}
-        run: pytest -v --cov=src --cov-report=xml
-        env:
-          CLICKHOUSE_HOST: localhost
-          KAFKA_BOOTSTRAP: localhost:9092
-      
-      - name: Upload coverage
-        uses: codecov/codecov-action@v3
-        with:
-          file: backend/python/services/${{ matrix.service }}/coverage.xml
-          flags: python-${{ matrix.service }}
+  go-tenant-manager:
+    name: Go - tenant-manager
+    uses: ./.github/workflows/reusable-go-service.yml
+    with:
+      service-path: backend/go/services/tenant-manager
+      need-postgres: true
 
-  # ============================================================================
-  # Docker Build (only on main)
-  # ============================================================================
+  go-auth-gateway:
+    name: Go - auth-gateway
+    uses: ./.github/workflows/reusable-go-service.yml
+    with:
+      service-path: backend/go/services/auth-gateway
+      need-postgres: true
+
+  go-billing-service:
+    name: Go - billing-service
+    uses: ./.github/workflows/reusable-go-service.yml
+    with:
+      service-path: backend/go/services/billing-service
+      need-postgres: true
+
+  go-analytics-query-service:
+    name: Go - analytics-query-service
+    uses: ./.github/workflows/reusable-go-service.yml
+    with:
+      service-path: backend/go/services/analytics-query-service
+
+  go-agent-orchestrator:
+    name: Go - agent-orchestrator
+    uses: ./.github/workflows/reusable-go-service.yml
+    with:
+      service-path: backend/go/services/agent-orchestrator
+
+  go-tools-gateway:
+    name: Go - tools-gateway
+    uses: ./.github/workflows/reusable-go-service.yml
+    with:
+      service-path: backend/go/services/tools-gateway
+
+  go-voice-gateway:
+    name: Go - voice-gateway
+    uses: ./.github/workflows/reusable-go-service.yml
+    with:
+      service-path: backend/go/services/voice-gateway
+
+  python-analytics-processor:
+    name: Python - analytics-processor-service
+    uses: ./.github/workflows/reusable-python-service.yml
+    with:
+      service-path: backend/python/services/analytics-processor-service
+      python-version: '3.11'
+      need-clickhouse: true
+      need-kafka: true
+      docker-image: ghcr.io/${{ github.repository }}/analytics-processor-service
+      push-image: false
+
+  python-reporting-export:
+    name: Python - reporting-export-service
+    uses: ./.github/workflows/reusable-python-service.yml
+    with:
+      service-path: backend/python/services/reporting-export-service
+      python-version: '3.11'
+      need-clickhouse: false
+      need-kafka: false
+      push-image: false
+
   docker-build:
     name: Docker Build
     runs-on: ubuntu-latest
-    needs: [go-build, python-test]
-    if: github.ref == 'refs/heads/main'
+    needs: [go-tenant-manager, go-auth-gateway, go-billing-service, go-analytics-query-service, go-agent-orchestrator, go-tools-gateway, go-voice-gateway, python-analytics-processor, python-reporting-export]
     
     strategy:
       matrix:

@@ -96,6 +96,22 @@ go-lint: ## Lint Go code
 		cd backend/go/services/$$svc && golangci-lint run && cd -; \
 	done
 
+# Platform RAG (library) integration test against pgvector
+.PHONY: rag-pgvector-int
+rag-pgvector-int: ## Run platform-rag pgvector integration test (requires docker-compose.tests.yml)
+	docker-compose -f docker-compose.tests.yml up -d pgvector
+	@echo "Waiting for pgvector to be ready..."
+	@for i in $$(seq 1 20); do \
+		if docker-compose -f docker-compose.tests.yml exec -T pgvector pg_isready -U test -d test >/dev/null 2>&1; then \
+			echo "pgvector is ready"; \
+			break; \
+		fi; \
+		sleep 1; \
+	done
+	TEST_PGVECTOR_DSN=postgres://test:test@localhost:55432/test?sslmode=disable cd backend/go/libs/platform-rag && go test ./pkg/vector/pgvector -tags=integration
+	docker-compose -f docker-compose.tests.yml stop pgvector
+	docker-compose -f docker-compose.tests.yml rm -f pgvector
+
 # Run specific Go service
 run-tenant-manager: ## Run tenant-manager service
 	cd backend/go/services/tenant-manager && go run cmd/server/main.go

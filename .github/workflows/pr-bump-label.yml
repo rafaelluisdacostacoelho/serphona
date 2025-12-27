@@ -1,0 +1,125 @@
+name: Check PR bump label against VERSION files
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  label-check:
+    name: Check the bump label in the PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate bump label and VERSION deltas
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const allowed = {
+              "bump-patch": "patch",
+              "bump-minor": "minor",
+              "bump-major": "major",
+            };
+
+            const pr = context.payload.pull_request;
+            const labels = (pr?.labels || []).map(l => l.name);
+            const label = labels.find(l => allowed[l]);
+            if (!label) {
+              core.setFailed(`Missing bump label. Add one of: ${Object.keys(allowed).join(', ')}`);
+              return;
+            }
+
+            const bumpType = allowed[label];
+            core.info(`Using bump label: ${label} (${bumpType})`);
+
+            const { owner, repo } = context.repo;
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner,
+              repo,
+              pull_number: pr.number,
+              per_page: 100,
+            });
+
+            const versionFiles = files
+              .map(f => f.filename)
+              .filter(p => /^backend\/go\/libs\/[^/]+\/VERSION$/.test(p));
+
+            if (versionFiles.length === 0) {
+              core.setFailed(`No VERSION file changed under backend/go/libs. Add a VERSION bump to proceed.`);
+              return;
+            }
+
+            const parseSemver = (value, path, refLabel) => {
+              const trimmed = (value || "").trim();
+              const m = trimmed.match(/^(\d+)\.(\d+)\.(\d+)$/);
+              if (!m) {
+                throw new Error(`${path} on ${refLabel} is not semver (expected X.Y.Z), got: "${trimmed}"`);
+              }
+              return m.slice(1).map(Number);
+            };
+
+            const readVersion = async (path, ref) => {
+              try {
+                const res = await github.rest.repos.getContent({ owner, repo, path, ref });
+                if (Array.isArray(res.data) || res.data.type !== "file") {
+                  throw new Error(`${path} is not a file on ${ref}`);
+                }
+                return Buffer.from(res.data.content, res.data.encoding).toString();
+              } catch (error) {
+                if (error.status === 404) {
+                  return null; // New file on head
+                }
+                throw error;
+              }
+            };
+
+            const errors = [];
+            for (const path of versionFiles) {
+              const baseRaw = await readVersion(path, pr.base.sha);
+              const headRaw = await readVersion(path, pr.head.sha);
+
+              if (headRaw === null) {
+                errors.push(`${path}: VERSION file missing on head; ensure it exists.`);
+                continue;
+              }
+
+              let baseVersion = null;
+              let headVersion = null;
+
+              try {
+                if (baseRaw !== null) {
+                  baseVersion = parseSemver(baseRaw, path, "base");
+                }
+                headVersion = parseSemver(headRaw, path, "head");
+              } catch (err) {
+                errors.push(err.message);
+                continue;
+              }
+
+              const [bMaj, bMin, bPatch] = baseVersion || [0, 0, 0];
+              const [hMaj, hMin, hPatch] = headVersion;
+
+              const checkPatch = () => bMaj === hMaj && bMin === hMin && hPatch > bPatch;
+              const checkMinor = () => bMaj === hMaj && hMin > bMin;
+              const checkMajor = () => hMaj > bMaj;
+
+              const isNewFile = baseVersion === null;
+
+              if (isNewFile && bumpType !== "major") {
+                errors.push(`${path}: new VERSION file requires label bump-major.`);
+                continue;
+              }
+
+              const ok = bumpType === "patch" ? checkPatch() : bumpType === "minor" ? checkMinor() : checkMajor();
+              if (!ok) {
+                errors.push(`${path}: version change ${bMaj}.${bMin}.${bPatch} -> ${hMaj}.${hMin}.${hPatch} does not match label ${label}.`);
+              }
+            }
+
+            if (errors.length > 0) {
+              core.setFailed(errors.join("\n"));
+            }

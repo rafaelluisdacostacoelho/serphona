@@ -14,7 +14,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	eventscfg "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/config"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/publisher"
-	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-rag/pkg/vector/pgvector"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-rag/vector/pgvector"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/rag-gateway/internal/config"
 	embedopenai "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/rag-gateway/internal/embedding/openai"
 	embedstub "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/rag-gateway/internal/embedding/stub"

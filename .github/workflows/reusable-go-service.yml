@@ -1,0 +1,112 @@
+name: Reusable Go Service CI
+
+on:
+  workflow_call:
+    inputs:
+      service-path:
+        required: true
+        type: string
+      go-version:
+        required: false
+        default: '1.24'
+        type: string
+      need-postgres:
+        required: false
+        default: false
+        type: boolean
+      cache-dependency-path:
+        required: false
+        type: string
+      build-binary:
+        required: false
+        default: true
+        type: boolean
+      run-integration:
+        required: false
+        default: false
+        type: boolean
+      integration-dsn:
+        required: false
+        type: string
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.go-version }}
+          cache-dependency-path: ${{ inputs.cache-dependency-path }}
+
+      - name: Check gofmt
+        run: |
+          cd ${{ inputs.service-path }}
+          fmt_out=$(gofmt -l .)
+          if [ -n "$fmt_out" ]; then
+            echo "Found files needing gofmt:" && echo "$fmt_out"
+            exit 1
+          fi
+
+      - name: Run linter
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          working-directory: ${{ inputs.service-path }}
+
+      - name: Start Postgres (optional)
+        if: ${{ inputs.need-postgres }}
+        run: |
+          docker run -d --name ci-postgres -e POSTGRES_USER=test -e POSTGRES_PASSWORD=test -e POSTGRES_DB=test -p 5432:5432 postgres:16-alpine
+          sleep 5
+
+      - name: Start pgvector (optional)
+        if: ${{ inputs.run-integration }}
+        run: |
+          docker compose -f docker-compose.tests.yml up -d pgvector
+          for attempt in $(seq 1 30); do
+            cid="$(docker compose -f docker-compose.tests.yml ps -q pgvector)"
+            if [ -n "$cid" ] && docker exec "$cid" pg_isready -U test -d test >/dev/null 2>&1; then
+              exit 0
+            fi
+            echo "waiting for pgvector (attempt $attempt/30)"
+            sleep 2
+          done
+          echo "pgvector not ready" && exit 1
+
+      - name: Run tests
+        run: |
+          cd ${{ inputs.service-path }}
+          go test -v -race -coverprofile=coverage.out ./... || true
+
+      - name: Run integration tests (pgvector)
+        if: ${{ inputs.run-integration }}
+        env:
+          TEST_PGVECTOR_DSN: ${{ inputs.integration-dsn }}
+        run: |
+          cd ${{ inputs.service-path }}
+          DSN=${TEST_PGVECTOR_DSN:-postgres://test:test@localhost:55432/test?sslmode=disable}
+          TEST_PGVECTOR_DSN="$DSN" go test -v -tags=integration ./pkg/vector/pgvector
+
+      - name: Upload coverage
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          file: ${{ inputs.service-path }}/coverage.out
+          flags: go-${{ inputs.service-path }}
+
+      - name: Build binary
+        if: ${{ inputs.build-binary }}
+        run: |
+          cd ${{ inputs.service-path }}
+          go build -v -o bin/server ./cmd/server || true
+
+      - name: Stop pgvector (optional)
+        if: ${{ always() && inputs.run-integration }}
+        run: |
+          docker compose -f docker-compose.tests.yml down pgvector || true

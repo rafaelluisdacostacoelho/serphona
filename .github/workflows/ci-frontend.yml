@@ -1,17 +1,18 @@
-# ==============================================================================
-# CI Frontend - React Console
-# ==============================================================================
-
 name: CI Frontend
 
 on:
   push:
-    branches: [main, develop]
+    branches:
+      - main
+      - develop
+      - release/**
     paths:
       - 'frontend/**'
       - '.github/workflows/ci-frontend.yml'
   pull_request:
-    branches: [main, develop]
+    branches:
+      - main
+      - develop
     paths:
       - 'frontend/**'
       - '.github/workflows/ci-frontend.yml'
@@ -20,9 +21,6 @@ env:
   NODE_VERSION: '18'
 
 jobs:
-  # ============================================================================
-  # Lint & Type Check
-  # ============================================================================
   lint:
     name: Lint & Type Check
     runs-on: ubuntu-latest
@@ -48,9 +46,6 @@ jobs:
         working-directory: frontend/console
         run: npx tsc --noEmit
 
-  # ============================================================================
-  # Test
-  # ============================================================================
   test:
     name: Test
     runs-on: ubuntu-latest
@@ -74,14 +69,11 @@ jobs:
         run: npm run test -- --coverage
       
       - name: Upload coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           file: frontend/console/coverage/lcov.info
           flags: frontend
 
-  # ============================================================================
-  # MFEs & Website - Lint/Test/Build (with coverage when available)
-  # ============================================================================
   mfe-test:
     name: Frontend (${{ matrix.app.name }}) Lint/Test/Build
     runs-on: ubuntu-latest
@@ -129,7 +121,7 @@ jobs:
 
       - name: Upload coverage
         if: hashFiles(format('{0}/coverage/lcov.info', matrix.app.path)) != ''
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           file: ${{ matrix.app.path }}/coverage/lcov.info
           flags: ${{ matrix.app.name }}
@@ -138,9 +130,6 @@ jobs:
         working-directory: ${{ matrix.app.path }}
         run: npm run build
 
-  # ============================================================================
-  # Build
-  # ============================================================================
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -172,14 +161,10 @@ jobs:
           path: frontend/console/dist
           retention-days: 7
 
-  # ============================================================================
-  # Docker Build (only on main)
-  # ============================================================================
   docker-build:
     name: Docker Build
     runs-on: ubuntu-latest
     needs: build
-    if: github.ref == 'refs/heads/main'
     
     steps:
       - uses: actions/checkout@v4

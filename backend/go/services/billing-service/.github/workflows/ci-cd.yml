@@ -106,8 +106,7 @@ jobs:
     needs: build
     if: github.ref == 'refs/heads/develop'
     environment:
-      name: development
-      url: https://billing-dev.serphona.com
+      name: ${{ github.ref == 'refs/heads/develop' && 'development' || 'development' }}
 
     steps:
       - name: Checkout code
@@ -142,8 +141,7 @@ jobs:
     needs: build
     if: github.ref == 'refs/heads/main'
     environment:
-      name: production
-      url: https://billing.serphona.com
+      name: ${{ github.ref == 'refs/heads/main' && 'production' || 'production' }}
 
     steps:
       - name: Checkout code

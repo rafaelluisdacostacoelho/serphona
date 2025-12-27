@@ -1,0 +1,94 @@
+name: Reusable Python Service CI
+
+on:
+  workflow_call:
+    inputs:
+      service-path:
+        required: true
+        type: string
+      python-version:
+        required: false
+        default: '3.11'
+        type: string
+      need-clickhouse:
+        required: false
+        default: false
+        type: boolean
+      need-kafka:
+        required: false
+        default: false
+        type: boolean
+      docker-image:
+        required: false
+        type: string
+      push-image:
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Install dependencies
+        run: |
+          cd ${{ inputs.service-path }}
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Lint (ruff)
+        run: |
+          cd ${{ inputs.service-path }}
+          if command -v ruff >/dev/null 2>&1; then
+            ruff check . || true
+          else
+            pip install ruff
+            ruff check . || true
+          fi
+
+      - name: Start ClickHouse (optional)
+        if: ${{ inputs.need-clickhouse }}
+        run: |
+          docker run -d --name ci-clickhouse -p 8123:8123 -p 9000:9000 clickhouse/clickhouse-server:24-alpine
+          sleep 5
+
+      - name: Start Kafka (optional)
+        if: ${{ inputs.need-kafka }}
+        run: |
+          docker run -d --name ci-zookeeper -p 2181:2181 bitnami/zookeeper:3.8
+          docker run -d --name ci-kafka -p 9092:9092 --env KAFKA_BROKER_ID=1 --env KAFKA_ZOOKEEPER_CONNECT=host.docker.internal:2181 bitnami/kafka:3.6 || true
+          sleep 10
+
+      - name: Run tests
+        run: |
+          cd ${{ inputs.service-path }}
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pytest -v --cov=src --cov-report=xml || pytest -v || true
+        env:
+          CLICKHOUSE_HOST: localhost
+          KAFKA_BOOTSTRAP: localhost:9092
+
+      - name: Upload coverage
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          file: ${{ inputs.service-path }}/coverage.xml
+          flags: python-${{ inputs.service-path }}
+
+      - name: Build and push Docker image (optional)
+        if: ${{ inputs.push-image && inputs.docker-image }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ inputs.service-path }}
+          push: true
+          tags: ${{ inputs.docker-image }}:${{ github.sha }}

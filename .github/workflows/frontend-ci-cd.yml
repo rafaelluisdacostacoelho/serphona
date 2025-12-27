@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - develop
+      - release/**
     paths:
       - 'frontend/**'
       - '.github/workflows/frontend-ci-cd.yml'
@@ -30,7 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - uses: dorny/paths-filter@v2
+      - uses: dorny/paths-filter@v3
         id: filter
         with:
           filters: |
@@ -216,7 +217,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   deploy-staging:
-    needs: [build-auth-mfe, build-billing-mfe, build-console, build-website]
+    needs: [detect-changes, build-auth-mfe, build-billing-mfe, build-console, build-website]
     if: |
       always() && 
       github.event_name == 'push' && 
@@ -282,7 +283,7 @@ jobs:
           fi
 
   deploy-production:
-    needs: [build-auth-mfe, build-billing-mfe, build-console, build-website]
+    needs: [detect-changes, build-auth-mfe, build-billing-mfe, build-console, build-website]
     if: |
       always() && 
       github.event_name == 'push' && 

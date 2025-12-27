@@ -1,60 +1,42 @@
 ## Serphona — Copilot / AI coding agent instructions
 
-Purpose: provide immediate, actionable context so an AI code agent can be productive in this repo.
+Purpose: concise, actionable context so an AI agent can contribute safely.
 
-- Big picture: Serphona is a multi-tenant Voice-of-Customer SaaS platform. Frontend targets React (console + MFEs + marketing site). Backend is split between Go services (`backend/go/services` + `backend/go/libs`) and Python processing services (`backend/python/services/*`). Data layer uses PostgreSQL (RLS), ClickHouse (OLAP), Kafka (streaming), MinIO (S3), and Redis. Infra is managed with Terraform + Helm (`infra/`).
+- Big picture: multi-tenant Voice-of-Customer platform. Frontend: React/Vite console plus auth/billing MFEs and marketing site under frontend/. Backend: Go microservices in backend/go/services (auth-gateway, tenant-manager, billing-service, agent-orchestrator, tools-gateway, analytics-query-service, voice-gateway) with shared libs in backend/go/libs (platform-core/auth/events/observability). Python side at backend/python/services with analytics-processor-service handling Kafka → NLP → ClickHouse. Data layer: PostgreSQL with RLS, ClickHouse for OLAP, Kafka, MinIO, Redis; telephony stack uses Asterisk/Kamailio/RTPEngine (see root README diagram).
 
-- Key directories to inspect first:
-  - `frontend/console`, `frontend/auth-mfe`, `frontend/billing-mfe` — React console and MFEs; `frontend/website` for the marketing site.
-  - `backend/go/services` — microservices (auth-gateway, tenant-manager, billing-service, agent-orchestrator, tools-gateway, analytics-query-service, voice-gateway).
-  - `backend/go/libs` — shared Go modules (platform-core, platform-auth, platform-events, platform-observability).
-  - `backend/python/services/analytics-processor-service` — Kafka → NLP → ClickHouse worker (`src/voc_processor/worker.py`, `kafka_client.py`).
-  - `infra/terraform` and `infra/helm` — deployment and infra modules.
+- Key docs: architecture index in docs/architecture/README.md; RAG/MCP flows in docs/architecture/RAG-MCP-en-US.md; prompt schema in docs/architecture/PROMPTS-YAML-SPEC-en-US.md; telephony/voice gateway in docs/architecture/VOICE-GATEWAY-DESIGN-en-US.md and TENANT-MANAGER-TELEPHONY-EXTENSIONS-en-US.md; tools gateway in docs/architecture/TOOLS-GATEWAY-ARCHITECTURE-en-US.md; libs vs services guidance in docs/architecture/LIBS_VS_SERVICES-en-US.md; service-specific READMEs under backend/go/services/* and backend/python/services/analytics-processor-service/README.md.
 
-- Development workflows & commands:
-  - Local stack: `docker-compose -f docker-compose.yml up -d` (Postgres, Redis, Kafka, services); tests-only stack: `docker-compose -f docker-compose.tests.yml up -d` when you just need Kafka.
-  - Frontend (React): `cd frontend/console && npm install && npm run dev`; MFEs under `frontend/auth-mfe` and `frontend/billing-mfe` follow the same pattern; website: `cd frontend/website && npm install && npm run dev`.
-  - Go service example: `cd backend/go/services/tenant-manager && go run cmd/server/main.go`.
-  - Python processor: `cd backend/python/services/analytics-processor-service && python -m venv venv; venv\Scripts\activate; pip install -r requirements.txt; python -m voc_processor.main`.
-  - Make targets: `make dev`, `make test`, `make build`, `make lint` (see `Makefile`).
-  - CI entrypoints: `.github/workflows/ci-backend.yml`, `ci-frontend.yml`, `ci-infra.yml`.
+- Local workflows: docker-compose -f docker-compose.yml up -d for full stack; docker-compose -f docker-compose.tests.yml up -d when you only need Kafka for tests. Makefile targets: make dev/test/build/lint. Frontend dev: cd frontend/console|auth-mfe|billing-mfe|website, npm install, npm run dev. Go service example: cd backend/go/services/tenant-manager && go run cmd/server/main.go. Python analytics processor: cd backend/python/services/analytics-processor-service && python -m venv venv && source venv/bin/activate && pip install -r requirements.txt && python -m voc_processor.main.
 
-- Conventions and patterns:
-  - Libs vs services: server/state/deploy → `backend/go/services`; reusable helpers → `backend/go/libs` (see `docs/architecture/LIBS_VS_SERVICES-en-US.md`).
-  - Auth/tenant: JWT must carry `tenant_id`; DB uses RLS. See `backend/go/libs/platform-auth` and service middleware `middleware.RequireAuth()`.
-  - Events: Kafka messages include `tenant_id`. Processor expects it (see `backend/python/services/analytics-processor-service/src/voc_processor/models/events.py`).
-  - Observability: use platform-observability libs; services expose `/healthz` and Prometheus metrics.
+- Patterns and contracts: multi-tenancy everywhere (JWT claim tenant_id, Postgres RLS, ClickHouse partitions, Kafka events carry tenant_id). Go routing uses platform-auth middleware.RequireAuth(). Observability via platform-observability; expose /healthz and Prometheus metrics. Kafka/ClickHouse configs live in the processor’s config.py; batching is governed by worker.py constants BATCH_SIZE/BATCH_FLUSH_SECONDS and offsets commit after successful batch.
 
-- External dependencies to watch:
-  - Kafka topics and consumer groups (processor config).
-  - ClickHouse partitioning by `tenant_id`.
-  - Stripe webhooks in billing-service: replicate webhook security in tests.
-  - Secrets come from Vault/K8s Secrets; never hardcode credentials.
+- Testing expectations: Go uses table-driven tests; run go test -cover ./... for units; integration/e2e live under test/integration or test/e2e with build tags -tags=integration|-tags=e2e and helper runners backend/go/services/test/integration/run-tests.(sh|bat) or backend/go/libs/test/integration/run-tests.(sh|bat) which may spin up docker-compose.tests.yml when --with-compose. Python: pytest --cov=src --cov-report=xml in analytics-processor-service; prefer fakes/mocks for Kafka/ClickHouse/Redis. Frontend is React/Vite; follow per-package scripts (npm run test/build).
 
-- Quick examples:
-  - Auth-protected handler in Go: import `github.com/serphona/backend/go/libs/platform-auth/middleware`; register `protected.Use(middleware.RequireAuth())` in `cmd/server/main.go`.
-  - Processor batch logic: `backend/python/services/analytics-processor-service/src/voc_processor/worker.py` — keep BATCH_SIZE/BATCH_FLUSH_SECONDS and offset commit semantics.
+- Infra: Terraform/Helm under infra/ (envs under infra/terraform/envs/*, charts under infra/helm/). Keep env-specific Helm/TF values in sync with service changes. CI entrypoints are .github/workflows/ci-backend.yml, ci-frontend.yml, ci-infra.yml.
 
-- Testing & coverage patterns:
-  - Go: table-driven tests; inject fakes/stubs (see platform-events writer/reader fakes). `go test -cover ./...` for unit; `-tags=integration` and `-tags=e2e` with docker-compose for heavier suites. Gate gofmt (`gofmt -l`) and golangci-lint in CI.
-  - Go integration/e2e: place suites under `test/integration` and `test/e2e` with matching build tags; ship helper scripts + README inside `test/integration`. Services use `backend/go/services/test/integration/run-tests.(sh|bat)` (legacy `run-integration-tests.*` should delegate) and libs use `backend/go/libs/test/integration/run-tests.(sh|bat)`. Helpers may start `docker-compose.tests.yml` when `--with-compose` and must be added whenever introducing integration/e2e tests (mirror platform-events pattern, including Kafka topic setup when needed).
-  - Python: pytest with fakes/mocks for Kafka/ClickHouse/Redis; avoid real services. `pytest --cov=src --cov-report=xml` in CI.
-  - Frontend (Angular/Fuse): Angular Testing Library/Jasmine/Karma; stub HTTP with `HttpTestingController`; avoid real network. `ng test --watch=false --code-coverage` (or template equivalent); consider Cypress e2e separately.
-  - Integration tests: place under `test/integration` with wrapper script (e.g., `run-integration-tests`), optional `--with-compose` to start deps.
-  - Coverage upload: prefer Codecov/artifacts per job.
+- External/secure handling: never hardcode secrets (Vault/K8s secrets expected). Stripe webhooks in billing-service require signature verification in tests. Kafka topic/consumer group choices are part of contract with analytics-processor; keep tenant_id tagging intact. Telephony components rely on network zoning (see infra docs) if you touch SIP/voice paths.
 
-- Documentation localization:
-  - Always produce docs in both Portuguese and English (`*-pt-BR.md` and `*-en-US.md`).
+- Localization rule: when adding docs, provide both en-US and pt-BR variants (name *-en-US.md and *-pt-BR.md).
 
-- PR guidance:
-  - Keep changes small and focused per service/library.
-  - Add/adjust unit tests where relevant; run `make test` and `make lint`.
-  - Infra changes: update `infra/terraform/envs/*` and matching Helm charts under `infra/helm/`.
+- If unsure about patterns or new surface area, point to the relevant doc/README above and ask for confirmation before large refactors.
 
-- Where to look for more context:
-  - Root `README.md` (architecture & quick start).
-  - `docs/architecture/LIBS_VS_SERVICES-en-US.md` (libs vs services guidance).
-  - `backend/python/services/analytics-processor-service/README-en-US.md` and `src/voc_processor/`.
-  - CI workflows: `.github/workflows/ci-backend.yml`, `.github/workflows/ci-frontend.yml`.
+---
 
-If you need deeper examples (unit tests, API snippets, onboarding scripts), ask which area to expand and iterate.
+## Copilot Chat — content-ref placeholders
+
+When interacting via Copilot Chat or other AI chat clients, avoid emitting editor-specific content references such as `http://_vscodecontentref_/0`.
+
+- Prefer workspace-relative links that editors can open directly, for example:
+	- `[backend/go/services/tenant-manager/cmd/server/main.go](backend/go/services/tenant-manager/cmd/server/main.go#L10)`
+- If you must reference a file without a line, include the full path relative to the repository root: `backend/go/services/tenant-manager/README.md`.
+- Do NOT output raw `http://_vscodecontentref_/N` placeholders. They are client-side tokens and often render as literal, non-clickable links in chat UIs. If the client needs to map tokens to files, do that only when you have an explicit mapping available in the conversation.
+- When you see bracketed placeholders like `[projects] (http://_vscodecontentref_/6)` from VS Code, rewrite them to workspace-relative links or plain text before replying so the chat stays readable. If you cannot resolve the placeholder to a real path, drop the link and keep only the label as plain text.
+- If a chat transcript already contains `_vscodecontentref_` tokens, normalize it before answering: replace each token with the proper workspace-relative link when known, or with plain text when unknown.
+- Hard rule: never echo `_vscodecontentref_` links (e.g., `go test [projects](http://_vscodecontentref_/1)`). Rewrite them into plain text or real repo-relative links. If the target is unknown, keep only the readable text (e.g., `go test ./...`).
+
+Examples for responses:
+
+- Good: "See handler in [backend/go/services/tenant-manager/cmd/server/main.go](backend/go/services/tenant-manager/cmd/server/main.go#L42)"
+- Bad: "See handler at http://_vscodecontentref_/0"
+
+If you see `_vscodecontentref_` tokens in a chat transcript, run the repository helper script `.github/strip_vscodecontentref.py` to clean them (see next section).
