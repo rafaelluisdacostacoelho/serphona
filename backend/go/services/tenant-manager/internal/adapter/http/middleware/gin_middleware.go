@@ -19,6 +19,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 )
 
 // RequestID adds a request ID to each request.
@@ -119,6 +120,9 @@ func JWTAuth(secret, publicKey, issuer string, audience []string) gin.HandlerFun
 
 		c.Set("tenant_id", tenantID)
 		c.Set("user_id", userID)
+
+		ctx := authmw.WithTenantID(c.Request.Context(), tenantID)
+		c.Request = c.Request.WithContext(ctx)
 
 		c.Next()
 	}

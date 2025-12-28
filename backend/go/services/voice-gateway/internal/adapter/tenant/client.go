@@ -9,22 +9,26 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	authclient "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/client"
 	"go.uber.org/zap"
 )
 
 // Client is an HTTP client for tenant-manager service.
 type Client struct {
-	baseURL    string
-	httpClient *http.Client
-	logger     *zap.Logger
+	baseURL      string
+	httpClient   *http.Client
+	logger       *zap.Logger
+	serviceToken string
 }
 
 // NewClient creates a new tenant manager client.
-func NewClient(baseURL string, logger *zap.Logger) *Client {
+func NewClient(baseURL, serviceToken string, logger *zap.Logger) *Client {
 	return &Client{
-		baseURL: baseURL,
+		baseURL:      baseURL,
+		serviceToken: serviceToken,
 		httpClient: &http.Client{
-			Timeout: 10 * time.Second,
+			Timeout:   10 * time.Second,
+			Transport: authclient.WithDefaultTransport(nil),
 		},
 		logger: logger,
 	}
@@ -45,6 +49,9 @@ func (c *Client) LookupDID(ctx context.Context, phoneNumber string) (*DIDInfo, e
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	if c.serviceToken != "" && req.Header.Get("Authorization") == "" {
+		req.Header.Set("Authorization", "Bearer "+c.serviceToken)
 	}
 
 	resp, err := c.httpClient.Do(req)
@@ -92,6 +99,9 @@ func (c *Client) GetProviderSettings(ctx context.Context, tenantID uuid.UUID) (*
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	if c.serviceToken != "" && req.Header.Get("Authorization") == "" {
+		req.Header.Set("Authorization", "Bearer "+c.serviceToken)
 	}
 
 	resp, err := c.httpClient.Do(req)
@@ -170,6 +180,9 @@ func (c *Client) GetAgentConfig(ctx context.Context, tenantID uuid.UUID) (*Agent
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
+	if c.serviceToken != "" && req.Header.Get("Authorization") == "" {
+		req.Header.Set("Authorization", "Bearer "+c.serviceToken)
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -203,6 +216,9 @@ func (c *Client) GetTenantInfo(ctx context.Context, tenantID uuid.UUID) (map[str
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	if c.serviceToken != "" && req.Header.Get("Authorization") == "" {
+		req.Header.Set("Authorization", "Bearer "+c.serviceToken)
 	}
 
 	resp, err := c.httpClient.Do(req)

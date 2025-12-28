@@ -54,6 +54,11 @@ go mod tidy
 ```env
 JWT_SECRET=sua-chave-jwt-min-32-caracteres
 AUTH_GATEWAY_URL=http://auth-gateway:8080
+TENANT_ID_HEADER=X-Tenant-Id
+TRACE_REQUEST_HEADER=X-Request-Id
+TLS_CA=/etc/ssl/certs/ca.pem
+TLS_CERT=/etc/ssl/certs/client.pem
+TLS_KEY=/etc/ssl/private/client.key
 ```
 
 ### Passo 3: Inicializar no `main`
@@ -111,6 +116,30 @@ func getDados(c *gin.Context) {
         "email":    claims.Email,
         "role":     claims.Role,
     })
+}
+```
+
+### Passo 6: Aplicar Tenant/RLS e propagar para DB/Kafka/HTTP
+
+```go
+func escreverDados(ctx context.Context, tenantDoPayload string) error {
+    tenantID, err := middleware.TenantIDFromContext(ctx)
+    if err != nil {
+        return err
+    }
+    if err := middleware.EnforceTenant(ctx, tenantDoPayload); err != nil {
+        return err // impede cross-tenant
+    }
+
+    // Exemplo: adicionar tenant em headers do Kafka
+    headers := []kafka.Header{{Key: middleware.TenantIDHeader, Value: []byte(tenantID)}}
+    // producer.WriteMessages(ctx, kafka.Message{Headers: headers, Value: ...})
+
+    // Exemplo: requisicao HTTP de saida com tenant
+    req, _ := http.NewRequestWithContext(ctx, http.MethodPost, downstreamURL, body)
+    req.Header = middleware.EnsureTenantHeader(req.Header, tenantID)
+    _, err = http.DefaultClient.Do(req)
+    return err
 }
 ```
 

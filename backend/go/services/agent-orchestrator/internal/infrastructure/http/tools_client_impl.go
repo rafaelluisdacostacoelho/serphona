@@ -10,21 +10,26 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	authclient "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/client"
+	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/domain/service"
 )
 
 // toolsClientImpl implements the ToolsClient interface using HTTP
 type toolsClientImpl struct {
-	baseURL    string
-	httpClient *http.Client
+	baseURL      string
+	httpClient   *http.Client
+	serviceToken string
 }
 
 // NewToolsClient creates a new Tools Gateway HTTP client
-func NewToolsClient(baseURL string) service.ToolsClient {
+func NewToolsClient(baseURL, serviceToken string) service.ToolsClient {
 	return &toolsClientImpl{
-		baseURL: baseURL,
+		baseURL:      baseURL,
+		serviceToken: serviceToken,
 		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout:   30 * time.Second,
+			Transport: authclient.WithDefaultTransport(nil),
 		},
 	}
 }
@@ -52,6 +57,12 @@ func (c *toolsClientImpl) ExecuteTool(ctx context.Context, request *service.Tool
 	}
 
 	httpReq.Header.Set("Content-Type", "application/json")
+	if tenant := request.TenantID.String(); tenant != "" {
+		httpReq.Header = authmw.EnsureTenantHeader(httpReq.Header, tenant)
+	}
+	if c.serviceToken != "" && httpReq.Header.Get("Authorization") == "" {
+		httpReq.Header.Set("Authorization", "Bearer "+c.serviceToken)
+	}
 
 	// Execute request
 	resp, err := c.httpClient.Do(httpReq)
@@ -90,6 +101,10 @@ func (c *toolsClientImpl) GetAvailableTools(ctx context.Context, tenantID uuid.U
 	}
 
 	// Execute request
+	httpReq.Header = authmw.EnsureTenantHeader(httpReq.Header, tenantID.String())
+	if c.serviceToken != "" && httpReq.Header.Get("Authorization") == "" {
+		httpReq.Header.Set("Authorization", "Bearer "+c.serviceToken)
+	}
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute request: %w", err)
@@ -136,6 +151,10 @@ func (c *toolsClientImpl) ValidateTool(ctx context.Context, tenantID uuid.UUID, 
 	}
 
 	// Execute request
+	httpReq.Header = authmw.EnsureTenantHeader(httpReq.Header, tenantID.String())
+	if c.serviceToken != "" && httpReq.Header.Get("Authorization") == "" {
+		httpReq.Header.Set("Authorization", "Bearer "+c.serviceToken)
+	}
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		return false, fmt.Errorf("failed to execute request: %w", err)

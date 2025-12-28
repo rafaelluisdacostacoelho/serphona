@@ -8,10 +8,12 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
+	"voice-gateway/internal/adapter/agent"
 	"voice-gateway/internal/adapter/asterisk"
 	"voice-gateway/internal/adapter/events"
 	"voice-gateway/internal/adapter/redis"
 	"voice-gateway/internal/adapter/stt"
+	"voice-gateway/internal/adapter/tenant"
 	"voice-gateway/internal/adapter/tts"
 	"voice-gateway/internal/domain/call"
 )
@@ -23,6 +25,8 @@ type Service struct {
 	callStateRepo  *redis.CallStateRepository
 	eventPublisher *events.Publisher
 	logger         *zap.Logger
+	tenantClient   *tenant.Client
+	agentClient    *agent.Client
 
 	// Providers
 	sttProviders map[string]stt.Provider
@@ -37,6 +41,8 @@ func NewService(
 	asteriskClient *asterisk.ARIClientHTTP,
 	callStateRepo *redis.CallStateRepository,
 	eventPublisher *events.Publisher,
+	tenantClient *tenant.Client,
+	agentClient *agent.Client,
 	sttProviders map[string]stt.Provider,
 	ttsProviders map[string]tts.Provider,
 	maxConcurrentCalls int,
@@ -46,6 +52,8 @@ func NewService(
 		asteriskClient:     asteriskClient,
 		callStateRepo:      callStateRepo,
 		eventPublisher:     eventPublisher,
+		tenantClient:       tenantClient,
+		agentClient:        agentClient,
 		sttProviders:       sttProviders,
 		ttsProviders:       ttsProviders,
 		maxConcurrentCalls: maxConcurrentCalls,

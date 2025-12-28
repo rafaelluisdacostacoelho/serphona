@@ -1,5 +1,5 @@
 import asyncio
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Header, HTTPException, Query
 from typing import Optional
 from ..repo.clickhouse_repo import ClickHouseRepo
 from ..config import settings
@@ -18,10 +18,11 @@ def create_app():
         return {"status": "ok"}
 
     @app.get("/metrics/summary")
-    async def summary(tenant_id: Optional[str] = Query(None), days: int = 7):
-        tenant_filter = ""
-        if tenant_id:
-            tenant_filter = f"AND tenant_id = '{tenant_id}'"
+    async def summary(tenant_id: Optional[str] = Header(None, convert_underscores=False), days: int = 7):
+        if not tenant_id:
+            raise HTTPException(status_code=401, detail="X-Tenant-Id header is required")
+
+        tenant_filter = f"AND tenant_id = '{tenant_id}'"
         sql = f"""
         SELECT event_type, count() AS cnt, avg(sentiment) as avg_sent
         FROM voc_events

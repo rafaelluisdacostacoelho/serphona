@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/analytics-query-service/internal/domain/model"
 )
 
@@ -18,6 +19,9 @@ func NewAnalyticsRepository(db *sql.DB) *AnalyticsRepository {
 }
 
 func (r *AnalyticsRepository) GetOverviewMetrics(ctx context.Context, tenantID string, startTime, endTime time.Time) (*model.OverviewMetrics, error) {
+	if err := authmw.EnforceTenant(ctx, tenantID); err != nil {
+		return nil, err
+	}
 	query := `
 		SELECT 
 			count() as total_calls,
@@ -47,6 +51,9 @@ func (r *AnalyticsRepository) GetOverviewMetrics(ctx context.Context, tenantID s
 }
 
 func (r *AnalyticsRepository) GetCallMetrics(ctx context.Context, tenantID string, startTime, endTime time.Time) (*model.CallMetrics, error) {
+	if err := authmw.EnforceTenant(ctx, tenantID); err != nil {
+		return nil, err
+	}
 	query := `
 		SELECT 
 			count() as total,
@@ -72,6 +79,9 @@ func (r *AnalyticsRepository) GetCallMetrics(ctx context.Context, tenantID strin
 }
 
 func (r *AnalyticsRepository) GetSentimentMetrics(ctx context.Context, tenantID string, startTime, endTime time.Time) (*model.SentimentMetrics, error) {
+	if err := authmw.EnforceTenant(ctx, tenantID); err != nil {
+		return nil, err
+	}
 	query := `
 		SELECT 
 			countIf(sentiment_label = 'positive') as positive,
@@ -96,6 +106,9 @@ func (r *AnalyticsRepository) GetSentimentMetrics(ctx context.Context, tenantID 
 }
 
 func (r *AnalyticsRepository) GetTopicMetrics(ctx context.Context, tenantID string, startTime, endTime time.Time, limit int) ([]model.TopicMetric, error) {
+	if err := authmw.EnforceTenant(ctx, tenantID); err != nil {
+		return nil, err
+	}
 	query := `
 		SELECT 
 			topic,
@@ -129,6 +142,9 @@ func (r *AnalyticsRepository) GetTopicMetrics(ctx context.Context, tenantID stri
 }
 
 func (r *AnalyticsRepository) GetAgentMetrics(ctx context.Context, tenantID string, startTime, endTime time.Time) ([]model.AgentMetric, error) {
+	if err := authmw.EnforceTenant(ctx, tenantID); err != nil {
+		return nil, err
+	}
 	query := `
 		SELECT 
 			agent_id,
@@ -165,6 +181,9 @@ func (r *AnalyticsRepository) GetAgentMetrics(ctx context.Context, tenantID stri
 }
 
 func (r *AnalyticsRepository) GetCallTimeSeries(ctx context.Context, tenantID string, startTime, endTime time.Time, granularity string) (*model.TimeSeriesData, error) {
+	if err := authmw.EnforceTenant(ctx, tenantID); err != nil {
+		return nil, err
+	}
 	interval := getIntervalFromGranularity(granularity)
 	query := fmt.Sprintf(`
 		SELECT 
@@ -202,6 +221,9 @@ func (r *AnalyticsRepository) GetCallTimeSeries(ctx context.Context, tenantID st
 }
 
 func (r *AnalyticsRepository) GetSentimentTimeSeries(ctx context.Context, tenantID string, startTime, endTime time.Time, granularity string) (*model.TimeSeriesData, error) {
+	if err := authmw.EnforceTenant(ctx, tenantID); err != nil {
+		return nil, err
+	}
 	interval := getIntervalFromGranularity(granularity)
 	query := fmt.Sprintf(`
 		SELECT 
@@ -238,6 +260,9 @@ func (r *AnalyticsRepository) GetSentimentTimeSeries(ctx context.Context, tenant
 }
 
 func (r *AnalyticsRepository) GetAggregations(ctx context.Context, tenantID string, startTime, endTime time.Time, granularity string) ([]model.AggregationResult, error) {
+	if err := authmw.EnforceTenant(ctx, tenantID); err != nil {
+		return nil, err
+	}
 	interval := getIntervalFromGranularity(granularity)
 	query := fmt.Sprintf(`
 		SELECT 
@@ -270,6 +295,9 @@ func (r *AnalyticsRepository) GetAggregations(ctx context.Context, tenantID stri
 }
 
 func (r *AnalyticsRepository) SearchEvents(ctx context.Context, filters model.QueryFilters) ([]model.AnalyticsEvent, int64, error) {
+	if err := authmw.EnforceTenant(ctx, filters.TenantID); err != nil {
+		return nil, 0, err
+	}
 	// Build query dynamically based on filters
 	query := `SELECT event_id, tenant_id, session_id, user_id, agent_id, event_type, timestamp, duration, sentiment_score, topics FROM analytics_events WHERE tenant_id = ?`
 	args := []interface{}{filters.TenantID}

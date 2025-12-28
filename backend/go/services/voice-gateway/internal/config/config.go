@@ -72,12 +72,14 @@ type KafkaConfig struct {
 // TenantManagerConfig represents tenant-manager client configuration.
 type TenantManagerConfig struct {
 	URL     string        `envconfig:"TENANT_MANAGER_URL" required:"true"`
+	Token   string        `envconfig:"TENANT_MANAGER_TOKEN"`
 	Timeout time.Duration `envconfig:"TENANT_MANAGER_TIMEOUT" default:"10s"`
 }
 
 // AgentOrchestratorConfig represents agent-orchestrator client configuration.
 type AgentOrchestratorConfig struct {
 	URL     string        `envconfig:"AGENT_ORCHESTRATOR_URL" required:"true"`
+	Token   string        `envconfig:"AGENT_ORCHESTRATOR_TOKEN"`
 	Timeout time.Duration `envconfig:"AGENT_ORCHESTRATOR_TIMEOUT" default:"30s"`
 }
 

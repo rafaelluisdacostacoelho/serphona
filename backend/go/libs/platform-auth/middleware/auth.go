@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	autherrors "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/errors"
@@ -12,35 +13,42 @@ import (
 // RequireAuth is a Gin middleware that validates a JWT and injects claims into the request context.
 func RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authjwt.MustEnsureSecretLoaded()
+		start := time.Now()
+		reqID := extractOrGenerateRequestID(c.GetHeader(requestIDHeader))
+		c.Writer.Header().Set(requestIDHeader, reqID)
+		ctx := WithRequestID(c.Request.Context(), reqID)
+		safeFields := SafeRequestFieldsFromGin(c)
+		ctx = WithSafeRequestFields(ctx, safeFields)
+		ctx, span := startAuthSpan(ctx, "platform-auth.require-auth", reqID)
+		defer span.End()
+		c.Request = c.Request.WithContext(ctx)
+		cfg := authjwt.GetValidationConfig()
+		if needsSecret(cfg) {
+			if err := authjwt.EnsureSecretLoaded(); err != nil {
+				mapped := mapAuthError(err)
+				recordAuthError("gin", mapped, start)
+				recordSpanError(span, mapped, err)
+				c.JSON(mapped.status, errorPayload(mapped))
+				c.Abort()
+				return
+			}
+		} else {
+			_ = authjwt.EnsureSecretLoaded()
+		}
 		authHeader := c.GetHeader("Authorization")
 
 		claims, err := authjwt.ValidateTokenFromHeader(authHeader)
 		if err != nil {
-			statusCode := http.StatusUnauthorized
-			errorCode := autherrors.CodeUnauthorized
-			errorMessage := "Unauthorized"
-
-			switch err {
-			case autherrors.ErrMissingToken:
-				errorCode = autherrors.CodeMissingToken
-				errorMessage = "Missing authentication token"
-			case autherrors.ErrInvalidToken:
-				errorCode = autherrors.CodeInvalidToken
-				errorMessage = "Invalid authentication token"
-			case autherrors.ErrTokenExpired:
-				errorCode = autherrors.CodeTokenExpired
-				errorMessage = "Authentication token has expired"
-			}
-
-			c.JSON(statusCode, gin.H{
-				"error": errorMessage,
-				"code":  errorCode,
-			})
+			mapped := mapAuthError(err)
+			recordAuthError("gin", mapped, start)
+			recordSpanError(span, mapped, err)
+			c.JSON(mapped.status, errorPayload(mapped))
 			c.Abort()
 			return
 		}
 
+		annotateSpanWithClaims(span, claims)
+		c.Request = c.Request.WithContext(WithClaims(c.Request.Context(), claims))
 		// Claims are added to the context for downstream handlers.
 		c.Set("claims", claims)
 		c.Set("userID", claims.UserID)
@@ -49,6 +57,10 @@ func RequireAuth() gin.HandlerFunc {
 		c.Set("role", claims.Role)
 		c.Set("tenantID", claims.TenantID)
 		c.Set("sessionID", claims.SessionID)
+		c.Set("requestID", reqID)
+
+		recordAuthSuccess("gin", start)
+		recordSpanSuccess(span)
 
 		c.Next()
 	}
@@ -59,19 +71,14 @@ func RequireRole(requiredRole string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		claims, err := GetClaimsFromContext(c)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Unauthorized",
-				"code":  autherrors.CodeUnauthorized,
-			})
+			mapped := mapAuthError(autherrors.ErrUnauthorized)
+			c.JSON(mapped.status, errorPayload(mapped))
 			c.Abort()
 			return
 		}
 
 		if !claims.HasRole(requiredRole) {
-			c.JSON(http.StatusForbidden, gin.H{
-				"error": "Insufficient permissions",
-				"code":  autherrors.CodeInsufficientPermissions,
-			})
+			c.JSON(http.StatusForbidden, errorPayload(mapAuthError(autherrors.ErrInsufficientPermissions)))
 			c.Abort()
 			return
 		}
@@ -85,19 +92,16 @@ func RequireAdmin() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		claims, err := GetClaimsFromContext(c)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Unauthorized",
-				"code":  autherrors.CodeUnauthorized,
-			})
+			mapped := mapAuthError(autherrors.ErrUnauthorized)
+			c.JSON(mapped.status, errorPayload(mapped))
 			c.Abort()
 			return
 		}
 
 		if !claims.IsAdmin() {
-			c.JSON(http.StatusForbidden, gin.H{
-				"error": "Admin access required",
-				"code":  autherrors.CodeInsufficientPermissions,
-			})
+			mapped := mapAuthError(autherrors.ErrInsufficientPermissions)
+			mapped.message = "Admin access required"
+			c.JSON(mapped.status, errorPayload(mapped))
 			c.Abort()
 			return
 		}
@@ -111,19 +115,16 @@ func RequireSuperAdmin() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		claims, err := GetClaimsFromContext(c)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Unauthorized",
-				"code":  autherrors.CodeUnauthorized,
-			})
+			mapped := mapAuthError(autherrors.ErrUnauthorized)
+			c.JSON(mapped.status, errorPayload(mapped))
 			c.Abort()
 			return
 		}
 
 		if !claims.IsSuperAdmin() {
-			c.JSON(http.StatusForbidden, gin.H{
-				"error": "Superadmin access required",
-				"code":  autherrors.CodeInsufficientPermissions,
-			})
+			mapped := mapAuthError(autherrors.ErrInsufficientPermissions)
+			mapped.message = "Superadmin access required"
+			c.JSON(mapped.status, errorPayload(mapped))
 			c.Abort()
 			return
 		}
@@ -163,4 +164,51 @@ func GetTenantIDFromContext(c *gin.Context) (string, error) {
 		return "", err
 	}
 	return claims.TenantID, nil
+}
+
+// RequireScopes enforces that the user has all of the specified scopes.
+func RequireScopes(scopes ...string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		claims, err := GetClaimsFromContext(c)
+		if err != nil {
+			mapped := mapAuthError(autherrors.ErrUnauthorized)
+			c.JSON(mapped.status, errorPayload(mapped))
+			c.Abort()
+			return
+		}
+
+		if !claims.HasAllScopes(scopes...) {
+			c.JSON(http.StatusForbidden, errorPayload(mapAuthError(autherrors.ErrInsufficientPermissions)))
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
+// RequireAnyScope enforces that the user has at least one of the specified scopes.
+func RequireAnyScope(scopes ...string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		claims, err := GetClaimsFromContext(c)
+		if err != nil {
+			mapped := mapAuthError(autherrors.ErrUnauthorized)
+			c.JSON(mapped.status, errorPayload(mapped))
+			c.Abort()
+			return
+		}
+
+		if !claims.HasAnyScope(scopes...) {
+			c.JSON(http.StatusForbidden, errorPayload(mapAuthError(autherrors.ErrInsufficientPermissions)))
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
+// RequireAllScopes is an alias for RequireScopes for clarity.
+func RequireAllScopes(scopes ...string) gin.HandlerFunc {
+	return RequireScopes(scopes...)
 }

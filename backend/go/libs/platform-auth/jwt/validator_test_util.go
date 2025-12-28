@@ -7,3 +7,8 @@ func ResetSecretOnceForTests() {
 	ensureSecretOnce = sync.Once{}
 	ensureSecretErr = nil
 }
+
+// ResetValidationConfig restores defaults for validation tests.
+func ResetValidationConfig() {
+	ResetValidationConfigForTests()
+}

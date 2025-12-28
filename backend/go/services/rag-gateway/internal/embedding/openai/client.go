@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	authclient "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/client"
 )
 
 // Config holds OpenAI embedding settings.
@@ -41,7 +43,7 @@ func New(cfg Config) (Client, error) {
 	}
 	cfg.BaseURL = base
 
-	return Client{cfg: cfg, client: &http.Client{Timeout: cfg.Timeout}}, nil
+	return Client{cfg: cfg, client: &http.Client{Timeout: cfg.Timeout, Transport: authclient.WithDefaultTransport(nil)}}, nil
 }
 
 // request payload

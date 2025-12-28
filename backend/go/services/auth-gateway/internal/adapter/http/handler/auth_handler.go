@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/response"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/auth-gateway/internal/service/jwt"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/auth-gateway/internal/usecase/auth"
 	"go.uber.org/zap"
@@ -42,19 +43,12 @@ func NewAuthHandler(authUC *auth.UseCase, jwtSvc *jwt.Service, logger *zap.Logge
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req auth.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Message: "Invalid request body",
-			Code:    "INVALID_REQUEST",
-		})
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request body", nil)
 		return
 	}
 
 	if err := h.validator.Struct(req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Message: "Validation failed",
-			Code:    "VALIDATION_ERROR",
-			Details: formatValidationErrors(err),
-		})
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusBadRequest, "VALIDATION_ERROR", "Validation failed", formatValidationErrors(err))
 		return
 	}
 
@@ -64,7 +58,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, resp)
+	response.WriteSuccess(c.Request.Context(), c.Writer, http.StatusCreated, resp)
 }
 
 // Login handles user login
@@ -80,19 +74,12 @@ func (h *AuthHandler) Register(c *gin.Context) {
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req auth.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Message: "Invalid request body",
-			Code:    "INVALID_REQUEST",
-		})
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request body", nil)
 		return
 	}
 
 	if err := h.validator.Struct(req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Message: "Validation failed",
-			Code:    "VALIDATION_ERROR",
-			Details: formatValidationErrors(err),
-		})
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusBadRequest, "VALIDATION_ERROR", "Validation failed", formatValidationErrors(err))
 		return
 	}
 
@@ -102,7 +89,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	response.WriteSuccess(c.Request.Context(), c.Writer, http.StatusOK, resp)
 }
 
 // RefreshToken handles token refresh
@@ -118,10 +105,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	var req auth.RefreshTokenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Message: "Invalid request body",
-			Code:    "INVALID_REQUEST",
-		})
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request body", nil)
 		return
 	}
 
@@ -131,7 +115,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	response.WriteSuccess(c.Request.Context(), c.Writer, http.StatusOK, resp)
 }
 
 // GetCurrentUser returns the current authenticated user
@@ -145,10 +129,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{
-			Message: "Unauthorized",
-			Code:    "UNAUTHORIZED",
-		})
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusUnauthorized, "UNAUTHORIZED", "Unauthorized", nil)
 		return
 	}
 
@@ -158,7 +139,7 @@ func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, user)
+	response.WriteSuccess(c.Request.Context(), c.Writer, http.StatusOK, user)
 }
 
 // Logout handles user logout
@@ -171,10 +152,7 @@ func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
 func (h *AuthHandler) Logout(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{
-			Message: "Unauthorized",
-			Code:    "UNAUTHORIZED",
-		})
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusUnauthorized, "UNAUTHORIZED", "Unauthorized", nil)
 		return
 	}
 
@@ -183,7 +161,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
-	c.Status(http.StatusNoContent)
+	response.WriteSuccess(c.Request.Context(), c.Writer, http.StatusNoContent, nil)
 }
 
 // GetOAuthURL generates OAuth authorization URL
@@ -197,10 +175,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 func (h *AuthHandler) GetOAuthURL(c *gin.Context) {
 	provider := c.Param("provider")
 	if provider == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Message: "Provider is required",
-			Code:    "INVALID_REQUEST",
-		})
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusBadRequest, "INVALID_REQUEST", "Provider is required", nil)
 		return
 	}
 
@@ -210,7 +185,7 @@ func (h *AuthHandler) GetOAuthURL(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	response.WriteSuccess(c.Request.Context(), c.Writer, http.StatusOK, resp)
 }
 
 // HandleOAuthCallback handles OAuth provider callback
@@ -228,10 +203,7 @@ func (h *AuthHandler) HandleOAuthCallback(c *gin.Context) {
 	state := c.Query("state")
 
 	if code == "" || state == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Message: "Missing code or state",
-			Code:    "INVALID_REQUEST",
-		})
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusBadRequest, "INVALID_REQUEST", "Missing code or state", nil)
 		return
 	}
 
@@ -246,46 +218,24 @@ func (h *AuthHandler) HandleOAuthCallback(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	response.WriteSuccess(c.Request.Context(), c.Writer, http.StatusOK, resp)
 }
 
 // handleError handles use case errors and converts them to HTTP responses
 func (h *AuthHandler) handleError(c *gin.Context, err error) {
 	switch err {
 	case auth.ErrInvalidCredentials:
-		c.JSON(http.StatusUnauthorized, ErrorResponse{
-			Message: "Invalid credentials",
-			Code:    "INVALID_CREDENTIALS",
-		})
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusUnauthorized, "INVALID_CREDENTIALS", "Invalid credentials", nil)
 	case auth.ErrUserNotFound:
-		c.JSON(http.StatusNotFound, ErrorResponse{
-			Message: "User not found",
-			Code:    "USER_NOT_FOUND",
-		})
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusNotFound, "USER_NOT_FOUND", "User not found", nil)
 	case auth.ErrEmailAlreadyExists:
-		c.JSON(http.StatusConflict, ErrorResponse{
-			Message: "Email already exists",
-			Code:    "EMAIL_EXISTS",
-		})
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusConflict, "EMAIL_EXISTS", "Email already exists", nil)
 	case auth.ErrInvalidToken, auth.ErrSessionNotFound:
-		c.JSON(http.StatusUnauthorized, ErrorResponse{
-			Message: "Invalid or expired token",
-			Code:    "INVALID_TOKEN",
-		})
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusUnauthorized, "INVALID_TOKEN", "Invalid or expired token", nil)
 	default:
 		h.logger.Error("Internal server error", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Message: "Internal server error",
-			Code:    "INTERNAL_ERROR",
-		})
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error", nil)
 	}
-}
-
-// ErrorResponse represents an error response
-type ErrorResponse struct {
-	Message string                 `json:"message"`
-	Code    string                 `json:"code"`
-	Details map[string]interface{} `json:"details,omitempty"`
 }
 
 // formatValidationErrors formats validator errors

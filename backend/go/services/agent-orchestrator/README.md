@@ -178,6 +178,7 @@ Environment variables:
 | `DATABASE_URL` | PostgreSQL connection string | - |
 | `OPENAI_API_KEY` | OpenAI API key | **required** |
 | `TOOLS_GATEWAY_URL` | Tools Gateway URL | - |
+| `TOOLS_GATEWAY_TOKEN` | Service token for internal calls to Tools Gateway | - |
 | `GIN_MODE` | Gin mode (debug/release) | `debug` |
 
 ## 🧪 Testing

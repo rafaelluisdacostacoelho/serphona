@@ -73,7 +73,9 @@ KAFKA_BROKERS=your-kafka:9092
 
 # Serviços
 TENANT_MANAGER_URL=http://tenant-manager:8081
+TENANT_MANAGER_TOKEN=your-tenant-manager-token
 AGENT_ORCHESTRATOR_URL=http://agent-orchestrator:8082
+AGENT_ORCHESTRATOR_TOKEN=your-agent-orchestrator-token
 ```
 
 3. Configure credenciais dos provedores STT/TTS conforme necessário.

@@ -24,6 +24,7 @@
 8) Resilience: add retries/backoff for IdP and tenant-manager calls, circuit breaker, and fail-closed defaults; health/ready endpoints should check DB and external deps.
 9) Billing/usage: emit events for MAU or token issuance per tenant for billing/analytics sinks.
 10) Docs/runbooks: document config matrix, key rotation steps, incident playbooks for auth outage/token compromise, and OAuth redirect management.
+11) Response contract: adopt the shared envelope helper (success data/meta; error code/message/details/trace_id) once provided by platform-auth/core and migrate handlers/tests accordingly.
 
 ## Config to surface
 - Server host/port, timeouts, TLS/mTLS settings, allowed origins/redirect URIs.

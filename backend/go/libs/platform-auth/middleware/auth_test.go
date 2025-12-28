@@ -51,6 +51,11 @@ func TestRequireAuthSuccess(t *testing.T) {
 	router.Use(middleware.RequireAuth())
 	router.GET("/protected", func(c *gin.Context) {
 		claims, _ := middleware.GetClaimsFromContext(c)
+		fields, ok := middleware.SafeRequestFieldsFromContext(c.Request.Context())
+		if !ok || fields["request_id"] == "" {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "missing safe fields"})
+			return
+		}
 		c.JSON(http.StatusOK, gin.H{"userId": claims.UserID})
 	})
 
@@ -236,7 +241,7 @@ func TestRequireSuperAdmin(t *testing.T) {
 	}
 }
 
-func TestRequireAuthPanicsWhenSecretMissing(t *testing.T) {
+func TestRequireAuthMissingSecretReturns500(t *testing.T) {
 	authjwt.SetSecret("")
 	authjwt.ResetSecretOnceForTests()
 
@@ -246,11 +251,165 @@ func TestRequireAuthPanicsWhenSecretMissing(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
 	w := httptest.NewRecorder()
 
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatalf("expected panic when JWT secret is not configured")
-		}
-	}()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 when secret missing, got %d", w.Code)
+	}
+
+	var body map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &body)
+	if body["code"] != autherrors.CodeAuthConfigMissing {
+		t.Fatalf("expected code %s, got %v", autherrors.CodeAuthConfigMissing, body["code"])
+	}
+}
+
+func signedTokenWithScopes(t *testing.T, role string, exp time.Time, scopes []string) string {
+	t.Helper()
+
+	claims := types.Claims{
+		UserID:    "11111111-1111-1111-1111-111111111111",
+		Email:     "user@example.com",
+		Name:      "Test User",
+		Role:      role,
+		TenantID:  "22222222-2222-2222-2222-222222222222",
+		SessionID: "33333333-3333-3333-3333-333333333333",
+		Scopes:    scopes,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(exp),
+		},
+	}
+
+	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(middlewareTestSecret))
+	if err != nil {
+		t.Fatalf("failed to sign token: %v", err)
+	}
+
+	return token
+}
+
+func TestRequireScopesAllowed(t *testing.T) {
+	authjwt.SetSecret(middlewareTestSecret)
+	authjwt.ResetSecretOnceForTests()
+
+	router := gin.New()
+	router.Use(middleware.RequireAuth())
+	router.Use(middleware.RequireScopes("read:invoices", "write:invoices"))
+	router.GET("/invoices", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	token := signedTokenWithScopes(t, "user", time.Now().Add(time.Hour), []string{"read:invoices", "write:invoices", "extra:scope"})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/invoices", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
 
 	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestRequireScopesDenied(t *testing.T) {
+	authjwt.SetSecret(middlewareTestSecret)
+	authjwt.ResetSecretOnceForTests()
+
+	router := gin.New()
+	router.Use(middleware.RequireAuth())
+	router.Use(middleware.RequireScopes("read:invoices", "write:invoices"))
+	router.GET("/invoices", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	token := signedTokenWithScopes(t, "user", time.Now().Add(time.Hour), []string{"read:invoices"})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/invoices", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", w.Code)
+	}
+
+	var body map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &body)
+	if body["code"] != autherrors.CodeInsufficientPermissions {
+		t.Fatalf("expected code %s, got %v", autherrors.CodeInsufficientPermissions, body["code"])
+	}
+}
+
+func TestRequireAnyScopeAllowed(t *testing.T) {
+	authjwt.SetSecret(middlewareTestSecret)
+	authjwt.ResetSecretOnceForTests()
+
+	router := gin.New()
+	router.Use(middleware.RequireAuth())
+	router.Use(middleware.RequireAnyScope("read:invoices", "read:reports"))
+	router.GET("/data", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	token := signedTokenWithScopes(t, "user", time.Now().Add(time.Hour), []string{"read:reports"})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/data", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestRequireAnyScopeDenied(t *testing.T) {
+	authjwt.SetSecret(middlewareTestSecret)
+	authjwt.ResetSecretOnceForTests()
+
+	router := gin.New()
+	router.Use(middleware.RequireAuth())
+	router.Use(middleware.RequireAnyScope("read:invoices", "read:reports"))
+	router.GET("/data", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	token := signedTokenWithScopes(t, "user", time.Now().Add(time.Hour), []string{"write:invoices"})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/data", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", w.Code)
+	}
+}
+
+func TestRequireAnyScopeAllowsSingleMatch(t *testing.T) {
+	authjwt.SetSecret(middlewareTestSecret)
+	authjwt.ResetSecretOnceForTests()
+
+	router := gin.New()
+	router.Use(middleware.RequireAuth())
+	router.Use(middleware.RequireAnyScope("read:reports", "write:reports"))
+	router.GET("/reports", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	token := signedTokenWithScopes(t, "user", time.Now().Add(time.Hour), []string{"write:reports"})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/reports", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
 }

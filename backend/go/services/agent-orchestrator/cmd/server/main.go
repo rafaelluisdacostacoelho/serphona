@@ -12,7 +12,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
-	"github.com/redis/go-redis/v9"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/adapter/http/handler"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/domain/repository"
 	toolsHTTP "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/infrastructure/http"
@@ -20,6 +19,7 @@ import (
 	postgresRepo "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/infrastructure/repository/postgres"
 	redisRepo "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/infrastructure/repository/redis"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/usecase"
+	"github.com/redis/go-redis/v9"
 )
 
 func main() {
@@ -68,7 +68,7 @@ func main() {
 	}
 
 	// Initialize Tools Gateway HTTP Client (optional)
-	var toolsClient = toolsHTTP.NewToolsClient(config.ToolsGatewayURL)
+	var toolsClient = toolsHTTP.NewToolsClient(config.ToolsGatewayURL, config.ToolsGatewayTok)
 	if config.ToolsGatewayURL != "" {
 		log.Printf("✅ Tools Gateway client initialized (%s)", config.ToolsGatewayURL)
 	} else {
@@ -146,6 +146,7 @@ type Config struct {
 	HTTPAddr        string
 	DatabaseURL     string
 	ToolsGatewayURL string
+	ToolsGatewayTok string
 	RedisAddr       string
 	RedisPassword   string
 	RedisDB         int
@@ -159,6 +160,7 @@ func loadConfig() Config {
 		HTTPAddr:        getEnv("HTTP_ADDR", ":8080"),
 		DatabaseURL:     getEnv("DATABASE_URL", ""),
 		ToolsGatewayURL: getEnv("TOOLS_GATEWAY_URL", ""),
+		ToolsGatewayTok: getEnv("TOOLS_GATEWAY_TOKEN", ""),
 		RedisAddr:       getEnv("REDIS_ADDR", "localhost:6379"),
 		RedisPassword:   getEnv("REDIS_PASSWORD", ""),
 		RedisDB:         0,

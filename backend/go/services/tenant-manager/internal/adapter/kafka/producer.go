@@ -2,9 +2,11 @@
 package kafka
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/IBM/sarama"
+	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 
 	"tenant-manager/internal/config"
 )
@@ -29,12 +31,18 @@ func NewProducer(cfg config.KafkaConfig) (*Producer, error) {
 	return &Producer{producer: producer}, nil
 }
 
-// SendMessage sends a message to a Kafka topic.
-func (p *Producer) SendMessage(topic string, key, value []byte) error {
+// SendMessage sends a message to a Kafka topic, propagating the tenant header when present.
+func (p *Producer) SendMessage(ctx context.Context, topic string, key, value []byte) error {
+	var headers []sarama.RecordHeader
+	if tenantID, err := authmw.TenantIDFromContext(ctx); err == nil && tenantID != "" {
+		headers = append(headers, sarama.RecordHeader{Key: []byte(authmw.TenantIDHeader), Value: []byte(tenantID)})
+	}
+
 	msg := &sarama.ProducerMessage{
 		Topic: topic,
 		Key:   sarama.ByteEncoder(key),
 		Value: sarama.ByteEncoder(value),
+		Headers: headers,
 	}
 
 	_, _, err := p.producer.SendMessage(msg)

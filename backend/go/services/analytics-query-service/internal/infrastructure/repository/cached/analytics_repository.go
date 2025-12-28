@@ -6,10 +6,11 @@ import (
 	"log"
 	"time"
 
-	"github.com/redis/go-redis/v9"
+	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/analytics-query-service/internal/domain/model"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/analytics-query-service/internal/domain/repository"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/analytics-query-service/internal/infrastructure/cache"
+	"github.com/redis/go-redis/v9"
 )
 
 // CachedAnalyticsRepository wraps a repository with Redis caching
@@ -26,6 +27,9 @@ func NewCachedAnalyticsRepository(repo repository.AnalyticsRepository, redisClie
 }
 
 func (r *CachedAnalyticsRepository) GetOverviewMetrics(ctx context.Context, tenantID string, startTime, endTime time.Time) (*model.OverviewMetrics, error) {
+	if err := authmw.EnforceTenant(ctx, tenantID); err != nil {
+		return nil, err
+	}
 	key := cache.GenerateKey("overview", tenantID, startTime.Unix(), endTime.Unix())
 
 	var metrics model.OverviewMetrics
@@ -46,6 +50,9 @@ func (r *CachedAnalyticsRepository) GetOverviewMetrics(ctx context.Context, tena
 }
 
 func (r *CachedAnalyticsRepository) GetCallMetrics(ctx context.Context, tenantID string, startTime, endTime time.Time) (*model.CallMetrics, error) {
+	if err := authmw.EnforceTenant(ctx, tenantID); err != nil {
+		return nil, err
+	}
 	key := cache.GenerateKey("calls", tenantID, startTime.Unix(), endTime.Unix())
 
 	var metrics model.CallMetrics
@@ -66,6 +73,9 @@ func (r *CachedAnalyticsRepository) GetCallMetrics(ctx context.Context, tenantID
 }
 
 func (r *CachedAnalyticsRepository) GetSentimentMetrics(ctx context.Context, tenantID string, startTime, endTime time.Time) (*model.SentimentMetrics, error) {
+	if err := authmw.EnforceTenant(ctx, tenantID); err != nil {
+		return nil, err
+	}
 	key := cache.GenerateKey("sentiment", tenantID, startTime.Unix(), endTime.Unix())
 
 	var metrics model.SentimentMetrics
@@ -86,6 +96,9 @@ func (r *CachedAnalyticsRepository) GetSentimentMetrics(ctx context.Context, ten
 }
 
 func (r *CachedAnalyticsRepository) GetTopicMetrics(ctx context.Context, tenantID string, startTime, endTime time.Time, limit int) ([]model.TopicMetric, error) {
+	if err := authmw.EnforceTenant(ctx, tenantID); err != nil {
+		return nil, err
+	}
 	key := cache.GenerateKey("topics", tenantID, startTime.Unix(), endTime.Unix(), limit)
 
 	var metrics []model.TopicMetric
@@ -106,6 +119,9 @@ func (r *CachedAnalyticsRepository) GetTopicMetrics(ctx context.Context, tenantI
 }
 
 func (r *CachedAnalyticsRepository) GetAgentMetrics(ctx context.Context, tenantID string, startTime, endTime time.Time) ([]model.AgentMetric, error) {
+	if err := authmw.EnforceTenant(ctx, tenantID); err != nil {
+		return nil, err
+	}
 	key := cache.GenerateKey("agents", tenantID, startTime.Unix(), endTime.Unix())
 
 	var metrics []model.AgentMetric
@@ -126,6 +142,9 @@ func (r *CachedAnalyticsRepository) GetAgentMetrics(ctx context.Context, tenantI
 }
 
 func (r *CachedAnalyticsRepository) GetCallTimeSeries(ctx context.Context, tenantID string, startTime, endTime time.Time, granularity string) (*model.TimeSeriesData, error) {
+	if err := authmw.EnforceTenant(ctx, tenantID); err != nil {
+		return nil, err
+	}
 	key := cache.GenerateKey("timeseries:calls", tenantID, startTime.Unix(), endTime.Unix(), granularity)
 
 	var data model.TimeSeriesData
@@ -146,6 +165,9 @@ func (r *CachedAnalyticsRepository) GetCallTimeSeries(ctx context.Context, tenan
 }
 
 func (r *CachedAnalyticsRepository) GetSentimentTimeSeries(ctx context.Context, tenantID string, startTime, endTime time.Time, granularity string) (*model.TimeSeriesData, error) {
+	if err := authmw.EnforceTenant(ctx, tenantID); err != nil {
+		return nil, err
+	}
 	key := cache.GenerateKey("timeseries:sentiment", tenantID, startTime.Unix(), endTime.Unix(), granularity)
 
 	var data model.TimeSeriesData
@@ -166,6 +188,9 @@ func (r *CachedAnalyticsRepository) GetSentimentTimeSeries(ctx context.Context, 
 }
 
 func (r *CachedAnalyticsRepository) GetAggregations(ctx context.Context, tenantID string, startTime, endTime time.Time, granularity string) ([]model.AggregationResult, error) {
+	if err := authmw.EnforceTenant(ctx, tenantID); err != nil {
+		return nil, err
+	}
 	key := cache.GenerateKey("aggregations", tenantID, startTime.Unix(), endTime.Unix(), granularity)
 
 	var results []model.AggregationResult
@@ -186,6 +211,9 @@ func (r *CachedAnalyticsRepository) GetAggregations(ctx context.Context, tenantI
 }
 
 func (r *CachedAnalyticsRepository) SearchEvents(ctx context.Context, filters model.QueryFilters) ([]model.AnalyticsEvent, int64, error) {
+	if err := authmw.EnforceTenant(ctx, filters.TenantID); err != nil {
+		return nil, 0, err
+	}
 	// Events search is typically not cached due to dynamic nature
 	// But we can cache if needed with a shorter TTL
 	key := cache.GenerateKey("events", filters.TenantID, filters.StartTime.Unix(), filters.EndTime.Unix(), filters.Limit, filters.Offset)

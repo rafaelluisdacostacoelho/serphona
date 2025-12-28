@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/response"
 	"go.uber.org/zap"
 
 	"voice-gateway/internal/adapter/asterisk"
@@ -31,7 +32,7 @@ func (h *AsteriskHandler) HandleARIEvent(w http.ResponseWriter, r *http.Request)
 	var event asterisk.ARIEvent
 	if err := json.NewDecoder(r.Body).Decode(&event); err != nil {
 		h.logger.Error("failed to decode ARI event", zap.Error(err))
-		h.respondError(w, http.StatusBadRequest, "invalid event format")
+		response.WriteError(r.Context(), w, http.StatusBadRequest, "INVALID_EVENT", "invalid event format", nil)
 		return
 	}
 
@@ -54,14 +55,14 @@ func (h *AsteriskHandler) HandleARIEvent(w http.ResponseWriter, r *http.Request)
 		h.handleChannelDestroyed(w, r, &event)
 	default:
 		h.logger.Debug("unhandled ARI event type", zap.String("type", event.Type))
-		w.WriteHeader(http.StatusOK)
+		response.WriteSuccess(r.Context(), w, http.StatusOK, nil)
 	}
 }
 
 // handleStasisStart handles incoming call events.
 func (h *AsteriskHandler) handleStasisStart(w http.ResponseWriter, r *http.Request, event *asterisk.ARIEvent) {
 	if event.Channel == nil {
-		h.respondError(w, http.StatusBadRequest, "channel is required")
+		response.WriteError(r.Context(), w, http.StatusBadRequest, "INVALID_CHANNEL", "channel is required", nil)
 		return
 	}
 
@@ -81,7 +82,7 @@ func (h *AsteriskHandler) handleStasisStart(w http.ResponseWriter, r *http.Reque
 			zap.Error(err),
 			zap.String("channel_id", channelID),
 		)
-		h.respondError(w, http.StatusInternalServerError, "failed to handle call")
+		response.WriteError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to handle call", nil)
 		return
 	}
 
@@ -95,13 +96,13 @@ func (h *AsteriskHandler) handleStasisStart(w http.ResponseWriter, r *http.Reque
 		h.logger.Error("failed to answer call", zap.Error(err))
 	}
 
-	w.WriteHeader(http.StatusOK)
+	response.WriteSuccess(r.Context(), w, http.StatusOK, statusMessageResponse{Message: "call received"})
 }
 
 // handleStasisEnd handles when a channel leaves the Stasis application.
 func (h *AsteriskHandler) handleStasisEnd(w http.ResponseWriter, r *http.Request, event *asterisk.ARIEvent) {
 	if event.Channel == nil {
-		w.WriteHeader(http.StatusOK)
+		response.WriteSuccess(r.Context(), w, http.StatusOK, nil)
 		return
 	}
 
@@ -112,13 +113,13 @@ func (h *AsteriskHandler) handleStasisEnd(w http.ResponseWriter, r *http.Request
 		zap.String("channel_id", channelID),
 	)
 
-	w.WriteHeader(http.StatusOK)
+	response.WriteSuccess(r.Context(), w, http.StatusOK, statusMessageResponse{Message: "stasis ended"})
 }
 
 // handleChannelAnswered handles when a channel is answered.
 func (h *AsteriskHandler) handleChannelAnswered(w http.ResponseWriter, r *http.Request, event *asterisk.ARIEvent) {
 	if event.Channel == nil {
-		w.WriteHeader(http.StatusOK)
+		response.WriteSuccess(r.Context(), w, http.StatusOK, nil)
 		return
 	}
 
@@ -131,13 +132,13 @@ func (h *AsteriskHandler) handleChannelAnswered(w http.ResponseWriter, r *http.R
 	// - Select agent
 	// - Start STT/TTS loop
 
-	w.WriteHeader(http.StatusOK)
+	response.WriteSuccess(r.Context(), w, http.StatusOK, statusMessageResponse{Message: "channel answered"})
 }
 
 // handleChannelHangup handles hangup requests.
 func (h *AsteriskHandler) handleChannelHangup(w http.ResponseWriter, r *http.Request, event *asterisk.ARIEvent) {
 	if event.Channel == nil {
-		w.WriteHeader(http.StatusOK)
+		response.WriteSuccess(r.Context(), w, http.StatusOK, nil)
 		return
 	}
 
@@ -151,13 +152,13 @@ func (h *AsteriskHandler) handleChannelHangup(w http.ResponseWriter, r *http.Req
 	// callID := lookupCallByChannelID(channelID)
 	// h.callService.EndCall(r.Context(), callID)
 
-	w.WriteHeader(http.StatusOK)
+	response.WriteSuccess(r.Context(), w, http.StatusOK, statusMessageResponse{Message: "channel hangup"})
 }
 
 // handleChannelDestroyed handles when a channel is destroyed.
 func (h *AsteriskHandler) handleChannelDestroyed(w http.ResponseWriter, r *http.Request, event *asterisk.ARIEvent) {
 	if event.Channel == nil {
-		w.WriteHeader(http.StatusOK)
+		response.WriteSuccess(r.Context(), w, http.StatusOK, nil)
 		return
 	}
 
@@ -168,15 +169,5 @@ func (h *AsteriskHandler) handleChannelDestroyed(w http.ResponseWriter, r *http.
 	)
 
 	// Final cleanup
-	w.WriteHeader(http.StatusOK)
-}
-
-// respondError writes an error response.
-func (h *AsteriskHandler) respondError(w http.ResponseWriter, status int, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(ErrorResponse{
-		Error:   http.StatusText(status),
-		Message: message,
-	})
+	response.WriteSuccess(r.Context(), w, http.StatusOK, statusMessageResponse{Message: "channel destroyed"})
 }

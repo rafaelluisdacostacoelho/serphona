@@ -2,10 +2,12 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
 	"github.com/google/uuid"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/response"
 	"go.uber.org/zap"
 
 	callservice "voice-gateway/internal/application/call"
@@ -46,23 +48,24 @@ type GetCallResponse struct {
 
 // GetCall handles GET /api/v1/calls/{call_id}
 func (h *CallHandler) GetCall(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	// Extract call_id from URL path
 	callIDStr := r.PathValue("call_id")
 	if callIDStr == "" {
-		h.respondError(w, http.StatusBadRequest, "call_id is required")
+		h.writeError(ctx, w, http.StatusBadRequest, "INVALID_CALL_ID", "call_id is required")
 		return
 	}
 
 	callID, err := uuid.Parse(callIDStr)
 	if err != nil {
-		h.respondError(w, http.StatusBadRequest, "invalid call_id format")
+		h.writeError(ctx, w, http.StatusBadRequest, "INVALID_CALL_ID", "invalid call_id format")
 		return
 	}
 
 	// Get call from service
 	call, err := h.callService.GetCallState(r.Context(), callID)
 	if err != nil {
-		h.respondError(w, http.StatusNotFound, "call not found")
+		h.writeError(ctx, w, http.StatusNotFound, "NOT_FOUND", "call not found")
 		return
 	}
 
@@ -86,7 +89,7 @@ func (h *CallHandler) GetCall(w http.ResponseWriter, r *http.Request) {
 		response.Duration = call.Duration.Milliseconds()
 	}
 
-	h.respondJSON(w, http.StatusOK, response)
+	h.writeSuccess(ctx, w, http.StatusOK, response)
 }
 
 // EndCallRequest represents an end call request.
@@ -96,25 +99,26 @@ type EndCallRequest struct {
 
 // EndCall handles DELETE /api/v1/calls/{call_id}
 func (h *CallHandler) EndCall(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	callIDStr := r.PathValue("call_id")
 	if callIDStr == "" {
-		h.respondError(w, http.StatusBadRequest, "call_id is required")
+		h.writeError(ctx, w, http.StatusBadRequest, "INVALID_CALL_ID", "call_id is required")
 		return
 	}
 
 	callID, err := uuid.Parse(callIDStr)
 	if err != nil {
-		h.respondError(w, http.StatusBadRequest, "invalid call_id format")
+		h.writeError(ctx, w, http.StatusBadRequest, "INVALID_CALL_ID", "invalid call_id format")
 		return
 	}
 
 	// End call
 	if err := h.callService.EndCall(r.Context(), callID); err != nil {
-		h.respondError(w, http.StatusInternalServerError, "failed to end call")
+		h.writeError(ctx, w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to end call")
 		return
 	}
 
-	h.respondJSON(w, http.StatusOK, map[string]string{"status": "call ended"})
+	h.writeSuccess(ctx, w, http.StatusOK, statusMessageResponse{Message: "call ended"})
 }
 
 // TransferCallRequest represents a transfer call request.
@@ -126,36 +130,37 @@ type TransferCallRequest struct {
 
 // TransferCall handles POST /api/v1/calls/{call_id}/transfer
 func (h *CallHandler) TransferCall(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	callIDStr := r.PathValue("call_id")
 	if callIDStr == "" {
-		h.respondError(w, http.StatusBadRequest, "call_id is required")
+		h.writeError(ctx, w, http.StatusBadRequest, "INVALID_CALL_ID", "call_id is required")
 		return
 	}
 
 	callID, err := uuid.Parse(callIDStr)
 	if err != nil {
-		h.respondError(w, http.StatusBadRequest, "invalid call_id format")
+		h.writeError(ctx, w, http.StatusBadRequest, "INVALID_CALL_ID", "invalid call_id format")
 		return
 	}
 
 	var req TransferCallRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.respondError(w, http.StatusBadRequest, "invalid request body")
+		h.writeError(ctx, w, http.StatusBadRequest, "INVALID_REQUEST", "invalid request body")
 		return
 	}
 
 	if req.Type == "" || req.Target == "" {
-		h.respondError(w, http.StatusBadRequest, "type and target are required")
+		h.writeError(ctx, w, http.StatusBadRequest, "VALIDATION_ERROR", "type and target are required")
 		return
 	}
 
 	// Transfer call
 	if err := h.callService.TransferCall(r.Context(), callID, req.Type, req.Target, req.Reason); err != nil {
-		h.respondError(w, http.StatusInternalServerError, "failed to transfer call")
+		h.writeError(ctx, w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to transfer call")
 		return
 	}
 
-	h.respondJSON(w, http.StatusOK, map[string]string{"status": "call transferred"})
+	h.writeSuccess(ctx, w, http.StatusOK, statusMessageResponse{Message: "call transferred"})
 }
 
 // ListCallsRequest represents a list calls request (via query params).
@@ -166,22 +171,23 @@ type ListCallsResponse struct {
 
 // ListCalls handles GET /api/v1/tenants/{tenant_id}/calls
 func (h *CallHandler) ListCalls(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	tenantIDStr := r.PathValue("tenant_id")
 	if tenantIDStr == "" {
-		h.respondError(w, http.StatusBadRequest, "tenant_id is required")
+		h.writeError(ctx, w, http.StatusBadRequest, "INVALID_TENANT_ID", "tenant_id is required")
 		return
 	}
 
 	tenantID, err := uuid.Parse(tenantIDStr)
 	if err != nil {
-		h.respondError(w, http.StatusBadRequest, "invalid tenant_id format")
+		h.writeError(ctx, w, http.StatusBadRequest, "INVALID_TENANT_ID", "invalid tenant_id format")
 		return
 	}
 
 	// List calls
 	calls, err := h.callService.ListActiveCalls(r.Context(), tenantID)
 	if err != nil {
-		h.respondError(w, http.StatusInternalServerError, "failed to list calls")
+		h.writeError(ctx, w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to list calls")
 		return
 	}
 
@@ -210,26 +216,17 @@ func (h *CallHandler) ListCalls(w http.ResponseWriter, r *http.Request) {
 		response.Calls = append(response.Calls, callResp)
 	}
 
-	h.respondJSON(w, http.StatusOK, response)
+	h.writeSuccess(ctx, w, http.StatusOK, response)
 }
 
-// ErrorResponse represents an error response.
-type ErrorResponse struct {
-	Error   string `json:"error"`
+func (h *CallHandler) writeSuccess(ctx context.Context, w http.ResponseWriter, status int, data interface{}) {
+	response.WriteSuccess(ctx, w, status, data)
+}
+
+func (h *CallHandler) writeError(ctx context.Context, w http.ResponseWriter, status int, code, message string) {
+	response.WriteError(ctx, w, status, code, message, nil)
+}
+
+type statusMessageResponse struct {
 	Message string `json:"message"`
-}
-
-// respondJSON writes a JSON response.
-func (h *CallHandler) respondJSON(w http.ResponseWriter, status int, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
-}
-
-// respondError writes an error response.
-func (h *CallHandler) respondError(w http.ResponseWriter, status int, message string) {
-	h.respondJSON(w, status, ErrorResponse{
-		Error:   http.StatusText(status),
-		Message: message,
-	})
 }

@@ -90,6 +90,11 @@ Variaveis de ambiente esperadas pelos consumidores:
 ```env
 JWT_SECRET=sua-chave-jwt-super-secreta
 AUTH_GATEWAY_URL=http://auth-gateway:8080
+TENANT_ID_HEADER=X-Tenant-Id              # opcional; padrao segue a constante da biblioteca
+TRACE_REQUEST_HEADER=X-Request-Id         # opcional para servicos
+TLS_CA=/etc/ssl/certs/ca.pem              # CA opcional para chamadas ao auth-gateway
+TLS_CERT=/etc/ssl/certs/client.pem        # cert opcional para mTLS
+TLS_KEY=/etc/ssl/private/client.key       # chave opcional para mTLS
 ```
 
 Configure o secret no inicio da aplicacao (falha se nao estiver setado):
@@ -110,6 +115,8 @@ authjwt.MustSetSecretFromEnv()
 - `client.RefreshToken(refreshToken)` / `client.Logout(token)`
 - `jwt.ValidateToken(token)` — validacao local com secret configurado
 - `jwt.ExtractTokenFromHeader(header)` — parse de `Authorization: Bearer <token>`
+- `middleware.TenantIDFromContext(ctx)` — resolve o tenant a partir dos claims ou contexto explicito
+- `middleware.EnsureTenantHeader(headers, tenantID)` — injeta o tenant em headers de saida sem mutar o caller
 
 ## Seguranca
 
@@ -126,6 +133,27 @@ go test ./...
 ## Exemplos
 
 Veja `examples/` para um exemplo executavel com Gin.
+
+### Uso dos helpers de Tenant/RLS (DB, Kafka, HTTP)
+
+```go
+// Resolver tenant dos claims e aplicar antes de gravar em DB/Kafka
+tenantID, err := middleware.TenantIDFromContext(ctx)
+if err != nil {
+    return err
+}
+if err := middleware.EnforceTenant(ctx, tenantIDPayload); err != nil {
+    return err // bloqueia cross-tenant
+}
+
+// Propagar tenant em Kafka/HTTP
+headers := middleware.EnsureTenantHeader(nil, tenantID)
+msg.Headers = append(msg.Headers, kafka.Header{Key: middleware.TenantIDHeader, Value: []byte(tenantID)})
+req, _ := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
+req.Header = middleware.EnsureTenantHeader(req.Header, tenantID)
+```
+
+Os helpers preferem o tenant presente nos claims; `WithTenantID` pode ser usado para definir tenant explicitamente em fluxos sistema-a-sistema.
 
 ## Contribuicao
 

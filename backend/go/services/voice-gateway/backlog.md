@@ -15,6 +15,7 @@
 7) **Observability & readiness**: Only zap logging and a bare Prometheus handler; no tracing, no metrics for ARI/STT/TTS latency, call states, failures, or queue depths. Readiness probe ignores dependencies (Redis/Kafka/Asterisk).
 8) **Security/PII**: No validation/normalization of phone numbers, no input limits, no rate limiting; secrets for Asterisk/Google/ElevenLabs are used directly with no rotation policy; recording/transcript retention and PII masking are undefined.
 9) **Testing/runbooks**: No unit/contract tests for ARI webhooks, call state repo, or provider adapters; no fakes for Asterisk/Redis/Kafka; no load or chaos tests. Missing runbooks for telephony outages, DLQ replay, provider throttling, and tenant misconfiguration.
+10) **Response contract**: when wiring management APIs, adopt the shared envelope helper (success data/meta; error code/message/details/trace_id) and align webhook error responses to avoid leaking internals.
 
 ## Configuration to surface/validate
 - Required: Asterisk ARI creds/URLs, Redis URL/TTL, Kafka brokers/topic prefix, tenant-manager URL, STT/TTS provider creds/configs, max concurrent calls, timeouts (read/write/call/silence), recording flags, metrics port/path.

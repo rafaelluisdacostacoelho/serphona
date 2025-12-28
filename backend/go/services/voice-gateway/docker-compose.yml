@@ -34,7 +34,9 @@ services:
       
       # External Services
       - TENANT_MANAGER_URL=http://tenant-manager:8081
+      - TENANT_MANAGER_TOKEN=
       - AGENT_ORCHESTRATOR_URL=http://agent-orchestrator:8082
+      - AGENT_ORCHESTRATOR_TOKEN=
       
       # Providers
       - DEFAULT_STT_PROVIDER=google

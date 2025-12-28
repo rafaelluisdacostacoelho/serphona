@@ -28,6 +28,7 @@
 10) API hygiene: add validation, consistent error codes, pagination, sorting, filtering; protect agent/session routes with auth + scope checks; add OpenAPI spec and contract tests.
 11) Docs/runbooks: add README/PLANNING alignment, config matrix, SLOs, runbooks for LLM/tool outages, DLQ replay, and rate-limit escalation; example deployments (env, compose, k8s).
 12) Testing: unit tests for handlers (auth/tenant), session/agent services, LLM/tool orchestration with fakes, rate limits, retries/circuit, metrics/traces; integration tests with fake Tools Gateway + fake LLM; load tests for concurrency.
+13) Response contract: adopt the shared envelope helper (success data/meta; error code/message/details/trace_id) for HTTP handlers and align tool/LLM error surfaces to it when middleware lands.
 
 ## Config to surface
 - HTTP_ADDR, TLS cert/key (if enabled); REDIS_ADDR/PASSWORD/DB/TTL; DATABASE_URL + RLS; TOOLS_GATEWAY_URL / MCP_ENDPOINT + auth; OPENAI_API_KEY/ANTHROPIC_API_KEY, MODEL defaults, LLM_TIMEOUT/RETRIES; RATE_LIMITS per tenant/channel; DLQ topic/endpoint; METRICS_PORT/OTEL_EXPORTER; AUTH_ISSUER/AUDIENCE/SCOPES/TENANT_CLAIM.

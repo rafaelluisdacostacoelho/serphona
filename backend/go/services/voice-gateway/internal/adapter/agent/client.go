@@ -10,22 +10,26 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	authclient "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/client"
 	"go.uber.org/zap"
 )
 
 // Client is an HTTP client for agent-orchestrator service.
 type Client struct {
-	baseURL    string
-	httpClient *http.Client
-	logger     *zap.Logger
+	baseURL      string
+	httpClient   *http.Client
+	logger       *zap.Logger
+	serviceToken string
 }
 
 // NewClient creates a new agent orchestrator client.
-func NewClient(baseURL string, logger *zap.Logger) *Client {
+func NewClient(baseURL, serviceToken string, logger *zap.Logger) *Client {
 	return &Client{
-		baseURL: baseURL,
+		baseURL:      baseURL,
+		serviceToken: serviceToken,
 		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout:   30 * time.Second,
+			Transport: authclient.WithDefaultTransport(nil),
 		},
 		logger: logger,
 	}
@@ -71,6 +75,9 @@ func (c *Client) CreateConversation(ctx context.Context, tenantID uuid.UUID, age
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+	if c.serviceToken != "" && httpReq.Header.Get("Authorization") == "" {
+		httpReq.Header.Set("Authorization", "Bearer "+c.serviceToken)
+	}
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
@@ -132,6 +139,9 @@ func (c *Client) SubmitTurn(ctx context.Context, conversationID uuid.UUID, userM
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+	if c.serviceToken != "" && httpReq.Header.Get("Authorization") == "" {
+		httpReq.Header.Set("Authorization", "Bearer "+c.serviceToken)
+	}
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
@@ -165,6 +175,9 @@ func (c *Client) GetAgentResponse(ctx context.Context, conversationID uuid.UUID)
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	if c.serviceToken != "" && req.Header.Get("Authorization") == "" {
+		req.Header.Set("Authorization", "Bearer "+c.serviceToken)
 	}
 
 	resp, err := c.httpClient.Do(req)
@@ -208,6 +221,9 @@ func (c *Client) EndConversation(ctx context.Context, conversationID uuid.UUID, 
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+	if c.serviceToken != "" && httpReq.Header.Get("Authorization") == "" {
+		httpReq.Header.Set("Authorization", "Bearer "+c.serviceToken)
+	}
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {

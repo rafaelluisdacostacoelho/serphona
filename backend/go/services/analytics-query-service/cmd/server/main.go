@@ -14,6 +14,7 @@ import (
 	_ "github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
+	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/analytics-query-service/internal/adapter/http/handler"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/analytics-query-service/internal/domain/repository"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/analytics-query-service/internal/infrastructure/middleware"
@@ -199,6 +200,7 @@ func setupRouter(analyticsHandler *handler.AnalyticsHandler, config Config) *gin
 
 	// API v1 routes
 	v1 := router.Group("/api/v1")
+	v1.Use(authmw.RequireAuth())
 	{
 		// Dashboard metrics
 		v1.GET("/metrics/overview", analyticsHandler.GetOverviewMetrics)

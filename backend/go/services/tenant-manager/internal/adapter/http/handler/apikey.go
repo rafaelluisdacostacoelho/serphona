@@ -9,6 +9,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	autherrors "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/errors"
+	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/response"
 	"go.uber.org/zap"
 
 	apikeyapp "tenant-manager/internal/application/apikey"
@@ -55,17 +58,20 @@ func NewGinAPIKeyHandler(service *apikeyapp.Service, logger *zap.Logger) *GinAPI
 func (h *GinAPIKeyHandler) Create(c *gin.Context) {
 	tenantID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		h.respondError(c, http.StatusBadRequest, "invalid_tenant_id", "invalid tenant id")
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusBadRequest, "INVALID_TENANT_ID", "invalid tenant id", nil)
+		return
+	}
+	if !h.enforceTenantContext(c, tenantID) {
 		return
 	}
 
 	var req CreateAPIKeyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		h.respondError(c, http.StatusBadRequest, "invalid_body", "invalid JSON body")
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusBadRequest, "INVALID_BODY", "invalid JSON body", nil)
 		return
 	}
 	if req.Name == "" || len(req.Permissions) == 0 {
-		h.respondError(c, http.StatusBadRequest, "validation_error", "name and permissions are required")
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusBadRequest, "VALIDATION_ERROR", "name and permissions are required", nil)
 		return
 	}
 
@@ -77,14 +83,17 @@ func (h *GinAPIKeyHandler) Create(c *gin.Context) {
 
 	resp := toAPIKeyResponse(key)
 	resp.RawKey = rawKey
-	c.JSON(http.StatusCreated, resp)
+	response.WriteSuccess(c.Request.Context(), c.Writer, http.StatusCreated, resp)
 }
 
 // List handles GET /tenants/:id/api-keys
 func (h *GinAPIKeyHandler) List(c *gin.Context) {
 	tenantID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		h.respondError(c, http.StatusBadRequest, "invalid_tenant_id", "invalid tenant id")
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusBadRequest, "INVALID_TENANT_ID", "invalid tenant id", nil)
+		return
+	}
+	if !h.enforceTenantContext(c, tenantID) {
 		return
 	}
 
@@ -103,14 +112,14 @@ func (h *GinAPIKeyHandler) List(c *gin.Context) {
 	for _, k := range keys {
 		resp = append(resp, toAPIKeyResponse(k))
 	}
-	c.JSON(http.StatusOK, resp)
+	response.WriteSuccess(c.Request.Context(), c.Writer, http.StatusOK, resp)
 }
 
 // Delete handles DELETE /tenants/:id/api-keys/:keyId
 func (h *GinAPIKeyHandler) Delete(c *gin.Context) {
 	keyID, err := uuid.Parse(c.Param("keyId"))
 	if err != nil {
-		h.respondError(c, http.StatusBadRequest, "invalid_key_id", "invalid key id")
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusBadRequest, "INVALID_KEY_ID", "invalid key id", nil)
 		return
 	}
 
@@ -119,7 +128,7 @@ func (h *GinAPIKeyHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	c.Status(http.StatusNoContent)
+	response.WriteSuccess(c.Request.Context(), c.Writer, http.StatusNoContent, nil)
 }
 
 // Helpers
@@ -150,21 +159,29 @@ func toAPIKeyResponse(k *domainapikey.APIKey) APIKeyResponse {
 func (h *GinAPIKeyHandler) handleDomainError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, domainapikey.ErrNotFound):
-		h.respondError(c, http.StatusNotFound, "not_found", err.Error())
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusNotFound, "NOT_FOUND", err.Error(), nil)
 	case errors.Is(err, domainapikey.ErrNameAlreadyExists):
-		h.respondError(c, http.StatusConflict, "conflict", err.Error())
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusConflict, "CONFLICT", err.Error(), nil)
 	case errors.Is(err, domainapikey.ErrInvalidPermissions), errors.Is(err, domainapikey.ErrEmptyPermissions),
 		errors.Is(err, domainapikey.ErrEmptyName), errors.Is(err, domainapikey.ErrNameTooShort), errors.Is(err, domainapikey.ErrNameTooLong):
-		h.respondError(c, http.StatusBadRequest, "validation_error", err.Error())
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusBadRequest, "VALIDATION_ERROR", err.Error(), nil)
 	default:
 		h.logger.Error("api key handler error", zap.Error(err))
-		h.respondError(c, http.StatusInternalServerError, "internal_error", "internal error")
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusInternalServerError, "INTERNAL_ERROR", "internal error", nil)
 	}
 }
 
-func (h *GinAPIKeyHandler) respondError(c *gin.Context, status int, code, message string) {
-	c.JSON(status, map[string]string{
-		"error":   code,
-		"message": message,
-	})
+func (h *GinAPIKeyHandler) enforceTenantContext(c *gin.Context, tenantID uuid.UUID) bool {
+	if err := authmw.EnforceTenant(c.Request.Context(), tenantID.String()); err != nil {
+		switch {
+		case errors.Is(err, autherrors.ErrUnauthorized):
+			response.WriteError(c.Request.Context(), c.Writer, http.StatusUnauthorized, "UNAUTHORIZED", "missing tenant context", nil)
+		case errors.Is(err, autherrors.ErrInsufficientPermissions):
+			response.WriteError(c.Request.Context(), c.Writer, http.StatusForbidden, "FORBIDDEN", "tenant mismatch", nil)
+		default:
+			response.WriteError(c.Request.Context(), c.Writer, http.StatusInternalServerError, "INTERNAL_ERROR", "tenant validation failed", nil)
+		}
+		return false
+	}
+	return true
 }

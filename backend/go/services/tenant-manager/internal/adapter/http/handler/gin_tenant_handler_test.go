@@ -2,14 +2,17 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"context"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/response"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.uber.org/zap/zaptest"
 
 	"tenant-manager/internal/application/tenant"
@@ -107,21 +110,25 @@ func (r *tenantRepoStub) ExistsByEmail(_ context.Context, email string) (bool, e
 
 type noopCache struct{}
 
-func (noopCache) Get(_ context.Context, _ string) (*domain.Tenant, error)              { return nil, nil }
-func (noopCache) Set(_ context.Context, _ string, _ *domain.Tenant) error              { return nil }
-func (noopCache) Delete(_ context.Context, _ string) error                             { return nil }
-func (noopCache) GetSettings(_ context.Context, _ uuid.UUID) (*domain.Settings, error) { return nil, nil }
+func (noopCache) Get(_ context.Context, _ string) (*domain.Tenant, error) { return nil, nil }
+func (noopCache) Set(_ context.Context, _ string, _ *domain.Tenant) error { return nil }
+func (noopCache) Delete(_ context.Context, _ string) error                { return nil }
+func (noopCache) GetSettings(_ context.Context, _ uuid.UUID) (*domain.Settings, error) {
+	return nil, nil
+}
 func (noopCache) SetSettings(_ context.Context, _ uuid.UUID, _ *domain.Settings) error { return nil }
 func (noopCache) Invalidate(_ context.Context, _ uuid.UUID) error                      { return nil }
 
 type noopPublisher struct{}
 
-func (noopPublisher) PublishCreated(_ context.Context, _ *domain.Tenant) error                     { return nil }
-func (noopPublisher) PublishUpdated(_ context.Context, _ *domain.Tenant) error                     { return nil }
-func (noopPublisher) PublishDeleted(_ context.Context, _ uuid.UUID) error                          { return nil }
-func (noopPublisher) PublishActivated(_ context.Context, _ *domain.Tenant) error                   { return nil }
-func (noopPublisher) PublishSuspended(_ context.Context, _ *domain.Tenant) error                   { return nil }
-func (noopPublisher) PublishSettingsUpdated(_ context.Context, _ uuid.UUID, _ *domain.Settings) error { return nil }
+func (noopPublisher) PublishCreated(_ context.Context, _ *domain.Tenant) error   { return nil }
+func (noopPublisher) PublishUpdated(_ context.Context, _ *domain.Tenant) error   { return nil }
+func (noopPublisher) PublishDeleted(_ context.Context, _ uuid.UUID) error        { return nil }
+func (noopPublisher) PublishActivated(_ context.Context, _ *domain.Tenant) error { return nil }
+func (noopPublisher) PublishSuspended(_ context.Context, _ *domain.Tenant) error { return nil }
+func (noopPublisher) PublishSettingsUpdated(_ context.Context, _ uuid.UUID, _ *domain.Settings) error {
+	return nil
+}
 
 func TestGinTenantHandlerCreateAndList(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -149,11 +156,63 @@ func TestGinTenantHandlerCreateAndList(t *testing.T) {
 	if rec2.Code != http.StatusOK {
 		t.Fatalf("expected 200 on list, got %d", rec2.Code)
 	}
-	var listResp ListTenantsResponse
+	var listResp struct {
+		Data ListTenantsResponse `json:"data"`
+	}
 	if err := json.Unmarshal(rec2.Body.Bytes(), &listResp); err != nil {
 		t.Fatalf("failed to parse list response: %v", err)
 	}
-	if len(listResp.Tenants) != 1 {
-		t.Fatalf("expected 1 tenant, got %d", len(listResp.Tenants))
+	if len(listResp.Data.Tenants) != 1 {
+		t.Fatalf("expected 1 tenant, got %d", len(listResp.Data.Tenants))
+	}
+}
+
+func TestGinTenantHandlerListEnvelopeContract(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := newTenantRepoStub()
+	svc := tenant.NewService(repo, nil, noopCache{}, noopPublisher{}, zaptest.NewLogger(t))
+	h := NewGinTenantHandler(svc, zaptest.NewLogger(t))
+
+	// Seed one tenant directly via repo stub.
+	tenantID := uuid.New()
+	repo.items[tenantID] = &domain.Tenant{ID: tenantID, Name: "Acme", Email: "acme@example.com"}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants?page=1&page_size=5", nil)
+
+	tracer := sdktrace.NewTracerProvider()
+	ctx, span := tracer.Tracer("test").Start(req.Context(), "list-tenants")
+	ctx = authmw.WithRequestID(ctx, "req-tenant-1")
+	req = req.WithContext(ctx)
+	span.End()
+
+	c.Request = req
+	h.List(c)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	var payload struct {
+		Data ListTenantsResponse `json:"data"`
+		Meta response.Meta       `json:"meta"`
+	}
+
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if payload.Meta.RequestID != "req-tenant-1" {
+		t.Fatalf("expected request_id req-tenant-1, got %s", payload.Meta.RequestID)
+	}
+	if payload.Meta.TraceID == "" {
+		t.Fatalf("expected trace_id to be populated")
+	}
+	if payload.Meta.Pagination == nil || payload.Meta.Pagination.Total != 1 || payload.Meta.Pagination.PageSize != 5 {
+		t.Fatalf("unexpected pagination meta: %#v", payload.Meta.Pagination)
+	}
+	if len(payload.Data.Tenants) != 1 {
+		t.Fatalf("expected 1 tenant, got %d", len(payload.Data.Tenants))
 	}
 }

@@ -25,6 +25,7 @@
 8) MCP/Agent: expose catalog/discovery endpoint or gRPC for agent-orchestrator/MCP; standardize tool schema contracts and versioning.
 9) Testing: contract tests for tool schema validation, auth/tenant isolation, execution error paths, OAuth flows with fake provider, retry/backoff behavior, and metrics/tracing emission.
 10) Runbooks: tool onboarding/disable, rotating secrets, handling downstream outages/DLQ replay, quota/rate-limit tuning, OAuth token refresh failures.
+11) Response contract: adopt the shared envelope helper (success data/meta; error code/message/details/trace_id) for all HTTP handlers and adjust execution error mapping/tests accordingly.
 
 ## Config to surface
 - HTTP addr, timeouts, body size, CORS, rate limits.

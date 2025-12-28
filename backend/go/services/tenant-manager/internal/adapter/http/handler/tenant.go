@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/response"
 	"go.uber.org/zap"
 
 	apperrors "tenant-manager/pkg/errors"
@@ -73,14 +74,6 @@ type TenantResponse struct {
 	BillingEmail string                 `json:"billing_email,omitempty"`
 }
 
-// ErrorResponse represents an error response.
-type ErrorResponse struct {
-	Error   string            `json:"error"`
-	Message string            `json:"message"`
-	Details map[string]string `json:"details,omitempty"`
-	TraceID string            `json:"trace_id,omitempty"`
-}
-
 // ListTenantsResponse represents the response for listing tenants.
 type ListTenantsResponse struct {
 	Tenants    []TenantResponse `json:"tenants"`
@@ -109,7 +102,7 @@ func (h *TenantHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// Parse request body
 	var req CreateTenantRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.respondError(w, r, http.StatusBadRequest, "invalid_request", "Invalid JSON body", nil)
+		response.WriteError(ctx, w, http.StatusBadRequest, "INVALID_REQUEST", "Invalid JSON body", nil)
 		return
 	}
 
@@ -119,7 +112,7 @@ func (h *TenantHandler) Create(w http.ResponseWriter, r *http.Request) {
 		for _, err := range err.(validator.ValidationErrors) {
 			validationErrors[err.Field()] = getValidationMessage(err)
 		}
-		h.respondError(w, r, http.StatusBadRequest, "validation_error", "Validation failed", validationErrors)
+		response.WriteError(ctx, w, http.StatusBadRequest, "VALIDATION_ERROR", "Validation failed", validationErrors)
 		return
 	}
 
@@ -147,7 +140,7 @@ func (h *TenantHandler) Create(w http.ResponseWriter, r *http.Request) {
 		zap.String("request_id", requestID),
 	)
 
-	h.respondJSON(w, http.StatusCreated, toTenantResponse(result))
+	response.WriteSuccess(ctx, w, http.StatusCreated, toTenantResponse(result))
 }
 
 // Get handles GET /api/v1/tenants/{id}
@@ -168,7 +161,7 @@ func (h *TenantHandler) Get(w http.ResponseWriter, r *http.Request) {
 	idParam := chi.URLParam(r, "id")
 	tenantID, err := uuid.Parse(idParam)
 	if err != nil {
-		h.respondError(w, r, http.StatusBadRequest, "invalid_id", "Invalid tenant ID format", nil)
+		response.WriteError(ctx, w, http.StatusBadRequest, "INVALID_ID", "Invalid tenant ID format", nil)
 		return
 	}
 
@@ -179,7 +172,7 @@ func (h *TenantHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.respondJSON(w, http.StatusOK, toTenantResponse(result))
+	response.WriteSuccess(ctx, w, http.StatusOK, toTenantResponse(result))
 }
 
 // Update handles PUT /api/v1/tenants/{id}
@@ -203,14 +196,14 @@ func (h *TenantHandler) Update(w http.ResponseWriter, r *http.Request) {
 	idParam := chi.URLParam(r, "id")
 	tenantID, err := uuid.Parse(idParam)
 	if err != nil {
-		h.respondError(w, r, http.StatusBadRequest, "invalid_id", "Invalid tenant ID format", nil)
+		response.WriteError(ctx, w, http.StatusBadRequest, "INVALID_ID", "Invalid tenant ID format", nil)
 		return
 	}
 
 	// Parse request body
 	var req UpdateTenantRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.respondError(w, r, http.StatusBadRequest, "invalid_request", "Invalid JSON body", nil)
+		response.WriteError(ctx, w, http.StatusBadRequest, "INVALID_REQUEST", "Invalid JSON body", nil)
 		return
 	}
 
@@ -220,7 +213,7 @@ func (h *TenantHandler) Update(w http.ResponseWriter, r *http.Request) {
 		for _, err := range err.(validator.ValidationErrors) {
 			validationErrors[err.Field()] = getValidationMessage(err)
 		}
-		h.respondError(w, r, http.StatusBadRequest, "validation_error", "Validation failed", validationErrors)
+		response.WriteError(ctx, w, http.StatusBadRequest, "VALIDATION_ERROR", "Validation failed", validationErrors)
 		return
 	}
 
@@ -244,7 +237,7 @@ func (h *TenantHandler) Update(w http.ResponseWriter, r *http.Request) {
 		zap.String("request_id", requestID),
 	)
 
-	h.respondJSON(w, http.StatusOK, toTenantResponse(result))
+	response.WriteSuccess(ctx, w, http.StatusOK, toTenantResponse(result))
 }
 
 // Delete handles DELETE /api/v1/tenants/{id}
@@ -266,7 +259,7 @@ func (h *TenantHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	idParam := chi.URLParam(r, "id")
 	tenantID, err := uuid.Parse(idParam)
 	if err != nil {
-		h.respondError(w, r, http.StatusBadRequest, "invalid_id", "Invalid tenant ID format", nil)
+		response.WriteError(ctx, w, http.StatusBadRequest, "INVALID_ID", "Invalid tenant ID format", nil)
 		return
 	}
 
@@ -281,7 +274,7 @@ func (h *TenantHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		zap.String("request_id", requestID),
 	)
 
-	w.WriteHeader(http.StatusNoContent)
+	response.WriteSuccess(ctx, w, http.StatusNoContent, nil)
 }
 
 // List handles GET /api/v1/tenants
@@ -329,7 +322,7 @@ func (h *TenantHandler) List(w http.ResponseWriter, r *http.Request) {
 		tenants[i] = *toTenantResponse(t)
 	}
 
-	response := ListTenantsResponse{
+	resp := ListTenantsResponse{
 		Tenants:    tenants,
 		Total:      result.Total,
 		Page:       result.Page,
@@ -337,27 +330,7 @@ func (h *TenantHandler) List(w http.ResponseWriter, r *http.Request) {
 		TotalPages: result.TotalPages,
 	}
 
-	h.respondJSON(w, http.StatusOK, response)
-}
-
-// respondJSON sends a JSON response.
-func (h *TenantHandler) respondJSON(w http.ResponseWriter, status int, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	if data != nil {
-		json.NewEncoder(w).Encode(data)
-	}
-}
-
-// respondError sends an error response.
-func (h *TenantHandler) respondError(w http.ResponseWriter, r *http.Request, status int, errCode, message string, details map[string]string) {
-	response := ErrorResponse{
-		Error:   errCode,
-		Message: message,
-		Details: details,
-		TraceID: getRequestID(r.Context()),
-	}
-	h.respondJSON(w, status, response)
+	response.WriteSuccess(ctx, w, http.StatusOK, resp, response.WithPagination(response.Pagination{Page: result.Page, PageSize: result.PageSize, Total: int(result.Total), TotalPages: result.TotalPages}))
 }
 
 // handleServiceError handles errors from the application service.
@@ -366,24 +339,24 @@ func (h *TenantHandler) handleServiceError(w http.ResponseWriter, r *http.Reques
 	if errors.As(err, &appErr) {
 		switch appErr.Code {
 		case apperrors.ErrNotFound:
-			h.respondError(w, r, http.StatusNotFound, "not_found", appErr.Message, nil)
+			response.WriteError(r.Context(), w, http.StatusNotFound, "NOT_FOUND", appErr.Message, nil)
 		case apperrors.ErrConflict:
-			h.respondError(w, r, http.StatusConflict, "conflict", appErr.Message, nil)
+			response.WriteError(r.Context(), w, http.StatusConflict, "CONFLICT", appErr.Message, nil)
 		case apperrors.ErrValidation:
-			h.respondError(w, r, http.StatusBadRequest, "validation_error", appErr.Message, nil)
+			response.WriteError(r.Context(), w, http.StatusBadRequest, "VALIDATION_ERROR", appErr.Message, nil)
 		case apperrors.ErrUnauthorized:
-			h.respondError(w, r, http.StatusUnauthorized, "unauthorized", appErr.Message, nil)
+			response.WriteError(r.Context(), w, http.StatusUnauthorized, "UNAUTHORIZED", appErr.Message, nil)
 		case apperrors.ErrForbidden:
-			h.respondError(w, r, http.StatusForbidden, "forbidden", appErr.Message, nil)
+			response.WriteError(r.Context(), w, http.StatusForbidden, "FORBIDDEN", appErr.Message, nil)
 		default:
 			h.logger.Error("internal error", zap.Error(err))
-			h.respondError(w, r, http.StatusInternalServerError, "internal_error", "An internal error occurred", nil)
+			response.WriteError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An internal error occurred", nil)
 		}
 		return
 	}
 
 	h.logger.Error("unexpected error", zap.Error(err))
-	h.respondError(w, r, http.StatusInternalServerError, "internal_error", "An internal error occurred", nil)
+	response.WriteError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An internal error occurred", nil)
 }
 
 // toTenantResponse converts a domain tenant to a response DTO.

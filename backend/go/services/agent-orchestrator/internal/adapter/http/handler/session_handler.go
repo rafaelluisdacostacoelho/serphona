@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/response"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/adapter/http/dto"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/usecase"
 )
@@ -30,80 +31,84 @@ func NewSessionHandler(
 // CreateSession creates a new session
 // POST /api/v1/sessions
 func (h *SessionHandler) CreateSession(c *gin.Context) {
+	ctx := c.Request.Context()
 	var req dto.CreateSessionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_REQUEST", "invalid JSON body", nil)
 		return
 	}
 
 	session, err := h.sessionService.CreateSession(
-		c.Request.Context(),
+		ctx,
 		req.TenantID,
 		req.UserID,
 		req.ChannelType,
 		req.ChannelID,
 	)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		response.WriteError(ctx, c.Writer, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to create session", map[string]string{"reason": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusCreated, dto.ToSessionResponse(session))
+	response.WriteSuccess(ctx, c.Writer, http.StatusCreated, dto.ToSessionResponse(session))
 }
 
 // GetSession retrieves a session by ID
 // GET /api/v1/sessions/:id
 func (h *SessionHandler) GetSession(c *gin.Context) {
+	ctx := c.Request.Context()
 	sessionID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid session ID"})
+		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_ID", "invalid session ID", nil)
 		return
 	}
 
 	session, err := h.sessionService.GetSession(c.Request.Context(), sessionID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		response.WriteError(ctx, c.Writer, http.StatusNotFound, "NOT_FOUND", err.Error(), nil)
 		return
 	}
 
-	c.JSON(http.StatusOK, dto.ToSessionResponse(session))
+	response.WriteSuccess(ctx, c.Writer, http.StatusOK, dto.ToSessionResponse(session))
 }
 
 // EndSession ends a session
 // DELETE /api/v1/sessions/:id
 func (h *SessionHandler) EndSession(c *gin.Context) {
+	ctx := c.Request.Context()
 	sessionID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid session ID"})
+		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_ID", "invalid session ID", nil)
 		return
 	}
 
 	if err := h.sessionService.EndSession(c.Request.Context(), sessionID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		response.WriteError(ctx, c.Writer, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to end session", map[string]string{"reason": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "session ended successfully"})
+	response.WriteSuccess(ctx, c.Writer, http.StatusOK, statusMessageResponse{Message: "session ended successfully"})
 }
 
 // SendMessage sends a message in a session
 // POST /api/v1/sessions/:id/messages
 func (h *SessionHandler) SendMessage(c *gin.Context) {
+	ctx := c.Request.Context()
 	sessionID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid session ID"})
+		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_ID", "invalid session ID", nil)
 		return
 	}
 
 	var req dto.SendMessageRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_REQUEST", "invalid JSON body", nil)
 		return
 	}
 
 	// Process message
-	response, err := h.messageProcessing.ProcessMessage(
-		c.Request.Context(),
+	msgResponse, err := h.messageProcessing.ProcessMessage(
+		ctx,
 		&usecase.ProcessMessageRequest{
 			SessionID: sessionID,
 			Content:   req.Content,
@@ -111,19 +116,20 @@ func (h *SessionHandler) SendMessage(c *gin.Context) {
 		},
 	)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		response.WriteError(ctx, c.Writer, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to process message", map[string]string{"reason": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, dto.ToProcessMessageResponse(response))
+	response.WriteSuccess(ctx, c.Writer, http.StatusOK, dto.ToProcessMessageResponse(msgResponse))
 }
 
 // GetMessages retrieves messages for a session
 // GET /api/v1/sessions/:id/messages
 func (h *SessionHandler) GetMessages(c *gin.Context) {
+	ctx := c.Request.Context()
 	sessionID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid session ID"})
+		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_ID", "invalid session ID", nil)
 		return
 	}
 
@@ -143,7 +149,7 @@ func (h *SessionHandler) GetMessages(c *gin.Context) {
 
 	messages, err := h.sessionService.GetMessages(c.Request.Context(), sessionID, limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		response.WriteError(ctx, c.Writer, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to get messages", map[string]string{"reason": err.Error()})
 		return
 	}
 
@@ -153,11 +159,11 @@ func (h *SessionHandler) GetMessages(c *gin.Context) {
 		dtos = append(dtos, dto.ToMessageResponse(msg))
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"messages": dtos,
-		"count":    len(dtos),
-		"limit":    limit,
-		"offset":   offset,
+	response.WriteSuccess(ctx, c.Writer, http.StatusOK, listMessagesResponse{
+		Messages: dtos,
+		Count:    len(dtos),
+		Limit:    limit,
+		Offset:   offset,
 	})
 }
 
@@ -166,4 +172,11 @@ func parseInt(s string) (int, error) {
 	var i int
 	_, err := fmt.Sscanf(s, "%d", &i)
 	return i, err
+}
+
+type listMessagesResponse struct {
+	Messages []*dto.MessageResponse `json:"messages"`
+	Count    int                    `json:"count"`
+	Limit    int                    `json:"limit"`
+	Offset   int                    `json:"offset"`
 }

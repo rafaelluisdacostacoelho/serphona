@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 )
 
 // RateLimiter implements token bucket algorithm for rate limiting
@@ -104,7 +105,15 @@ func (rl *RateLimiter) getIdentifier(c *gin.Context) string {
 		return "tenant:" + tenantID
 	}
 
+	if tenantID, err := authmw.GetTenantIDFromContext(c); err == nil && tenantID != "" {
+		return "tenant:" + tenantID
+	}
+
 	// Check headers
+	if tenantID := c.GetHeader(authmw.TenantIDHeader); tenantID != "" {
+		return "tenant:" + tenantID
+	}
+	// Backward compatibility with older header casing if present.
 	if tenantID := c.GetHeader("X-Tenant-ID"); tenantID != "" {
 		return "tenant:" + tenantID
 	}

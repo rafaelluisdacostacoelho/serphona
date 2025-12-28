@@ -7,12 +7,13 @@ import (
 
 // Claims represents the custom Serphona JWT claims.
 type Claims struct {
-	UserID    string `json:"userId"`
-	Email     string `json:"email"`
-	Name      string `json:"name"`
-	Role      string `json:"role"` // user, admin, superadmin
-	TenantID  string `json:"tenantId"`
-	SessionID string `json:"sessionId"`
+	UserID    string   `json:"userId"`
+	Email     string   `json:"email"`
+	Name      string   `json:"name"`
+	Role      string   `json:"role"` // user, admin, superadmin
+	TenantID  string   `json:"tenantId"`
+	SessionID string   `json:"sessionId"`
+	Scopes    []string `json:"scopes,omitempty"` // Optional fine-grained permissions
 	jwt.RegisteredClaims
 }
 
@@ -60,4 +61,34 @@ func (c *Claims) IsAdmin() bool {
 // IsSuperAdmin returns true when the user is superadmin.
 func (c *Claims) IsSuperAdmin() bool {
 	return c.Role == "superadmin"
+}
+
+// HasScope returns true when the user has the specified scope.
+func (c *Claims) HasScope(scope string) bool {
+	for _, s := range c.Scopes {
+		if s == scope {
+			return true
+		}
+	}
+	return false
+}
+
+// HasAnyScope returns true when the user has at least one of the specified scopes.
+func (c *Claims) HasAnyScope(scopes ...string) bool {
+	for _, required := range scopes {
+		if c.HasScope(required) {
+			return true
+		}
+	}
+	return false
+}
+
+// HasAllScopes returns true when the user has all of the specified scopes.
+func (c *Claims) HasAllScopes(scopes ...string) bool {
+	for _, required := range scopes {
+		if !c.HasScope(required) {
+			return false
+		}
+	}
+	return true
 }

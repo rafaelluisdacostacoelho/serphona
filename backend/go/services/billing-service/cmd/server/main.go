@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/billing-service/internal/config"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -104,6 +105,7 @@ func setupRouter(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	router.POST("/webhooks/stripe", handleStripeWebhook)
 
 	v1 := router.Group("/api/v1")
+	v1.Use(authmw.RequireAuth())
 	{
 		// Customers
 		customers := v1.Group("/customers")
@@ -170,14 +172,21 @@ func handleStripeWebhook(c *gin.Context) {
 // ==============================================================================
 
 func createCustomer(c *gin.Context) {
+	tenantID, ok := tenantFromContext(c)
+	if !ok {
+		return
+	}
 	// TODO: Create Stripe customer and link to tenant_id
 	c.JSON(http.StatusCreated, gin.H{
 		"customer_id": "cus_placeholder",
-		"tenant_id":   "placeholder",
+		"tenant_id":   tenantID,
 	})
 }
 
 func getCustomer(c *gin.Context) {
+	if _, ok := tenantFromContext(c); !ok {
+		return
+	}
 	customerID := c.Param("id")
 	c.JSON(http.StatusOK, gin.H{
 		"customer_id": customerID,
@@ -190,18 +199,27 @@ func getCustomer(c *gin.Context) {
 // ==============================================================================
 
 func listSubscriptions(c *gin.Context) {
+	if _, ok := tenantFromContext(c); !ok {
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"subscriptions": []gin.H{},
 	})
 }
 
 func createSubscription(c *gin.Context) {
+	if _, ok := tenantFromContext(c); !ok {
+		return
+	}
 	c.JSON(http.StatusCreated, gin.H{
 		"subscription_id": "sub_placeholder",
 	})
 }
 
 func getSubscription(c *gin.Context) {
+	if _, ok := tenantFromContext(c); !ok {
+		return
+	}
 	subID := c.Param("id")
 	c.JSON(http.StatusOK, gin.H{
 		"subscription_id": subID,
@@ -211,6 +229,9 @@ func getSubscription(c *gin.Context) {
 }
 
 func updateSubscription(c *gin.Context) {
+	if _, ok := tenantFromContext(c); !ok {
+		return
+	}
 	subID := c.Param("id")
 	c.JSON(http.StatusOK, gin.H{
 		"subscription_id": subID,
@@ -219,6 +240,9 @@ func updateSubscription(c *gin.Context) {
 }
 
 func cancelSubscription(c *gin.Context) {
+	if _, ok := tenantFromContext(c); !ok {
+		return
+	}
 	subID := c.Param("id")
 	c.JSON(http.StatusOK, gin.H{
 		"subscription_id": subID,
@@ -231,12 +255,18 @@ func cancelSubscription(c *gin.Context) {
 // ==============================================================================
 
 func listInvoices(c *gin.Context) {
+	if _, ok := tenantFromContext(c); !ok {
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"invoices": []gin.H{},
 	})
 }
 
 func getInvoice(c *gin.Context) {
+	if _, ok := tenantFromContext(c); !ok {
+		return
+	}
 	invoiceID := c.Param("id")
 	c.JSON(http.StatusOK, gin.H{
 		"invoice_id": invoiceID,
@@ -270,6 +300,9 @@ func listProducts(c *gin.Context) {
 // ==============================================================================
 
 func getUsage(c *gin.Context) {
+	if _, ok := tenantFromContext(c); !ok {
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"calls":      0,
 		"tokens":     0,
@@ -279,6 +312,9 @@ func getUsage(c *gin.Context) {
 }
 
 func createPortalSession(c *gin.Context) {
+	if _, ok := tenantFromContext(c); !ok {
+		return
+	}
 	// TODO: Create Stripe Billing Portal session
 	c.JSON(http.StatusOK, gin.H{
 		"url": "https://billing.stripe.com/session/placeholder",
@@ -286,6 +322,9 @@ func createPortalSession(c *gin.Context) {
 }
 
 func createCheckoutSession(c *gin.Context) {
+	if _, ok := tenantFromContext(c); !ok {
+		return
+	}
 	// TODO: Create Stripe Checkout session
 	c.JSON(http.StatusOK, gin.H{
 		"url": "https://checkout.stripe.com/session/placeholder",
@@ -297,4 +336,15 @@ func getEnv(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func tenantFromContext(c *gin.Context) (string, bool) {
+	tenantID, err := authmw.GetTenantIDFromContext(c)
+	if err != nil || tenantID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "tenant context required"})
+		return "", false
+	}
+	c.Request.Header = authmw.EnsureTenantHeader(c.Request.Header, tenantID)
+	c.Request = c.Request.WithContext(authmw.WithTenantID(c.Request.Context(), tenantID))
+	return tenantID, true
 }

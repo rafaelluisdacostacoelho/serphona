@@ -13,6 +13,15 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	"voice-gateway/internal/adapter/agent"
+	"voice-gateway/internal/adapter/asterisk"
+	"voice-gateway/internal/adapter/events"
+	httpadapter "voice-gateway/internal/adapter/http"
+	redisadapter "voice-gateway/internal/adapter/redis"
+	"voice-gateway/internal/adapter/stt"
+	"voice-gateway/internal/adapter/tenant"
+	"voice-gateway/internal/adapter/tts"
+	callservice "voice-gateway/internal/application/call"
 	"voice-gateway/internal/config"
 )
 
@@ -41,15 +50,49 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// TODO: Initialize components
-	// - Redis client for call state
-	// - Kafka producer for events
-	// - Asterisk ARI client
-	// - Tenant manager client
-	// - Agent orchestrator client
-	// - STT/TTS providers
-	// - Call service
-	// - Conversation manager
+	tenantClient := tenant.NewClient(cfg.TenantManager.URL, cfg.TenantManager.Token, log)
+	agentClient := agent.NewClient(cfg.AgentOrchestrator.URL, cfg.AgentOrchestrator.Token, log)
+
+	asteriskClient, err := asterisk.NewARIClientHTTP(asterisk.ARIConfig{
+		URL:      cfg.Asterisk.ARIURL,
+		Username: cfg.Asterisk.ARIUsername,
+		Password: cfg.Asterisk.ARIPassword,
+		AppName:  cfg.Asterisk.ARIAppName,
+	}, log)
+	if err != nil {
+		log.Fatal("failed to initialize Asterisk ARI client", zap.Error(err))
+	}
+	defer asteriskClient.Close()
+
+	redisClient, err := redisadapter.NewClient(ctx, cfg.Redis.URL, cfg.Redis.Password, cfg.Redis.DB, log)
+	if err != nil {
+		log.Fatal("failed to initialize redis client", zap.Error(err))
+	}
+	defer redisClient.Close()
+
+	callStateRepo := redisadapter.NewCallStateRepository(redisClient, cfg.Redis.CallStateTTL)
+
+	eventPublisher, err := events.NewPublisher(cfg.Kafka.Brokers, cfg.Kafka.TopicPrefix, log)
+	if err != nil {
+		log.Fatal("failed to initialize event publisher", zap.Error(err))
+	}
+	defer eventPublisher.Close()
+
+	// TODO: register real STT/TTS providers
+	sttProviders := make(map[string]stt.Provider)
+	ttsProviders := make(map[string]tts.Provider)
+
+	callSvc := callservice.NewService(
+		asteriskClient,
+		callStateRepo,
+		eventPublisher,
+		tenantClient,
+		agentClient,
+		sttProviders,
+		ttsProviders,
+		cfg.Call.MaxConcurrentCalls,
+		log,
+	)
 
 	// Metrics server (separate port for Prometheus scraping)
 	metricsServer := &http.Server{
@@ -60,7 +103,7 @@ func main() {
 	// HTTP server for management API
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),
-		Handler:      buildHTTPRouter(log),
+		Handler:      httpadapter.NewRouter(callSvc, log),
 		ReadTimeout:  cfg.Server.ReadTimeout,
 		WriteTimeout: cfg.Server.WriteTimeout,
 		IdleTimeout:  cfg.Server.IdleTimeout,

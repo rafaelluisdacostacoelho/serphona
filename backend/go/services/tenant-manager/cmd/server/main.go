@@ -25,6 +25,7 @@ import (
 	tenantpb "tenant-manager/proto"
 
 	"github.com/gin-gonic/gin"
+	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
@@ -474,6 +475,7 @@ func grpcAuthInterceptor(secret, publicKey, issuer string, audience []string, lo
 
 		ctx = context.WithValue(ctx, "tenant_id", tenantID)
 		ctx = context.WithValue(ctx, "user_id", userID)
+		ctx = authmw.WithTenantID(ctx, tenantID)
 
 		return handler(ctx, req)
 	}

@@ -9,6 +9,13 @@ var (
 	ErrTokenExpired            = errors.New("token expired")
 	ErrMissingToken            = errors.New("missing token")
 	ErrSecretNotConfigured     = errors.New("jwt secret not configured")
+	ErrInvalidKeyID            = errors.New("invalid key id")
+	ErrJWKSFetchFailed         = errors.New("jwks fetch failed")
+	ErrInvalidIssuer           = errors.New("invalid issuer")
+	ErrInvalidAudience         = errors.New("invalid audience")
+	ErrInvalidAlgorithm        = errors.New("invalid algorithm")
+	ErrTokenTooLarge           = errors.New("token too large")
+	ErrAuthConfigMissing       = errors.New("auth configuration missing")
 	ErrInsufficientPermissions = errors.New("insufficient permissions")
 	ErrInvalidCredentials      = errors.New("invalid credentials")
 	ErrUserNotFound            = errors.New("user not found")
@@ -52,6 +59,13 @@ const (
 	CodeInvalidToken            = "INVALID_TOKEN"
 	CodeTokenExpired            = "TOKEN_EXPIRED"
 	CodeMissingToken            = "MISSING_TOKEN"
+	CodeInvalidKeyID            = "INVALID_KEY_ID"
+	CodeJWKSFetchFailed         = "JWKS_FETCH_FAILED"
+	CodeInvalidIssuer           = "INVALID_ISSUER"
+	CodeInvalidAudience         = "INVALID_AUDIENCE"
+	CodeInvalidAlgorithm        = "INVALID_ALGORITHM"
+	CodeTokenTooLarge           = "TOKEN_TOO_LARGE"
+	CodeAuthConfigMissing       = "AUTH_CONFIG_MISSING"
 	CodeInsufficientPermissions = "INSUFFICIENT_PERMISSIONS"
 	CodeInvalidCredentials      = "INVALID_CREDENTIALS"
 	CodeUserNotFound            = "USER_NOT_FOUND"

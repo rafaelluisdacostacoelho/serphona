@@ -24,6 +24,7 @@
 7) Cleanup & lifecycle: cascade or enqueue cleanup on tenant delete (API keys, cache, events, related services); add suspension reasons and audit trail; add plan change events for billing.
 8) Testing: API/gRPC contract tests, authz/scope tests, quota enforcement, API key auth happy/negative, event emission with Kafka fake, cache invalidation, and RLS/leakage tests.
 9) Runbooks: tenant deletion/restore, quota override, Kafka outage handling, key rotation/secret rotation, and recovery from failed migrations.
+10) Response contract: adopt the shared envelope helper (success data/meta; error code/message/details/trace_id) for HTTP/Gin handlers and align gRPC status/metadata once available.
 
 ## Config to surface
 - JWT issuer/audience, HS/RS keys, required scopes/roles; CORS allowed origins; rate limits and max body size.

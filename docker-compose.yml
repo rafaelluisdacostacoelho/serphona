@@ -197,7 +197,9 @@ services:
   #     REDIS_URL: redis://:serphona_dev@redis:6379/4
   #     KAFKA_BROKERS: kafka:29092
   #     TENANT_MANAGER_URL: http://tenant-manager:8080
+  #     TENANT_MANAGER_TOKEN: ""
   #     AGENT_ORCHESTRATOR_URL: http://agent-orchestrator:8080
+  #     AGENT_ORCHESTRATOR_TOKEN: ""
   #     LOG_LEVEL: debug
   #   ports:
   #     - "8085:8080"

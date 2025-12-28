@@ -1,10 +1,17 @@
 package jwt
 
 import (
+	"crypto/rsa"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"math/big"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	autherrors "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/errors"
@@ -19,10 +26,66 @@ const (
 var jwtSecret string
 var ensureSecretOnce sync.Once
 var ensureSecretErr error
+var validationCfgMu sync.RWMutex
+var validationConfig = defaultValidationConfig()
+
+// ValidationConfig controls validation rules beyond the secret.
+type ValidationConfig struct {
+	AllowedAlgs    []string
+	Issuer         string
+	Audience       string
+	ClockSkew      time.Duration
+	MaxTokenBytes  int
+	JWKSURL        string
+	JWKSCacheTTL   time.Duration
+	AllowedKIDs    []string
+	RequiredScopes []string // Optional: enforce presence of specific scopes at validation time
+}
+
+func defaultValidationConfig() ValidationConfig {
+	return ValidationConfig{
+		AllowedAlgs:   []string{"HS256"},
+		ClockSkew:     30 * time.Second,
+		MaxTokenBytes: 4096,
+		JWKSCacheTTL:  5 * time.Minute,
+	}
+}
 
 // SetSecret configures the JWT secret used for validation.
 func SetSecret(secret string) {
 	jwtSecret = secret
+}
+
+// SetValidationConfig overrides validation rules. Zero/empty values fall back to defaults.
+func SetValidationConfig(cfg ValidationConfig) {
+	validationCfgMu.Lock()
+	defer validationCfgMu.Unlock()
+
+	if len(cfg.AllowedAlgs) == 0 {
+		cfg.AllowedAlgs = defaultValidationConfig().AllowedAlgs
+	}
+	if cfg.ClockSkew < 0 {
+		cfg.ClockSkew = 0
+	}
+	if cfg.MaxTokenBytes < 0 {
+		cfg.MaxTokenBytes = 0
+	}
+	if cfg.JWKSCacheTTL <= 0 {
+		cfg.JWKSCacheTTL = defaultValidationConfig().JWKSCacheTTL
+	}
+	validationConfig = cfg
+}
+
+// GetValidationConfig returns a copy of the current validation config.
+func GetValidationConfig() ValidationConfig {
+	validationCfgMu.RLock()
+	defer validationCfgMu.RUnlock()
+	return validationConfig
+}
+
+// ResetValidationConfigForTests resets validation rules to defaults.
+func ResetValidationConfigForTests() {
+	SetValidationConfig(defaultValidationConfig())
 }
 
 // SetSecretFromEnv loads the JWT secret from EnvJWTSecret and returns an error if missing.
@@ -67,11 +130,31 @@ func GetSecret() string {
 
 // ValidateToken validates a JWT token and returns its claims using the configured secret.
 func ValidateToken(tokenString string) (*types.Claims, error) {
-	if err := EnsureSecretLoaded(); err != nil {
-		return nil, err
+	cfg := GetValidationConfig()
+	if requiresSecret(cfg) {
+		if err := EnsureSecretLoaded(); err != nil {
+			return nil, err
+		}
+	} else {
+		// Attempt to load the secret for optional HMAC fallback, but do not fail if absent.
+		_ = EnsureSecretLoaded()
 	}
 
 	return ValidateTokenWithSecret(tokenString, jwtSecret)
+}
+
+func requiresSecret(cfg ValidationConfig) bool {
+	if cfg.JWKSURL == "" {
+		return true
+	}
+
+	for _, alg := range cfg.AllowedAlgs {
+		if strings.HasPrefix(strings.ToUpper(alg), "HS") {
+			return true
+		}
+	}
+
+	return false
 }
 
 // ValidateTokenWithSecret validates a JWT token with a provided secret.
@@ -79,26 +162,244 @@ func ValidateTokenWithSecret(tokenString, secret string) (*types.Claims, error) 
 	if tokenString == "" {
 		return nil, autherrors.ErrMissingToken
 	}
+	cfg := GetValidationConfig()
+	if cfg.MaxTokenBytes > 0 && len(tokenString) > cfg.MaxTokenBytes {
+		return nil, autherrors.ErrTokenTooLarge
+	}
+
+	if secret == "" && cfg.JWKSURL == "" {
+		return nil, autherrors.ErrSecretNotConfigured
+	}
+
+	parserOpts := []jwt.ParserOption{jwt.WithLeeway(cfg.ClockSkew)}
+	if cfg.Issuer != "" {
+		parserOpts = append(parserOpts, jwt.WithIssuer(cfg.Issuer))
+	}
+	if cfg.Audience != "" {
+		parserOpts = append(parserOpts, jwt.WithAudience(cfg.Audience))
+	}
+	if len(cfg.AllowedAlgs) > 0 {
+		parserOpts = append(parserOpts, jwt.WithValidMethods(cfg.AllowedAlgs))
+	}
 
 	token, err := jwt.ParseWithClaims(tokenString, &types.Claims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		if token.Method == nil {
+			return nil, autherrors.ErrInvalidToken
 		}
-		return []byte(secret), nil
-	})
+
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); ok {
+			if secret == "" {
+				return nil, autherrors.ErrSecretNotConfigured
+			}
+			return []byte(secret), nil
+		}
+
+		kid, _ := token.Header["kid"].(string)
+		if len(cfg.AllowedKIDs) > 0 && kid != "" && !isAllowedKID(cfg.AllowedKIDs, kid) {
+			return nil, autherrors.ErrInvalidKeyID
+		}
+
+		if cfg.JWKSURL == "" {
+			return nil, autherrors.ErrAuthConfigMissing
+		}
+
+		key, err := getJWKSPublicKey(cfg, kid)
+		if err != nil {
+			return nil, err
+		}
+
+		return key, nil
+	}, parserOpts...)
 
 	if err != nil {
-		if strings.Contains(err.Error(), "token is expired") {
-			return nil, autherrors.ErrTokenExpired
+		if strings.Contains(strings.ToLower(err.Error()), "signing method") {
+			return nil, autherrors.ErrInvalidAlgorithm
 		}
-		return nil, autherrors.ErrInvalidToken
+		switch {
+		case errors.Is(err, jwt.ErrTokenExpired):
+			return nil, autherrors.ErrTokenExpired
+		case errors.Is(err, jwt.ErrTokenInvalidAudience):
+			return nil, autherrors.ErrInvalidAudience
+		case errors.Is(err, jwt.ErrTokenInvalidIssuer):
+			return nil, autherrors.ErrInvalidIssuer
+		case errors.Is(err, jwt.ErrTokenSignatureInvalid):
+			return nil, autherrors.ErrInvalidToken
+		case errors.Is(err, autherrors.ErrInvalidKeyID):
+			return nil, autherrors.ErrInvalidKeyID
+		case errors.Is(err, autherrors.ErrJWKSFetchFailed):
+			return nil, autherrors.ErrJWKSFetchFailed
+		case errors.Is(err, autherrors.ErrAuthConfigMissing):
+			return nil, autherrors.ErrAuthConfigMissing
+		case strings.Contains(strings.ToLower(err.Error()), "unexpected signing method"):
+			return nil, autherrors.ErrInvalidAlgorithm
+		default:
+			return nil, autherrors.ErrInvalidToken
+		}
 	}
 
 	if claims, ok := token.Claims.(*types.Claims); ok && token.Valid {
+		// Optionally enforce required scopes at validation time
+		if len(cfg.RequiredScopes) > 0 {
+			if !claims.HasAllScopes(cfg.RequiredScopes...) {
+				return nil, autherrors.ErrInsufficientPermissions
+			}
+		}
 		return claims, nil
 	}
 
 	return nil, autherrors.ErrInvalidToken
+}
+
+func isAllowedKID(allowed []string, kid string) bool {
+	for _, k := range allowed {
+		if k == kid {
+			return true
+		}
+	}
+	return false
+}
+
+type jwksState struct {
+	mu        sync.RWMutex
+	cache     map[string]interface{}
+	expiresAt time.Time
+	url       string
+	lastErr   error
+}
+
+var globalJWKS = jwksState{}
+
+// ResetJWKSCacheForTests clears JWKS cache and errors for test isolation.
+func ResetJWKSCacheForTests() {
+	globalJWKS.mu.Lock()
+	defer globalJWKS.mu.Unlock()
+
+	globalJWKS.cache = nil
+	globalJWKS.expiresAt = time.Time{}
+	globalJWKS.url = ""
+	globalJWKS.lastErr = nil
+}
+
+func getJWKSPublicKey(cfg ValidationConfig, kid string) (interface{}, error) {
+	now := time.Now()
+	globalJWKS.mu.RLock()
+	if cfg.JWKSURL == globalJWKS.url && now.Before(globalJWKS.expiresAt) && globalJWKS.cache != nil {
+		if kid == "" && len(globalJWKS.cache) == 1 {
+			for _, key := range globalJWKS.cache {
+				globalJWKS.mu.RUnlock()
+				return key, nil
+			}
+		}
+		if key, ok := globalJWKS.cache[kid]; ok && key != nil {
+			globalJWKS.mu.RUnlock()
+			return key, nil
+		}
+	}
+	globalJWKS.mu.RUnlock()
+
+	globalJWKS.mu.Lock()
+	defer globalJWKS.mu.Unlock()
+
+	if cfg.JWKSURL != globalJWKS.url || now.After(globalJWKS.expiresAt) || globalJWKS.cache == nil {
+		keys, err := fetchJWKS(cfg)
+		if err != nil {
+			globalJWKS.lastErr = err
+			return nil, autherrors.ErrJWKSFetchFailed
+		}
+
+		globalJWKS.cache = keys
+		globalJWKS.url = cfg.JWKSURL
+		globalJWKS.expiresAt = now.Add(cfg.JWKSCacheTTL)
+		globalJWKS.lastErr = nil
+	}
+
+	if kid == "" && len(globalJWKS.cache) == 1 {
+		for _, key := range globalJWKS.cache {
+			return key, nil
+		}
+	}
+
+	if key, ok := globalJWKS.cache[kid]; ok && key != nil {
+		return key, nil
+	}
+
+	return nil, autherrors.ErrInvalidKeyID
+}
+
+func fetchJWKS(cfg ValidationConfig) (map[string]interface{}, error) {
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(cfg.JWKSURL)
+	if err != nil {
+		return nil, fmt.Errorf("fetch jwks: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("fetch jwks: unexpected status %d", resp.StatusCode)
+	}
+
+	var body jwksResponse
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return nil, fmt.Errorf("decode jwks: %w", err)
+	}
+
+	result := make(map[string]interface{})
+	for _, key := range body.Keys {
+		if key.Kid == "" {
+			continue
+		}
+
+		pubKey, err := key.toPublicKey()
+		if err != nil {
+			return nil, err
+		}
+		result[key.Kid] = pubKey
+	}
+
+	if len(result) == 0 {
+		return nil, fmt.Errorf("jwks contains no usable keys")
+	}
+
+	return result, nil
+}
+
+type jwksResponse struct {
+	Keys []jwkKey `json:"keys"`
+}
+
+type jwkKey struct {
+	Kty string `json:"kty"`
+	Kid string `json:"kid"`
+	Alg string `json:"alg"`
+	Use string `json:"use"`
+	N   string `json:"n"`
+	E   string `json:"e"`
+}
+
+func (k jwkKey) toPublicKey() (interface{}, error) {
+	switch k.Kty {
+	case "RSA":
+		nBytes, err := base64.RawURLEncoding.DecodeString(k.N)
+		if err != nil {
+			return nil, fmt.Errorf("decode modulus: %w", err)
+		}
+		eBytes, err := base64.RawURLEncoding.DecodeString(k.E)
+		if err != nil {
+			return nil, fmt.Errorf("decode exponent: %w", err)
+		}
+
+		eInt := 0
+		for _, b := range eBytes {
+			eInt = (eInt << 8) + int(b)
+		}
+		if eInt == 0 {
+			return nil, fmt.Errorf("invalid exponent")
+		}
+
+		return &rsa.PublicKey{N: new(big.Int).SetBytes(nBytes), E: eInt}, nil
+	default:
+		return nil, fmt.Errorf("unsupported jwk kty: %s", k.Kty)
+	}
 }
 
 // ExtractTokenFromHeader extracts the token from the Authorization header (expects "Bearer <token>").
