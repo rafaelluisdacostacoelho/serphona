@@ -1,0 +1,6 @@
+{
+  "version": "v2",
+  "tenant_id": "t1",
+  "tool": { "name": "echo" },
+  "input": { "msg": "hi" }
+}

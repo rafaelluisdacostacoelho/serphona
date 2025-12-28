@@ -1,0 +1,4 @@
+{
+  "type": "error",
+  "error": { "code": "invalid_request", "message": "bad input" }
+}
