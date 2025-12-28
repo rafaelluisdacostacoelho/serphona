@@ -80,3 +80,65 @@ func TestCircuitBreakerOpensAfterFailuresAndResets(t *testing.T) {
 		t.Fatalf("breaker should stay closed after success")
 	}
 }
+
+func TestResilientExecutorHonorsCircuitOpen(t *testing.T) {
+	innerCalls := 0
+	inner := ExecutorFunc(func(ctx context.Context, req protocol.InvocationRequest) (<-chan protocol.InvocationEvent, error) {
+		innerCalls++
+		return nil, errors.New("boom")
+	})
+	cb := NewCircuitBreaker(1, time.Minute)
+	cb.openUntil = time.Now().Add(time.Hour) // force open
+	r := NewResilientExecutor(inner, ResilientConfig{MaxRetries: 1, Breaker: cb})
+
+	if _, err := r.Invoke(context.Background(), protocol.InvocationRequest{Version: protocol.CurrentVersion, TenantID: "t1", Tool: protocol.ToolRef{Name: "echo"}, Input: []byte(`{}`)}); err == nil {
+		t.Fatalf("expected circuit open error")
+	}
+	if innerCalls != 0 {
+		t.Fatalf("inner should not be called when circuit open")
+	}
+}
+
+func TestResilientExecutorBackoffFunctionInvoked(t *testing.T) {
+	inner := &failingExecutor{maxFail: 2}
+	backoffCalls := 0
+	r := NewResilientExecutor(inner, ResilientConfig{
+		MaxRetries: 2,
+		Backoff: func(attempt int) time.Duration {
+			backoffCalls++
+			return time.Millisecond
+		},
+		Sleep: func(time.Duration) {},
+	})
+
+	_, _ = r.Invoke(context.Background(), protocol.InvocationRequest{Version: protocol.CurrentVersion, TenantID: "t1", Tool: protocol.ToolRef{Name: "echo"}, Input: []byte(`{}`)})
+	if backoffCalls == 0 {
+		t.Fatalf("expected backoff function to be called")
+	}
+}
+
+func TestResilientExecutorNoRetryOnSuccess(t *testing.T) {
+	attempts := 0
+	inner := ExecutorFunc(func(ctx context.Context, req protocol.InvocationRequest) (<-chan protocol.InvocationEvent, error) {
+		attempts++
+		ch := make(chan protocol.InvocationEvent, 1)
+		ch <- protocol.InvocationEvent{Type: protocol.EventResult}
+		return ch, nil
+	})
+	slept := 0
+	r := NewResilientExecutor(inner, ResilientConfig{MaxRetries: 3, Sleep: func(time.Duration) { slept++ }})
+
+	ch, err := r.Invoke(context.Background(), protocol.InvocationRequest{Version: protocol.CurrentVersion, TenantID: "t1", Tool: protocol.ToolRef{Name: "echo"}, Input: []byte(`{}`)})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if attempts != 1 {
+		t.Fatalf("expected single attempt, got %d", attempts)
+	}
+	if slept != 0 {
+		t.Fatalf("expected no sleep when no retry, got %d", slept)
+	}
+	if evt := <-ch; evt.Type != protocol.EventResult {
+		t.Fatalf("unexpected event: %+v", evt)
+	}
+}

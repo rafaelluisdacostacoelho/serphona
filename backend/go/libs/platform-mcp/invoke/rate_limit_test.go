@@ -44,3 +44,47 @@ func TestRateLimitExecutorBlocksAndReturnsError(t *testing.T) {
 		t.Fatalf("expected rate limit error")
 	}
 }
+
+func TestRateLimitExecutorDoesNotCallInnerOnDeny(t *testing.T) {
+	limiter := &stubLimiter{allowed: false}
+	inner := &stubExecutor{}
+	exec := NewRateLimitExecutor(inner, limiter, 0)
+
+	_, err := exec.Invoke(context.Background(), protocol.InvocationRequest{Version: protocol.CurrentVersion, TenantID: "t1", Tool: protocol.ToolRef{Name: "echo"}})
+	if err == nil {
+		t.Fatalf("expected rate limited error")
+	}
+	if inner.called {
+		t.Fatalf("inner executor should not be called when limited")
+	}
+}
+
+func TestMemoryRateLimiterIsolatedPerTool(t *testing.T) {
+	lim := NewMemoryRateLimiter(1, 1)
+	lim.clock = func() time.Time { return time.Unix(0, 0) }
+
+	if !lim.Allow(context.Background(), "tenant", "echo") {
+		t.Fatalf("expected first echo allow")
+	}
+	if lim.Allow(context.Background(), "tenant", "echo") {
+		t.Fatalf("expected second echo deny")
+	}
+	if !lim.Allow(context.Background(), "tenant", "calc") {
+		t.Fatalf("expected independent bucket per tool")
+	}
+}
+
+type stubLimiter struct {
+	allowed bool
+}
+
+func (s *stubLimiter) Allow(context.Context, string, string) bool { return s.allowed }
+
+type stubExecutor struct {
+	called bool
+}
+
+func (s *stubExecutor) Invoke(_ context.Context, _ protocol.InvocationRequest) (<-chan protocol.InvocationEvent, error) {
+	s.called = true
+	return nil, nil
+}

@@ -22,7 +22,7 @@ Provide an MCP library that Serphona services (platform-mcp service, agent-orche
 
 **Card 2 — Policy / RBAC**
 - [x] Avaliador allow/deny com precedence e rate-limit básico + testes.
-- [ ] Métricas para decisões de política.
+- [x] Métricas para decisões de política.
 
 **Card 3 — Registry multi-tenant**
 - [x] Loader file + Postgres por tenant.
@@ -34,10 +34,10 @@ Provide an MCP library that Serphona services (platform-mcp service, agent-orche
 - [x] Resilient executor (retry/backoff + circuit breaker).
 - [x] Helper EnsureTenantHeaders.
 - [x] Executor cancelável.
-- [ ] Streaming de progresso/cancel no executor real e propagação de cancel downstream.
+- [x] Streaming de progresso/cancel no executor real e propagação de cancel downstream.
 - [x] Enforce de max output bytes.
-- [ ] Rate limit por tool/tenant.
-- [ ] Envelope helpers alinhados ao RESPONSE-ENVELOPE.
+- [x] Rate limit por tool/tenant.
+- [x] Envelope helpers alinhados ao RESPONSE-ENVELOPE.
 
 **Card 5 — Session management**
 - [x] Store in-memory.
@@ -47,20 +47,20 @@ Provide an MCP library that Serphona services (platform-mcp service, agent-orche
 **Card 6 — Observabilidade e audit**
 - [x] Métricas básicas (contagem/latência/outcome) com enrichers (cache_hit/policy_decision) e sink Prometheus.
 - [x] Audit observer com sink plugável.
-- [ ] Tracing: spans para sessão e invocação com tenant/tool/request/trace IDs.
-- [ ] Audit: sampling/roteamento e integração OTEL.
+- [x] Tracing: spans para sessão e invocação com tenant/tool/request/trace IDs.
+- [x] Audit: sampling/roteamento e integração OTEL.
 
 **Card 7 — Testes e qualidade**
-- [ ] Policy matrix completa e precedence.
-- [ ] Retry/backoff/circuit e rate-limit com fakes.
-- [ ] Envelope contract + fuzz de headers.
+- [x] Policy matrix completa e precedence.
+- [x] Retry/backoff/circuit e rate-limit com fakes.
+- [x] Envelope contract + fuzz de headers.
 - [ ] Static analysis (gosec) e license checks.
 
 **Card 8 — Docs & rollout**
 - [ ] How-to embed/config (platform-mcp, agent-orchestrator, tools-gateway) en-US/pt-BR.
 - [x] Wiring/fixtures quickstart en-US/pt-BR (docs/INTEGRATION-*).
-- [ ] Config matrix (auth, cache, retry/backoff/circuit, metrics/audit, RLS/tenant wiring).
-- [ ] Rollout: feature flag/shadow mode guidance; breaking-change checklist.
+- [x] Config matrix (auth, cache, retry/backoff/circuit, metrics/audit, RLS/tenant wiring).
+- [x] Rollout: feature flag/shadow mode guidance; breaking-change checklist.
 
 ## Config to surface (docs/examples)
 - ISSUER/AUDIENCE/SERVICE_AUDIENCE, REQUIRED_SCOPES, TENANT_CLAIM, JWKS_URL/JWT_SECRET, TLS_* for outbound, POSTGRES_DSN, CACHE_TTL/ETAG, RATE_LIMITS, RETRY/BACKOFF/CIRCUIT settings, AUDIT_SINK, TRACE/METRICS exporters.

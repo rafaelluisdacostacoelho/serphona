@@ -8,6 +8,7 @@ type StackConfig struct {
 	Observer       Observer
 	MetricsSink    MetricsSink
 	AuditSink      AuditSink
+	AuditOptions   []AuditOption
 	LabelEnrichers []LabelEnricher
 	ExtraObservers []Observer
 	MaxOutput      int64
@@ -38,7 +39,7 @@ func BuildExecutor(base Executor, cfg StackConfig) Executor {
 		observers = append(observers, NewMetricsObserver(cfg.MetricsSink, cfg.LabelEnrichers...))
 	}
 	if cfg.AuditSink != nil {
-		observers = append(observers, NewAuditObserver(cfg.AuditSink))
+		observers = append(observers, NewAuditObserver(cfg.AuditSink, cfg.AuditOptions...))
 	}
 	if cfg.Observer != nil {
 		observers = append(observers, cfg.Observer)

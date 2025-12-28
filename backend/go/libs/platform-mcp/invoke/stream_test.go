@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	mcperrors "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-mcp/errors"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-mcp/protocol"
 )
 
@@ -34,8 +35,13 @@ func TestStreamingExecutorHandlerError(t *testing.T) {
 		return nil, context.Canceled
 	}
 	exec := NewStreamingExecutor(map[string]StreamingHandler{"echo": h})
-	if _, err := exec.Invoke(context.Background(), protocol.InvocationRequest{Version: protocol.CurrentVersion, TenantID: "t1", Tool: protocol.ToolRef{Name: "echo"}, Input: []byte(`{}`)}); err == nil {
-		t.Fatalf("expected error")
+	ch, err := exec.Invoke(context.Background(), protocol.InvocationRequest{Version: protocol.CurrentVersion, TenantID: "t1", Tool: protocol.ToolRef{Name: "echo"}, Input: []byte(`{}`)})
+	if err != nil {
+		t.Fatalf("invoke error: %v", err)
+	}
+	evts := collectEvents(ch)
+	if len(evts) != 1 || evts[0].Error == nil {
+		t.Fatalf("expected error event, got %#v", evts)
 	}
 }
 
@@ -68,11 +74,19 @@ func TestStreamingExecutorCanBeCancelledDownstream(t *testing.T) {
 	}
 	cancel()
 	select {
-	case _, ok := <-ch:
-		if ok {
-			t.Fatalf("expected channel to close on cancel")
+	case evt, ok := <-ch:
+		if !ok {
+			t.Fatalf("expected cancel event before close")
+		}
+		if evt.Error == nil || evt.Error.Code != mcperrors.ErrCancelled {
+			t.Fatalf("expected cancelled event, got %#v", evt)
 		}
 	case <-time.After(500 * time.Millisecond):
-		t.Fatalf("timeout waiting for close")
+		t.Fatalf("timeout waiting for cancel event")
+	}
+	select {
+	case <-ch:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatalf("timeout waiting for channel close")
 	}
 }

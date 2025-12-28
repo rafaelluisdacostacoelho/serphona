@@ -19,6 +19,14 @@ type ResilientExecutor struct {
 	sleep      func(time.Duration)
 }
 
+// ExecutorFunc allows using a function as an Executor.
+type ExecutorFunc func(ctx context.Context, req protocol.InvocationRequest) (<-chan protocol.InvocationEvent, error)
+
+// Invoke executes the function.
+func (f ExecutorFunc) Invoke(ctx context.Context, req protocol.InvocationRequest) (<-chan protocol.InvocationEvent, error) {
+	return f(ctx, req)
+}
+
 // ResilientConfig defines tuning knobs for ResilientExecutor.
 type ResilientConfig struct {
 	MaxRetries int

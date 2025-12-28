@@ -4,6 +4,9 @@ import (
 	"context"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-mcp/protocol"
 )
 
@@ -26,18 +29,49 @@ type AuditSink interface {
 	Write(record AuditRecord) error
 }
 
+// AuditSampler decides whether to emit a record.
+type AuditSampler func(ctx context.Context, rec AuditRecord) bool
+
+// AuditRouter optionally routes records to a sink.
+type AuditRouter func(ctx context.Context, rec AuditRecord) AuditSink
+
 // AuditObserver emits audit records via an AuditSink.
 type AuditObserver struct {
-	sink AuditSink
+	sink          AuditSink
+	sampler       AuditSampler
+	router        AuditRouter
+	spanEventEmit bool
 }
 
 // NewAuditObserver builds an audit observer.
-func NewAuditObserver(sink AuditSink) *AuditObserver {
-	return &AuditObserver{sink: sink}
+func NewAuditObserver(sink AuditSink, opts ...AuditOption) *AuditObserver {
+	obs := &AuditObserver{sink: sink}
+	for _, opt := range opts {
+		opt(obs)
+	}
+	return obs
+}
+
+// AuditOption customizes AuditObserver behavior.
+type AuditOption func(*AuditObserver)
+
+// WithAuditSampler sets a sampler.
+func WithAuditSampler(s AuditSampler) AuditOption {
+	return func(o *AuditObserver) { o.sampler = s }
+}
+
+// WithAuditRouter sets a router to override the sink.
+func WithAuditRouter(r AuditRouter) AuditOption {
+	return func(o *AuditObserver) { o.router = r }
+}
+
+// WithAuditSpanEvents toggles adding audit events to the active span.
+func WithAuditSpanEvents(enabled bool) AuditOption {
+	return func(o *AuditObserver) { o.spanEventEmit = enabled }
 }
 
 // OnInvocationEvent converts events/errors into audit records.
-func (a *AuditObserver) OnInvocationEvent(_ context.Context, req protocol.InvocationRequest, evt protocol.InvocationEvent, invokeErr error, elapsed time.Duration) {
+func (a *AuditObserver) OnInvocationEvent(ctx context.Context, req protocol.InvocationRequest, evt protocol.InvocationEvent, invokeErr error, elapsed time.Duration) {
 	if a == nil || a.sink == nil {
 		return
 	}
@@ -60,5 +94,29 @@ func (a *AuditObserver) OnInvocationEvent(_ context.Context, req protocol.Invoca
 		rec.ErrorCode = string(evt.Error.Code)
 		rec.ErrorMessage = evt.Error.Message
 	}
-	_ = a.sink.Write(rec)
+	if a.sampler != nil && !a.sampler(ctx, rec) {
+		return
+	}
+	sink := a.sink
+	if a.router != nil {
+		if routed := a.router(ctx, rec); routed != nil {
+			sink = routed
+		}
+	}
+	if sink != nil {
+		_ = sink.Write(rec)
+	}
+	if a.spanEventEmit {
+		span := trace.SpanFromContext(ctx)
+		if span != nil && span.SpanContext().IsValid() {
+			span.AddEvent("audit", trace.WithAttributes(
+				attribute.String("tenant_id", rec.TenantID),
+				attribute.String("tool", rec.Tool),
+				attribute.String("outcome", rec.Outcome),
+				attribute.String("request_id", rec.RequestID),
+				attribute.String("session_id", rec.SessionID),
+				attribute.String("error_code", rec.ErrorCode),
+			))
+		}
+	}
 }
