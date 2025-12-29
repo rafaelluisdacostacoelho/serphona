@@ -1,0 +1,8 @@
+{
+  "type": "error",
+  "error": {
+    "code": "invalid_request",
+    "message": "field validation failed",
+    "details": { "field": "input" }
+  }
+}

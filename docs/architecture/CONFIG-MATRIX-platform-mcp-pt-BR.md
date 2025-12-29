@@ -14,6 +14,7 @@
 - CACHE_TTL / ETAG_FN: alinhar com frequência de mudanças; TTL menor em dev.
 - ALLOW_LIST_SOURCE: allow-list por tenant (tabela DB ou arquivo).
 - FALLBACK_LOADER: loader de arquivo para cold-start/dev; garantir filtro por tenant.
+- MCP_TOOLS_ROOT: obrigatório ao habilitar fallback de arquivo; isola leituras em um diretório raiz para evitar path traversal.
 
 ## Policy / RBAC
 - EVALUATOR: memória para testes/dev; banco em produção.

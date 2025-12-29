@@ -35,9 +35,11 @@ func (m *MetricsObserver) OnInvocationEvent(ctx context.Context, req protocol.In
 	}
 	outcome := classifyOutcome(evt, invokeErr)
 	labels := map[string]string{
-		"tenant":  req.TenantID,
-		"tool":    req.Tool.Name,
-		"outcome": outcome,
+		"tenant":     req.TenantID,
+		"tool":       req.Tool.Name,
+		"outcome":    outcome,
+		"session_id": req.SessionID,
+		"request_id": req.RequestID,
 	}
 	for _, enricher := range m.enrichers {
 		for k, v := range enricher(ctx, req, evt, invokeErr) {

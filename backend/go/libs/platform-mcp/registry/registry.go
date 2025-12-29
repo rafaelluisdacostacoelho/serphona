@@ -26,6 +26,22 @@ type MemoryRegistry struct {
 	data map[string]map[string]protocol.Tool // tenant -> tool name -> Tool
 }
 
+var memoryListFunc = func(r *MemoryRegistry, tenantID string) ([]protocol.Tool, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	byTenant, ok := r.data[tenantID]
+	if !ok {
+		return []protocol.Tool{}, nil
+	}
+
+	out := make([]protocol.Tool, 0, len(byTenant))
+	for _, t := range byTenant {
+		out = append(out, t)
+	}
+	return out, nil
+}
+
 // NewMemoryRegistry creates a new empty registry.
 func NewMemoryRegistry() *MemoryRegistry {
 	return &MemoryRegistry{data: make(map[string]map[string]protocol.Tool)}
@@ -58,19 +74,7 @@ func (r *MemoryRegistry) Upsert(t protocol.Tool) error {
 
 // ListTools lists all tools for a tenant.
 func (r *MemoryRegistry) ListTools(_ context.Context, tenantID string) ([]protocol.Tool, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	byTenant, ok := r.data[tenantID]
-	if !ok {
-		return []protocol.Tool{}, nil
-	}
-
-	out := make([]protocol.Tool, 0, len(byTenant))
-	for _, t := range byTenant {
-		out = append(out, t)
-	}
-	return out, nil
+	return memoryListFunc(r, tenantID)
 }
 
 // DescribeTool fetches a tool by tenant and name.

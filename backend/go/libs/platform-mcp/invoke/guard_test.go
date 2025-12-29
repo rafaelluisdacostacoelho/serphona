@@ -45,3 +45,17 @@ func TestGuardExecutorAppliesTimeoutCap(t *testing.T) {
 		t.Fatalf("deadline not capped, got %v", capture.deadline.Sub(start))
 	}
 }
+
+func TestGuardExecutorAppliesDefaultTimeout(t *testing.T) {
+	capture := &captureDeadlineExec{}
+	guard := NewGuardExecutor(capture, GuardConfig{DefaultTimeout: 50 * time.Millisecond})
+
+	start := time.Now()
+	_, err := guard.Invoke(context.Background(), protocol.InvocationRequest{Version: protocol.CurrentVersion, TenantID: "t1", Tool: protocol.ToolRef{Name: "echo"}, Input: []byte("{}")})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if capture.deadline.IsZero() || capture.deadline.Sub(start) > 100*time.Millisecond {
+		t.Fatalf("expected default timeout applied, got deadline %v", capture.deadline)
+	}
+}

@@ -77,9 +77,6 @@ func WithTraceFromContext(ctx context.Context) Option {
 			return
 		}
 		span := trace.SpanFromContext(ctx)
-		if span == nil {
-			return
-		}
 		sc := span.SpanContext()
 		if sc.IsValid() {
 			m.TraceID = sc.TraceID().String()

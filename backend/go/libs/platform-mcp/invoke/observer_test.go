@@ -58,3 +58,22 @@ func TestObservedExecutorReportsImmediateError(t *testing.T) {
 		t.Fatalf("expected observer to record error: %+v", obs)
 	}
 }
+
+func TestObservedExecutorWithNilObserverBypassesWrapping(t *testing.T) {
+	innerCh := make(chan protocol.InvocationEvent, 1)
+	innerCh <- protocol.InvocationEvent{Type: protocol.EventResult}
+	close(innerCh)
+	inner := passThroughExecutor{ch: innerCh}
+
+	o := NewObservedExecutor(inner, nil)
+	out, err := o.Invoke(context.Background(), protocol.InvocationRequest{Version: protocol.CurrentVersion, TenantID: "t1", Tool: protocol.ToolRef{Name: "echo"}, Input: []byte(`{}`)})
+	if err != nil {
+		t.Fatalf("invoke: %v", err)
+	}
+	if out != innerCh {
+		t.Fatalf("expected direct channel passthrough")
+	}
+	if evt := <-out; evt.Type != protocol.EventResult {
+		t.Fatalf("unexpected event: %+v", evt)
+	}
+}

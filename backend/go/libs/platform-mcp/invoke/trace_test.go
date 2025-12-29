@@ -2,9 +2,11 @@ package invoke
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -29,6 +31,25 @@ func TestTracingObserverRecordsStatus(t *testing.T) {
 	}
 	if spans[0].Status.Code != codes.Ok {
 		t.Fatalf("expected OK status, got %v", spans[0].Status.Code)
+	}
+}
+
+func TestTracingObserverUsesFallbackKeyAndInvokeError(t *testing.T) {
+	exp := tracetest.NewInMemoryExporter()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sdktrace.NewSimpleSpanProcessor(exp)))
+	otel.SetTracerProvider(tp)
+	obs := NewTracingObserver("")
+
+	req := protocol.InvocationRequest{TenantID: "t1", SessionID: "s1", Tool: protocol.ToolRef{Name: "echo"}}
+	obs.OnInvocationEvent(context.Background(), req, protocol.InvocationEvent{Type: protocol.EventProgress}, errors.New("boom"), time.Millisecond)
+
+	_ = tp.ForceFlush(context.Background())
+	spans := exp.GetSpans()
+	if len(spans) != 1 {
+		t.Fatalf("expected one span, got %d", len(spans))
+	}
+	if spans[0].Status.Code != codes.Error {
+		t.Fatalf("expected error status, got %v", spans[0].Status.Code)
 	}
 }
 

@@ -30,14 +30,15 @@ func (s *stubSink) ObserveHistogram(_ string, value float64, labels map[string]s
 func TestMetricsObserverRecordsOutcome(t *testing.T) {
 	sink := &stubSink{}
 	obs := NewMetricsObserver(sink)
-	req := protocol.InvocationRequest{TenantID: "t1", Tool: protocol.ToolRef{Name: "echo"}}
+	req := protocol.InvocationRequest{TenantID: "t1", SessionID: "s1", RequestID: "r1", Tool: protocol.ToolRef{Name: "echo"}}
 
 	obs.OnInvocationEvent(context.Background(), req, protocol.InvocationEvent{Type: protocol.EventResult}, nil, 150*time.Millisecond)
 
 	if len(sink.counters) != 1 || len(sink.histos) != 1 {
 		t.Fatalf("expected metrics: %+v %+v", sink.counters, sink.histos)
 	}
-	if sink.counters[0]["outcome"] != "ok" || sink.counters[0]["tenant"] != "t1" || sink.counters[0]["tool"] != "echo" {
+	labels := sink.counters[0]
+	if labels["outcome"] != "ok" || labels["tenant"] != "t1" || labels["tool"] != "echo" || labels["session_id"] != "s1" || labels["request_id"] != "r1" {
 		t.Fatalf("unexpected labels: %+v", sink.counters[0])
 	}
 }

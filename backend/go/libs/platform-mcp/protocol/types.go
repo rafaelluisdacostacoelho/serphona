@@ -55,7 +55,7 @@ type InvocationRequest struct {
 	Timeout        time.Duration     `json:"timeout,omitempty"`
 	MaxOutputBytes int64             `json:"max_output_bytes,omitempty"`
 	Headers        map[string]string `json:"headers,omitempty"`
- 	Protocol       string            `json:"protocol,omitempty"` // optional transport hint (grpc/http)
+	Protocol       string            `json:"protocol,omitempty"` // optional transport hint (grpc/http)
 }
 
 // InvocationEventType enumerates stream event types.

@@ -45,6 +45,13 @@ func TestStreamingExecutorHandlerError(t *testing.T) {
 	}
 }
 
+func TestStreamingExecutorValidationError(t *testing.T) {
+	exec := NewStreamingExecutor(map[string]StreamingHandler{})
+	if _, err := exec.Invoke(context.Background(), protocol.InvocationRequest{Version: "", TenantID: "", Tool: protocol.ToolRef{Name: ""}, Input: []byte{}}); err == nil {
+		t.Fatalf("expected validation error")
+	}
+}
+
 func TestStreamingExecutorValidates(t *testing.T) {
 	exec := NewStreamingExecutor(map[string]StreamingHandler{})
 	if _, err := exec.Invoke(context.Background(), protocol.InvocationRequest{Version: protocol.CurrentVersion, TenantID: "", Tool: protocol.ToolRef{Name: ""}, Input: []byte{}}); err == nil {
@@ -58,12 +65,7 @@ func TestStreamingExecutorCanBeCancelledDownstream(t *testing.T) {
 		ch := make(chan protocol.InvocationEvent)
 		go func() {
 			defer close(ch)
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(time.Second):
-				ch <- protocol.InvocationEvent{Type: protocol.EventResult}
-			}
+			<-time.After(time.Second)
 		}()
 		return ch, nil
 	}
@@ -88,5 +90,30 @@ func TestStreamingExecutorCanBeCancelledDownstream(t *testing.T) {
 	case <-ch:
 	case <-time.After(500 * time.Millisecond):
 		t.Fatalf("timeout waiting for channel close")
+	}
+}
+
+func TestStreamingExecutorRejectsNilChannel(t *testing.T) {
+	exec := NewStreamingExecutor(map[string]StreamingHandler{
+		"echo": func(ctx context.Context, _ protocol.InvocationRequest) (<-chan protocol.InvocationEvent, error) {
+			return nil, nil
+		},
+	})
+
+	ch, err := exec.Invoke(context.Background(), protocol.InvocationRequest{Version: protocol.CurrentVersion, TenantID: "t1", Tool: protocol.ToolRef{Name: "echo"}, Input: []byte(`{}`)})
+	if err != nil {
+		t.Fatalf("invoke err: %v", err)
+	}
+	events := collectEvents(ch)
+	if len(events) != 1 || events[0].Error == nil || events[0].Error.Code != mcperrors.ErrInternal {
+		t.Fatalf("expected internal error event for nil channel, got %+v", events)
+	}
+}
+
+func TestStreamingExecutorMissingHandlerErrors(t *testing.T) {
+	exec := NewStreamingExecutor(map[string]StreamingHandler{})
+	_, err := exec.Invoke(context.Background(), protocol.InvocationRequest{Version: protocol.CurrentVersion, TenantID: "t1", Tool: protocol.ToolRef{Name: "missing"}, Input: []byte(`{}`)})
+	if err == nil {
+		t.Fatalf("expected error for missing handler")
 	}
 }

@@ -2,6 +2,7 @@ package invoke
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -53,5 +54,19 @@ func TestCancelableExecutorEmitsCancelOnContextDone(t *testing.T) {
 		}
 	case <-time.After(500 * time.Millisecond):
 		t.Fatalf("timeout waiting for cancel event")
+	}
+}
+
+type errorExecutor struct{}
+
+func (errorExecutor) Invoke(_ context.Context, _ protocol.InvocationRequest) (<-chan protocol.InvocationEvent, error) {
+	return nil, errors.New("boom")
+}
+
+func TestCancelableExecutorPropagatesInnerError(t *testing.T) {
+	ce := NewCancelableExecutor(errorExecutor{})
+
+	if _, err := ce.Invoke(context.Background(), protocol.InvocationRequest{Version: protocol.CurrentVersion, TenantID: "t1", Tool: protocol.ToolRef{Name: "echo"}, Input: []byte(`{}`)}); err == nil {
+		t.Fatalf("expected inner error to propagate")
 	}
 }

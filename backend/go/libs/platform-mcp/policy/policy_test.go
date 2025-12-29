@@ -59,6 +59,29 @@ func TestMemoryEvaluatorRateLimit(t *testing.T) {
 	}
 }
 
+func TestMemoryEvaluatorRateLimitWithinWindow(t *testing.T) {
+	ev := NewMemoryEvaluator([]Rule{
+		{ID: "rate-2", TenantID: "t1", Tool: "echo", Allow: true, Priority: 1, RateLimitPerMinute: 2},
+	})
+
+	in := Input{TenantID: "t1", Tool: "echo"}
+	dec, err := ev.Evaluate(context.Background(), in)
+	if err != nil || !dec.Allowed {
+		t.Fatalf("first call should be allowed, err=%v dec=%+v", err, dec)
+	}
+	dec, err = ev.Evaluate(context.Background(), in)
+	if err != nil || !dec.Allowed {
+		t.Fatalf("second call still within limit, err=%v dec=%+v", err, dec)
+	}
+	dec, err = ev.Evaluate(context.Background(), in)
+	if err != nil {
+		t.Fatalf("third call err: %v", err)
+	}
+	if !dec.RateLimited {
+		t.Fatalf("third call should be rate limited")
+	}
+}
+
 func TestMemoryEvaluatorMatrix(t *testing.T) {
 	ev := NewMemoryEvaluator([]Rule{
 		{ID: "deny-prod", TenantID: "t1", Tool: "echo", Allow: false, Environments: []string{"prod"}, Priority: 1},
@@ -101,6 +124,13 @@ func TestMemoryEvaluatorMatrix(t *testing.T) {
 			rule:    "",
 			reason:  "no matching policy",
 		},
+		{
+			name:    "tool mismatch deny",
+			in:      Input{TenantID: "t1", Tool: "other", Environment: "dev", Scopes: []string{"tool:run"}},
+			allowed: true,
+			rule:    "fallback",
+			reason:  "allowed",
+		},
 	}
 
 	for _, tt := range tests {
@@ -119,5 +149,20 @@ func TestMemoryEvaluatorMatrix(t *testing.T) {
 				t.Fatalf("reason mismatch: got %s want %s", dec.Reason, tt.reason)
 			}
 		})
+	}
+}
+
+func TestMemoryEvaluatorChoosesHigherPriorityLaterRule(t *testing.T) {
+	ev := NewMemoryEvaluator([]Rule{
+		{ID: "allow-late", TenantID: "t1", Tool: "echo", Allow: true, Priority: 5},
+		{ID: "deny-urgent", TenantID: "t1", Tool: "echo", Allow: false, Priority: 1},
+	})
+
+	dec, err := ev.Evaluate(context.Background(), Input{TenantID: "t1", Tool: "echo"})
+	if err != nil {
+		t.Fatalf("evaluate: %v", err)
+	}
+	if dec.Allowed || dec.MatchedRule != "deny-urgent" {
+		t.Fatalf("expected lower priority value to win, got %+v", dec)
 	}
 }

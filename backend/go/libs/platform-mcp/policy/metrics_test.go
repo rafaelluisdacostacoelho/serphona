@@ -89,3 +89,41 @@ func TestMetricsEvaluatorErrorsAreLabeled(t *testing.T) {
 		t.Fatalf("expected rate_limited false, got %s", labels["rate_limited"])
 	}
 }
+
+func TestMetricsEvaluatorRateLimitedLabel(t *testing.T) {
+	sink := &fakeSink{}
+	inner := &stubEvaluator{decision: Decision{Allowed: false, MatchedRule: "r1", RateLimited: true}}
+	ev := NewMetricsEvaluator(inner, sink)
+
+	_, err := ev.Evaluate(context.Background(), Input{TenantID: "t3", Tool: "calc"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(sink.counters) != 1 || sink.counters[0].labels["rate_limited"] != "true" {
+		t.Fatalf("expected rate_limited label true, got %+v", sink.counters)
+	}
+}
+
+func TestMetricsEvaluatorNilReceiver(t *testing.T) {
+	var ev *MetricsEvaluator
+	if _, err := ev.Evaluate(context.Background(), Input{}); err == nil {
+		t.Fatalf("expected error when evaluator is nil")
+	}
+}
+
+func TestMetricsEvaluatorNilInner(t *testing.T) {
+	ev := &MetricsEvaluator{sink: &fakeSink{}}
+	if _, err := ev.Evaluate(context.Background(), Input{}); err == nil {
+		t.Fatalf("expected error when inner evaluator nil")
+	}
+}
+
+func TestMetricsEvaluatorNoSinkDelegates(t *testing.T) {
+	inner := &stubEvaluator{decision: Decision{Allowed: true}}
+	ev := NewMetricsEvaluator(inner, nil)
+	dec, err := ev.Evaluate(context.Background(), Input{TenantID: "t1", Tool: "echo"})
+	if err != nil || !dec.Allowed {
+		t.Fatalf("expected delegated decision, got dec=%+v err=%v", dec, err)
+	}
+}

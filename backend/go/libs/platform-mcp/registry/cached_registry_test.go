@@ -163,3 +163,53 @@ func TestCachedRegistry_FallbackDescribeWhenNotCached(t *testing.T) {
 		t.Fatalf("expected no new loader calls, got list=%d describe=%d", loader.listCalls, loader.describeCalls)
 	}
 }
+
+func TestNewCachedRegistryAppliesDefaultTTL(t *testing.T) {
+	reg := NewCachedRegistry(&stubLoader{}, 0)
+	if reg.ttl <= 0 {
+		t.Fatalf("expected default ttl to be set")
+	}
+}
+
+func TestCachedRegistryWrappers(t *testing.T) {
+	ctx := context.Background()
+	loader := &stubLoader{list: map[string][]protocol.Tool{"t1": {{Name: "Echo", TenantID: "t1", ETag: "e1", UpdatedAt: time.Now().UTC()}}}}
+	reg := NewCachedRegistry(loader, time.Minute)
+
+	tools, err := reg.ListTools(ctx, "t1")
+	if err != nil || len(tools) != 1 {
+		t.Fatalf("list wrapper: err=%v tools=%v", err, tools)
+	}
+
+	tool, err := reg.DescribeTool(ctx, "t1", "echo")
+	if err != nil || tool.Name != "Echo" {
+		t.Fatalf("describe wrapper failed: %v %+v", err, tool)
+	}
+}
+
+func TestCachedRegistryListDescribeErrorPropagation(t *testing.T) {
+	ctx := context.Background()
+	loader := &stubLoader{listErr: errors.New("list fail")}
+	reg := NewCachedRegistry(loader, time.Minute)
+
+	if _, _, _, err := reg.ListToolsWithETag(ctx, "t1", ""); err == nil {
+		t.Fatalf("expected list error to propagate")
+	}
+
+	if _, _, _, err := reg.DescribeToolWithETag(ctx, "t1", "echo", ""); err == nil {
+		t.Fatalf("expected describe to fail when ensureEntry errors")
+	}
+}
+
+func TestCachedRegistryDescribeLoaderError(t *testing.T) {
+	ctx := context.Background()
+	loader := &stubLoader{list: map[string][]protocol.Tool{"t1": {}}, describe: map[string]protocol.Tool{}}
+	reg := NewCachedRegistry(loader, time.Minute)
+
+	if _, _, _, err := reg.DescribeToolWithETag(ctx, "t1", "missing", ""); err == nil {
+		t.Fatalf("expected describe loader error")
+	}
+	if loader.listCalls != 1 || loader.describeCalls != 1 {
+		t.Fatalf("unexpected loader calls: list=%d describe=%d", loader.listCalls, loader.describeCalls)
+	}
+}

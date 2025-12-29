@@ -14,6 +14,7 @@
 - CACHE_TTL / ETAG_FN: align with registry change cadence; shorter TTL in dev.
 - ALLOW_LIST_SOURCE: per-tenant tool allow-list (DB table or file).
 - FALLBACK_LOADER: file loader for cold-start/dev; ensure tenant filtering.
+- MCP_TOOLS_ROOT: required when enabling file fallback; sandbox file reads to a fixed root to avoid path traversal.
 
 ## Policy / RBAC
 - EVALUATOR: Memory for tests/dev; DB-backed in prod.

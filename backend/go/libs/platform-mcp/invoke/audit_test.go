@@ -2,6 +2,7 @@ package invoke
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -96,5 +97,35 @@ func TestAuditObserverAddsSpanEvent(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("audit event not found on span")
+	}
+}
+
+func TestAuditObserverHandlesInvokeError(t *testing.T) {
+	sink := &memoryAuditSink{}
+	obs := NewAuditObserver(sink)
+	req := protocol.InvocationRequest{TenantID: "t1", Tool: protocol.ToolRef{Name: "echo"}}
+
+	obs.OnInvocationEvent(context.Background(), req, protocol.InvocationEvent{Type: protocol.EventResult}, errors.New("invoke boom"), 0)
+
+	if len(sink.records) != 1 || sink.records[0].Outcome != "error" || sink.records[0].ErrorMessage == "" {
+		t.Fatalf("expected invoke error recorded, got %+v", sink.records)
+	}
+}
+
+func TestAuditObserverNoSinkIsNoop(t *testing.T) {
+	obs := NewAuditObserver(nil)
+	req := protocol.InvocationRequest{TenantID: "t1", Tool: protocol.ToolRef{Name: "echo"}}
+	obs.OnInvocationEvent(context.Background(), req, protocol.InvocationEvent{Type: protocol.EventResult}, nil, 0)
+}
+
+func TestAuditObserverRecordsProgress(t *testing.T) {
+	sink := &memoryAuditSink{}
+	obs := NewAuditObserver(sink)
+	req := protocol.InvocationRequest{TenantID: "t1", Tool: protocol.ToolRef{Name: "echo"}}
+
+	obs.OnInvocationEvent(context.Background(), req, protocol.InvocationEvent{Type: protocol.EventProgress, Progress: &protocol.Progress{Stage: "step"}}, nil, 0)
+
+	if len(sink.records) != 1 || sink.records[0].Progress != "step" {
+		t.Fatalf("expected progress recorded, got %+v", sink.records)
 	}
 }

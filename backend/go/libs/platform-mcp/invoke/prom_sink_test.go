@@ -34,3 +34,11 @@ func TestPrometheusSinkRecordsMetrics(t *testing.T) {
 		t.Fatalf("expected histogram count=1, got %d", count)
 	}
 }
+
+func TestPrometheusSinkDefaultsRegisterer(t *testing.T) {
+	// Ensure nil registerer falls back to default without panic.
+	sink := NewPrometheusSink(nil)
+	labels := map[string]string{"tenant": "t1", "tool": "echo", "outcome": "ok"}
+	sink.IncCounter("mcp_invocations_total", labels)
+	sink.ObserveHistogram("mcp_invocation_latency_seconds", 0.1, labels)
+}
