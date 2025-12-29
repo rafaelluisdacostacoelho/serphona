@@ -1,404 +1,141 @@
 # Biblioteca de Observabilidade da Plataforma
 
-> 📊 Biblioteca de observabilidade completa para rastreamento de interações, métricas e logs no Serphona.
+Blocos leves para serviços do Serphona emitirem traces, contadores e eventos de conversação para backends externos (OTLP, Prometheus, Kafka, Loki) com detecção opcional de anomalias.
 
-## 🎯 Objetivo
+## O que a biblioteca oferece
+- Provedor de tracer OTLP gRPC com amostragem configurável e opções de TLS/bearer.
+- Contadores Prometheus para conversações, interações e decisões, além de um servidor HTTP de métricas.
+- Wrappers de middleware HTTP e gRPC baseados em `otelhttp` e `otelgrpc`.
+- Helpers de rastreamento de conversação com estado em memória, emissão de spans/contadores e envio para Kafka e/ou Loki.
+- Detecção opcional de anomalias que gera eventos de alerta para picos de volume.
 
-Coletar e rastrear **todas as interações de atendimento** incluindo:
-- ✅ Fluxo completo de conversação
-- ✅ Escolhas e decisões dos atendentes
-- ✅ Falas e respostas dos atendidos
-- ✅ Métricas de performance e qualidade
-- ✅ Contexto completo para analytics
-
-## 🏗️ Stack Open Source
-
-```
-┌────────────────────────────────────────────────────────────┐
-│                    OBSERVABILITY STACK                     │
-├────────────────────────────────────────────────────────────┤
-│                                                            │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │ OpenTelemetry│  │  Prometheus  │  │     Loki     │      │
-│  │   (Traces)   │  │  (Metrics)   │  │    (Logs)    │      │
-│  └──────────────┘  └──────────────┘  └──────────────┘      │
-│         │                  │                  │            │
-│         └──────────────────┼──────────────────┘            │
-│                            ▼                               │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │              Grafana (Visualização)                  │  │
-│  └──────────────────────────────────────────────────────┘  │
-│                            │                               │
-│                            ▼                               │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │         ClickHouse (Analytics Storage)               │  │
-│  └──────────────────────────────────────────────────────┘  │
-└────────────────────────────────────────────────────────────┘
-```
-
-### Componentes:
-
-| Ferramenta | Propósito | Porta |
-|------------|-----------|-------|
-| **OpenTelemetry** | Distributed tracing | - |
-| **Prometheus** | Métricas e alertas | 9090 |
-| **Loki** | Agregação de logs | 3100 |
-| **Tempo** | Backend de traces | 3200 |
-| **Grafana** | Dashboards e visualização | 3000 |
-| **ClickHouse** | Armazenamento analítico | 8123 |
-
-## 📦 Estrutura da Biblioteca
-
+## Pacotes em destaque
 ```
 platform-observability/
-├── tracing/
-│   ├── tracer.go           # OpenTelemetry tracer setup
-│   ├── span.go             # Span helpers
-│   └── conversation.go     # Conversation flow tracking
-├── metrics/
-│   ├── prometheus.go       # Prometheus metrics
-│   ├── conversation.go     # Conversation metrics
-│   └── performance.go      # Performance metrics
-├── logging/
-│   ├── logger.go           # Zap logger setup
-│   ├── middleware.go       # HTTP logging middleware
-│   └── conversation.go     # Conversation event logging
-├── middleware/
-│   ├── http.go             # HTTP instrumentation
-│   ├── grpc.go             # gRPC instrumentation
-│   └── conversation.go     # Conversation tracking
-├── exporter/
-│   ├── clickhouse.go       # ClickHouse exporter
-│   └── batch.go            # Batch processing
-├── types/
-│   ├── conversation.go     # Conversation events
-│   ├── interaction.go      # Interaction events
-│   └── metrics.go          # Metric types
-└── config/
-    └── config.go           # Configuration
+├── config/            // carregador de configuração via env
+├── tracing/           // setup do tracer OTLP e sampler adaptativo
+├── metrics/           // contadores Prometheus e handler
+├── middleware/        // instrumentação HTTP e gRPC
+├── exporter/          // exporters Kafka e Loki
+├── anomaly/           // detector simples por z-score
+├── types/             // structs de conversação/interação/decisão
+├── examples/          // demo em conversation_tracking.go
+└── observability.go   // ciclo de vida do Observer e eventos
 ```
 
-## 🚀 Início Rápido
-
-### 1. Instalação
+## Início rápido
+Instale o módulo e inicialize a observabilidade na subida do serviço.
 
 ```bash
 go get github.com/serphona/backend/go/libs/platform-observability
 ```
 
-### 2. Configuração
-
 ```go
 package main
 
 import (
+    "context"
+    "log"
+
+    obs "github.com/serphona/backend/go/libs/platform-observability"
     "github.com/serphona/backend/go/libs/platform-observability/config"
-    "github.com/serphona/backend/go/libs/platform-observability/tracing"
-    "github.com/serphona/backend/go/libs/platform-observability/metrics"
-    "github.com/serphona/backend/go/libs/platform-observability/logging"
+    "github.com/serphona/backend/go/libs/platform-observability/middleware"
 )
 
 func main() {
-    // Configurar observabilidade
-    cfg := config.Config{
-        ServiceName:    "agent-orchestrator",
-        ServiceVersion: "1.0.0",
-        Environment:    "production",
-        
-        // Tracing
-        TracingEnabled:  true,
-        TracingEndpoint: "http://tempo:4317",
-        
-        // Metrics
-        MetricsEnabled: true,
-        MetricsPort:    9090,
-        
-        // Logging
-        LoggingEnabled:  true,
-        LogLevel:        "info",
-        LokiEndpoint:    "http://loki:3100",
-        
-        // ClickHouse
-        ClickHouseEnabled:  true,
-        ClickHouseEndpoint: "http://clickhouse:8123",
-    }
-    
-    // Inicializar tracing
-    tracer, err := tracing.New(cfg)
+    cfg := config.LoadFromEnv()
+    cfg.ServiceName = "agent-orchestrator"
+    cfg.Environment = "production"
+    cfg.TracingEndpoint = "tempo:4317" // obrigatório quando tracing estiver ativo
+
+    observer, err := obs.Init(cfg)
     if err != nil {
-        panic(err)
+        log.Fatal(err)
     }
-    defer tracer.Shutdown()
-    
-    // Inicializar métricas
-    metrics.Init(cfg)
-    
-    // Inicializar logging
-    logger := logging.New(cfg)
-    defer logger.Sync()
-    
-    // Sua aplicação...
+    defer observer.Shutdown(context.Background())
+
+    // Servidor HTTP com tracing
+    handler := middleware.HTTP(http.DefaultServeMux, cfg.ServiceName)
+    go http.ListenAndServe(":8080", handler)
+
+    // Servidor gRPC com tracing
+    _ = grpc.NewServer(
+        grpc.UnaryInterceptor(middleware.GRPCUnary()),
+        grpc.StreamInterceptor(middleware.GRPCStream()),
+    )
 }
 ```
 
-### 3. Rastreamento de Conversações
+## Rastreie conversações e decisões
 
 ```go
-import (
-    obs "github.com/serphona/backend/go/libs/platform-observability"
-    "github.com/serphona/backend/go/libs/platform-observability/types"
-)
+ctx := context.Background()
 
-// Iniciar conversação
-conversationID := obs.StartConversation(ctx, types.ConversationStart{
-    TenantID:     "tenant-123",
-    AgentID:      "agent-456",
-    CustomerID:   "customer-789",
-    Channel:      "voice",
-    Language:     "pt-BR",
-    StartTime:    time.Now(),
+id := obs.StartConversation(ctx, types.ConversationStart{
+    TenantID: "tenant-123",
+    AgentID:  "agent-456",
+    Channel:  "voice",
+    Language: "pt-BR",
 })
 
-// Rastrear interação
-obs.TrackInteraction(ctx, conversationID, types.Interaction{
-    Type:       "agent_message",
-    Speaker:    "agent",
-    Content:    "Olá, como posso ajudar?",
-    Timestamp:  time.Now(),
-    Metadata: map[string]string{
-        "sentiment": "neutral",
-        "intent":    "greeting",
-    },
+obs.TrackInteraction(ctx, id, types.Interaction{
+    Speaker:   "agent",
+    Content:   "Olá, como posso ajudar?",
+    Sentiment: "neutral",
 })
 
-// Rastrear resposta do cliente
-obs.TrackInteraction(ctx, conversationID, types.Interaction{
-    Type:       "customer_message",
-    Speaker:    "customer",
-    Content:    "Preciso de ajuda com minha conta",
-    Timestamp:  time.Now(),
-    Metadata: map[string]string{
-        "sentiment": "neutral",
-        "intent":    "account_support",
-    },
-})
-
-// Rastrear escolha do agente
-obs.TrackDecision(ctx, conversationID, types.Decision{
+obs.TrackDecision(ctx, id, types.Decision{
     DecisionType: "transfer",
     Option:       "technical_support",
-    Reason:       "Customer needs technical assistance",
-    Timestamp:    time.Now(),
 })
 
-// Finalizar conversação
-obs.EndConversation(ctx, conversationID, types.ConversationEnd{
-    EndTime:    time.Now(),
+obs.EndConversation(ctx, id, types.ConversationEnd{
     Resolution: "transferred",
     Rating:     5,
-    Tags:       []string{"account", "technical"},
 })
 ```
 
-## 📊 Métricas Coletadas
+Cada chamada atualiza o estado em memória, emite um span (se tracing estiver ativo), incrementa contadores Prometheus e encaminha eventos para Kafka/Loki quando configurado.
 
-### Conversações
+## Métricas e exporters
+- Contadores Prometheus expostos em `MetricsPath` (padrão `/metrics`) na porta `MetricsPort` (padrão `9090`):
+  - `obs_conversation_events_total{event,tenant}`
+  - `obs_interactions_total{speaker,tenant}`
+  - `obs_decisions_total{type,tenant}`
+- Tracing usa OTLP gRPC; atributos de recurso incluem `service.name`, `service.version` e `deployment.environment`.
+- Exporter Kafka envia eventos JSON para um único tópico; suporta TLS/SASL PLAIN, sem retries/backpressure.
+- Exporter Loki faz push de eventos JSON com cabeçalho `X-Scope-OrgID` opcional; sem retries/backoff.
 
-```go
-// Total de conversações
-conversation_total{tenant_id, agent_id, channel} counter
+## Configuração (prioridade para env)
+| Variável | Propósito | Padrão |
+| --- | --- | --- |
+| `SERVICE_NAME`, `SERVICE_VERSION`, `ENVIRONMENT` | Atributos de recurso para traces e logs | `unknown`, `1.0.0`, `development` |
+| `TRACING_ENABLED` | Ativa OTLP tracing | `true` |
+| `TRACING_ENDPOINT` | Destino OTLP gRPC (host:port) | `tempo:4317` |
+| `TRACING_SAMPLER`, `TRACING_SAMPLER_STRATEGY` | Razão e estratégia (`ratio`, `parent_ratio`, `always_on`, `always_off`, `adaptive`) | `1.0`, `parent_ratio` |
+| `TRACING_INSECURE`, `TRACING_TLS_INSECURE` | Desabilita TLS ou ignora verificação | `true`, `false` |
+| `TRACING_TLS_CA_CERT`, `TRACING_TLS_CLIENT_CERT`, `TRACING_TLS_CLIENT_KEY` | Certificados de cliente/CA | vazio |
+| `TRACING_BEARER_TOKEN` | Bearer token para requisições OTLP | vazio |
+| `METRICS_ENABLED`, `METRICS_PORT`, `METRICS_PATH` | Exposição do handler Prometheus | `true`, `9090`, `/metrics` |
+| `KAFKA_ENABLED`, `KAFKA_BROKERS`, `KAFKA_TOPIC`, `KAFKA_CLIENT_ID` | Configuração do exporter Kafka | `false`, vazio, `observability.events`, `platform-observability` |
+| `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD`, `KAFKA_SASL_MECHANISM` | Autenticação SASL PLAIN | vazio |
+| `KAFKA_TLS_ENABLED`, `KAFKA_TLS_INSECURE` | Opções de TLS para Kafka | `false`, `false` |
+| `LOKI_ENABLED`, `LOKI_ENDPOINT`, `LOKI_TENANT` | Endpoint Loki e tenant header | `false`, vazio, vazio |
+| `CONVERSATION_TRACKING` | Liga/desliga estado de conversação | `true` |
+| `ANOMALY_DETECTION_ENABLED` e `ANOMALY_*` | Ativa alertas de anomalia; controles de janela/bucket/z-score/cooldown | `false`; `5m/1m/3.0/5/300s` |
+| `ML_ALERTS_ENABLED` | Emite eventos de alerta ML a partir das anomalias | `false` |
 
-// Duração das conversações
-conversation_duration_seconds{tenant_id, agent_id, resolution} histogram
+## Limitações atuais
+- Não há histogramas de latência HTTP/gRPC nem métricas de runtime/processo.
+- Não há exporter de ClickHouse ou persistência de conversação; todo estado é em memória por processo.
+- Exporters Kafka/Loki não implementam retries ou controle de backpressure.
+- Logging usa `zap.NewProduction` por padrão; não existe pacote dedicado nem helpers de redação.
+- Propagators seguem o padrão do OpenTelemetry; middleware não enriquece com tenant/request IDs.
 
-// Interações por conversação
-conversation_interactions_total{tenant_id, speaker_type} histogram
-
-// Taxa de resolução
-conversation_resolution_rate{tenant_id, agent_id, resolution_type} gauge
-
-// Satisfação do cliente
-conversation_customer_rating{tenant_id, agent_id} histogram
-```
-
-### Performance
-
-```go
-// Tempo de resposta do agente
-agent_response_time_seconds{agent_id, tenant_id} histogram
-
-// Latência de API
-http_request_duration_seconds{method, path, status} histogram
-
-// Taxa de erro
-error_rate{service, error_type} counter
-```
-
-### Qualidade
-
-```go
-// Sentimento médio
-conversation_sentiment_score{tenant_id, agent_id} gauge
-
-// Assertividade
-agent_assertiveness_score{agent_id} gauge
-
-// Compliance
-conversation_compliance_score{tenant_id, policy} gauge
-```
-
-## 📝 Logging de Eventos
-
-### Estrutura de Logs
-
-```json
-{
-  "timestamp": "2025-12-01T02:00:00Z",
-  "level": "info",
-  "service": "agent-orchestrator",
-  "tenant_id": "tenant-123",
-  "conversation_id": "conv-456",
-  "event_type": "interaction",
-  "speaker": "agent",
-  "content": "Como posso ajudar?",
-  "metadata": {
-    "sentiment": "positive",
-    "intent": "greeting",
-    "confidence": 0.95
-  },
-  "trace_id": "abc123",
-  "span_id": "def456"
-}
-```
-
-### Eventos Rastreados
-
-- ✅ **conversation.started** - Início de conversação
-- ✅ **interaction.agent** - Fala do agente
-- ✅ **interaction.customer** - Fala do cliente
-- ✅ **decision.made** - Decisão tomada
-- ✅ **transfer.initiated** - Transferência iniciada
-- ✅ **conversation.ended** - Fim de conversação
-- ✅ **error.occurred** - Erro detectado
-- ✅ **compliance.violation** - Violação de política
-
-## 🔍 Distributed Tracing
-
-### Exemplo de Trace
-
-```
-Conversation Flow (conv-123)
-│
-├─ span: conversation.start (100ms)
-│  │
-│  ├─ span: agent.greeting (50ms)
-│  │  └─ event: agent_message
-│  │
-│  ├─ span: customer.response (2s)
-│  │  └─ event: customer_message
-│  │
-│  ├─ span: intent.detection (150ms)
-│  │  └─ event: intent_classified
-│  │
-│  ├─ span: agent.response (100ms)
-│  │  └─ event: agent_message
-│  │
-│  └─ span: conversation.end (50ms)
-     └─ event: conversation_ended
-```
-
-### Atributos do Span
-
-```go
-span.SetAttributes(
-    attribute.String("tenant_id", "tenant-123"),
-    attribute.String("conversation_id", "conv-456"),
-    attribute.String("agent_id", "agent-789"),
-    attribute.String("customer_id", "cust-012"),
-    attribute.String("channel", "voice"),
-    attribute.String("language", "pt-BR"),
-    attribute.Int("interaction_count", 15),
-    attribute.Float64("duration_seconds", 120.5),
-    attribute.String("resolution", "solved"),
-    attribute.Int("rating", 5),
-)
-```
-
-## 🎨 Dashboards Grafana
-
-### Dashboard de Conversações
-
-```yaml
-- Conversações ativas em tempo real
-- Taxa de conversações por hora
-- Duração média por canal
-- Distribuição de resoluções
-- Top agentes por volume
-- Taxa de satisfação
-```
-
-### Dashboard de Qualidade
-
-```yaml
-- Sentimento médio por tenant
-- Compliance score
-- Tempo médio de resposta
-- Taxa de transferências
-- Principais intenções detectadas
-- Violações de política
-```
-
-### Dashboard de Performance
-
-```yaml
-- Latência p50, p95, p99
-- Taxa de erros
-- Throughput de requisições
-- Utilização de recursos
-- SLA tracking
-```
-
-## 🔌 Integração com Analytics
-
-### Exportação para ClickHouse
-
-```go
-// Configurar exportador
-exporter := clickhouse.NewExporter(clickhouse.Config{
-    Endpoint: "http://clickhouse:8123",
-    Database: "analytics",
-    BatchSize: 1000,
-    FlushInterval: 10 * time.Second,
-})
-
-// Exportar conversação
-exporter.ExportConversation(conversation)
-
-// Exportar métricas agregadas
-exporter.ExportMetrics(metrics)
-```
-
-### Schema ClickHouse
-
-```sql
--- Tabela de conversações
-CREATE TABLE conversations (
-    conversation_id String,
-    tenant_id String,
-    agent_id String,
-    customer_id String,
-    channel String,
-    start_time DateTime,
-    end_time DateTime,
-    duration_seconds Float64,
-    interaction_count UInt32,
-    resolution String,
-    rating UInt8,
-    tags Array(String),
-    metadata Map(String, String)
-) ENGINE = MergeTree()
-PARTITION BY toYYYYMM(start_time)
-ORDER BY (tenant_id, start_time);
+## Testes
+- Testes unitários: `go test ./...`
+- Placeholder de integração: `go test -tags=integration ./test/integration` (atualmente com skip).
+- Checagens manuais: verifique resposta do endpoint de métricas, spans chegando ao backend OTLP e eventos em Kafka/Loki quando habilitados.
 
 -- Tabela de interações
 CREATE TABLE interactions (
