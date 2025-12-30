@@ -53,6 +53,26 @@ func signedToken(t *testing.T, exp time.Time, role string) string {
 	return token
 }
 
+func signedServiceToken(t *testing.T, exp time.Time, service string, scopes []string, tenant string) string {
+	t.Helper()
+
+	claims := types.Claims{
+		Service:  service,
+		TenantID: tenant,
+		Scopes:   scopes,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(exp),
+		},
+	}
+
+	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(testSecret))
+	if err != nil {
+		t.Fatalf("failed to sign service token: %v", err)
+	}
+
+	return token
+}
+
 func signedRSAToken(t *testing.T, privateKey *rsa.PrivateKey, kid string, exp time.Time) string {
 	t.Helper()
 
@@ -276,7 +296,7 @@ func TestValidateTokenNotYetValid(t *testing.T) {
 	}
 }
 
-func TestValidateTokenMissingTenantPassesToday(t *testing.T) {
+func TestValidateTokenMissingTenantFails(t *testing.T) {
 	authjwt.SetSecret(testSecret)
 
 	claims := types.Claims{
@@ -291,12 +311,57 @@ func TestValidateTokenMissingTenantPassesToday(t *testing.T) {
 
 	token, _ := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(testSecret))
 
-	validated, err := authjwt.ValidateToken(token)
-	if err != nil {
-		t.Fatalf("expected token without tenant to pass with current validation, got %v", err)
+	if _, err := authjwt.ValidateToken(token); err != autherrors.ErrInvalidToken {
+		t.Fatalf("expected token without tenant to fail, got %v", err)
 	}
-	if validated.TenantID != "" {
-		t.Fatalf("expected tenant to remain empty, got %s", validated.TenantID)
+}
+
+func TestValidateServiceTokenSuccess(t *testing.T) {
+	authjwt.SetSecret(testSecret)
+
+	token := signedServiceToken(t, time.Now().Add(time.Hour), "tenant-manager", []string{"tenant:read"}, "platform")
+
+	claims, err := authjwt.ValidateToken(token)
+	if err != nil {
+		t.Fatalf("expected service token to be valid, got %v", err)
+	}
+
+	if claims.Service != "tenant-manager" {
+		t.Fatalf("unexpected service claim: %+v", claims.Service)
+	}
+	if claims.TenantID != "platform" {
+		t.Fatalf("expected platform tenant, got %s", claims.TenantID)
+	}
+}
+
+func TestValidateServiceTokenRequiresScopes(t *testing.T) {
+	authjwt.SetSecret(testSecret)
+
+	token := signedServiceToken(t, time.Now().Add(time.Hour), "billing-service", nil, "22222222-2222-2222-2222-222222222222")
+
+	if _, err := authjwt.ValidateToken(token); err != autherrors.ErrInsufficientPermissions {
+		t.Fatalf("expected service token without scopes to fail with insufficient permissions, got %v", err)
+	}
+}
+
+func TestValidateTokenInvalidRole(t *testing.T) {
+	authjwt.SetSecret(testSecret)
+
+	claims := types.Claims{
+		UserID:   "11111111-1111-1111-1111-111111111111",
+		Email:    "user@example.com",
+		Name:     "Test User",
+		Role:     "reader",
+		TenantID: "22222222-2222-2222-2222-222222222222",
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+		},
+	}
+
+	token, _ := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(testSecret))
+
+	if _, err := authjwt.ValidateToken(token); err != autherrors.ErrInvalidRole {
+		t.Fatalf("expected invalid role error, got %v", err)
 	}
 }
 

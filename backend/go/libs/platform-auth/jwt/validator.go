@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	autherrors "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/errors"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/types"
 )
@@ -238,6 +239,9 @@ func ValidateTokenWithSecret(tokenString, secret string) (*types.Claims, error) 
 	}
 
 	if claims, ok := token.Claims.(*types.Claims); ok && token.Valid {
+		if err := validateClaimsDetails(claims); err != nil {
+			return nil, err
+		}
 		// Optionally enforce required scopes at validation time
 		if len(cfg.RequiredScopes) > 0 {
 			if !claims.HasAllScopes(cfg.RequiredScopes...) {
@@ -429,4 +433,38 @@ func ValidateTokenFromHeader(authHeader string) (*types.Claims, error) {
 	}
 
 	return ValidateToken(token)
+}
+
+func validateClaimsDetails(claims *types.Claims) error {
+	if claims == nil {
+		return autherrors.ErrInvalidToken
+	}
+
+	tenant := strings.TrimSpace(claims.TenantID)
+	if tenant == "" {
+		return autherrors.ErrInvalidToken
+	}
+	if tenant != "platform" {
+		if _, err := uuid.Parse(tenant); err != nil {
+			return autherrors.ErrInvalidToken
+		}
+	}
+
+	if strings.TrimSpace(claims.Service) != "" {
+		if len(claims.Scopes) == 0 {
+			return autherrors.ErrInsufficientPermissions
+		}
+		return nil
+	}
+
+	if _, err := uuid.Parse(strings.TrimSpace(claims.UserID)); err != nil {
+		return autherrors.ErrInvalidToken
+	}
+
+	switch claims.Role {
+	case "user", "admin", "superadmin":
+		return nil
+	default:
+		return autherrors.ErrInvalidRole
+	}
 }

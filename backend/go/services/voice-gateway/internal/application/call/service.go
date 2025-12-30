@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	platformmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"go.uber.org/zap"
 
 	"voice-gateway/internal/adapter/agent"
@@ -137,25 +138,62 @@ func (s *Service) StartConversation(ctx context.Context, callID uuid.UUID, agent
 		return fmt.Errorf("call is not in active state: %s", c.State)
 	}
 
-	// Generate conversation ID
-	conversationID := uuid.New()
-	c.ConversationID = conversationID
+	// Propagate tenant for downstream calls (platform-auth transport injects header)
+	ctxWithTenant := platformmw.WithTenantID(ctx, c.TenantID.String())
+
+	agentCfg, err := s.tenantClient.GetAgentConfig(ctxWithTenant, c.TenantID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch agent config: %w", err)
+	}
+
+	providerSettings, err := s.tenantClient.GetProviderSettings(ctxWithTenant, c.TenantID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch provider settings: %w", err)
+	}
+
+	conv, err := s.agentClient.CreateConversation(ctxWithTenant, c.TenantID, agentID)
+	if err != nil {
+		return fmt.Errorf("failed to create conversation: %w", err)
+	}
+
+	// Persist conversation details
+	c.ConversationID = conv.ConversationID
 	c.AgentID = agentID
+
+	if providerSettings != nil {
+		if providerSettings.STTProvider != "" {
+			c.STTProvider = providerSettings.STTProvider
+			if _, ok := s.sttProviders[providerSettings.STTProvider]; !ok {
+				s.logger.Warn("stt provider not registered", zap.String("provider", providerSettings.STTProvider))
+			}
+		}
+		if providerSettings.TTSProvider != "" {
+			c.TTSProvider = providerSettings.TTSProvider
+			if _, ok := s.ttsProviders[providerSettings.TTSProvider]; !ok {
+				s.logger.Warn("tts provider not registered", zap.String("provider", providerSettings.TTSProvider))
+			}
+		}
+	}
+
+	if c.Metadata == nil {
+		c.Metadata = map[string]interface{}{}
+	}
+	c.Metadata["agent_name"] = agentCfg.Name
+	c.Metadata["agent_voice_provider"] = agentCfg.Voice.Provider
+	c.Metadata["agent_voice_id"] = agentCfg.Voice.VoiceID
+
 	c.Activate()
 
-	// TODO: Initialize conversation with agent-orchestrator
-	// - Create conversation session
-	// - Get initial greeting from agent
-	// - Start STT/TTS loop
-
-	if err := s.callStateRepo.Save(ctx, c); err != nil {
+	if err := s.callStateRepo.Save(ctxWithTenant, c); err != nil {
 		return fmt.Errorf("failed to update call state: %w", err)
 	}
 
 	s.logger.Info("conversation started",
 		zap.String("call_id", callID.String()),
-		zap.String("conversation_id", conversationID.String()),
+		zap.String("conversation_id", conv.ConversationID.String()),
 		zap.String("agent_id", agentID),
+		zap.String("stt_provider", c.STTProvider),
+		zap.String("tts_provider", c.TTSProvider),
 	)
 
 	return nil

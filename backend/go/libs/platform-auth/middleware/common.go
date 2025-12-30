@@ -57,6 +57,10 @@ func mapAuthError(err error) authMappedError {
 		mapped.status = http.StatusForbidden
 		mapped.code = autherrors.CodeInsufficientPermissions
 		mapped.message = "Insufficient permissions"
+	case errors.Is(err, autherrors.ErrInvalidRole):
+		mapped.status = http.StatusForbidden
+		mapped.code = autherrors.CodeInvalidRole
+		mapped.message = "Invalid role"
 	}
 
 	return mapped

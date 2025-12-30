@@ -29,6 +29,7 @@
 - Billing/usage events for call minutes, STT/TTS/LLM consumption.
 
 ## Next steps
+- Follow the global sequencing in [docs/backlogs/GLOBAL-VOICE-PLATFORM-BACKLOG-en-US.md](../../docs/backlogs/GLOBAL-VOICE-PLATFORM-BACKLOG-en-US.md) (pt-BR: [docs/backlogs/GLOBAL-VOICE-PLATFORM-BACKLOG-pt-BR.md](../../docs/backlogs/GLOBAL-VOICE-PLATFORM-BACKLOG-pt-BR.md)).
 - Wire the real router/services in `cmd/server`, replace placeholders in handlers (tenant lookup, conversation start, hangup/end), and add auth middleware + CORS tightening.
 - Add webhook validation/idempotency and ARI channel→call lookup; implement retry/backoff + DLQ for Kafka publishes.
 - Instrument metrics/tracing for ARI/STT/TTS/call state; add readiness checks for Redis/Kafka/Asterisk.

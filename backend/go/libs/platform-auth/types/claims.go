@@ -1,6 +1,8 @@
 package types
 
 import (
+	"strings"
+
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
@@ -13,36 +15,49 @@ type Claims struct {
 	Role      string   `json:"role"` // user, admin, superadmin
 	TenantID  string   `json:"tenantId"`
 	SessionID string   `json:"sessionId"`
+	Service   string   `json:"service,omitempty"`
 	Scopes    []string `json:"scopes,omitempty"` // Optional fine-grained permissions
 	jwt.RegisteredClaims
 }
 
 // Valid validates the custom claims fields.
-func (c *Claims) Valid() error {
-	if c.UserID == "" {
+func (c Claims) Valid() error {
+	tenant := strings.TrimSpace(c.TenantID)
+	if tenant == "" {
 		return jwt.ErrTokenInvalidClaims
 	}
 
-	if _, err := uuid.Parse(c.UserID); err != nil {
+	if tenant != "platform" {
+		if _, err := uuid.Parse(tenant); err != nil {
+			return jwt.ErrTokenInvalidClaims
+		}
+	}
+
+	hasService := strings.TrimSpace(c.Service) != ""
+	hasUser := strings.TrimSpace(c.UserID) != ""
+
+	if hasService && hasUser {
 		return jwt.ErrTokenInvalidClaims
 	}
 
-	if c.TenantID == "" {
+	if !hasService && !hasUser {
 		return jwt.ErrTokenInvalidClaims
 	}
 
-	if _, err := uuid.Parse(c.TenantID); err != nil {
-		return jwt.ErrTokenInvalidClaims
-	}
+	if hasUser {
+		if _, err := uuid.Parse(strings.TrimSpace(c.UserID)); err != nil {
+			return jwt.ErrTokenInvalidClaims
+		}
 
-	validRoles := map[string]bool{
-		"user":       true,
-		"admin":      true,
-		"superadmin": true,
-	}
+		validRoles := map[string]bool{
+			"user":       true,
+			"admin":      true,
+			"superadmin": true,
+		}
 
-	if !validRoles[c.Role] {
-		return jwt.ErrTokenInvalidClaims
+		if !validRoles[c.Role] {
+			return jwt.ErrTokenInvalidClaims
+		}
 	}
 
 	return nil

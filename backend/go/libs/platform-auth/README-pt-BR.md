@@ -60,6 +60,33 @@ claims, err := authClient.ValidateToken(token)
 usuario, err := authClient.GetUserByID(userID, token)
 ```
 
+Chamadas serviço-a-serviço podem usar um token de serviço (client credentials) sem sobrescrever tokens de usuário:
+
+```go
+svcToken := os.Getenv("SERVICE_AUTH_TOKEN")
+authClient := client.NewWithOptions(
+    "http://auth-gateway:8080",
+    client.WithStaticBearerToken(svcToken),
+    client.WithServiceIdentity("billing-service", "billing-service-1"),
+)
+
+// Se o handler nao setar Authorization, o bearer estatico entra; tokens de usuario sao preservados.
+resp, err := authClient.ValidateToken("user-token")
+```
+
+Tokens de servico precisam ser emitidos com claims `service` e `scopes` e usar a audience de servico:
+
+```go
+serviceAudience := os.Getenv("SERVICE_AUDIENCE")
+authjwt.SetValidationConfig(authjwt.ValidationConfig{
+    Audience:    serviceAudience,      // deve casar com a SERVICE_AUDIENCE na emissao
+    AllowedAlgs: []string{"RS256"},   // preferir chaves assimetricas para chamadas internas
+    AllowedKIDs: []string{"kid-1"},   // allow-list opcional
+})
+```
+
+O emissor deve preencher `service` (ID do chamador), `tenantId` (`platform` permitido para infra) e `scopes` nao vazios por acao interna.
+
 ### 4. Validacao JWT manual
 
 ```go
@@ -90,6 +117,8 @@ Variaveis de ambiente esperadas pelos consumidores:
 ```env
 JWT_SECRET=sua-chave-jwt-super-secreta
 AUTH_GATEWAY_URL=http://auth-gateway:8080
+SERVICE_AUDIENCE=serphona-service         # audience para tokens de servico
+SERVICE_AUTH_TOKEN=internal-service-token # bearer estatico opcional para chamadas internas
 TENANT_ID_HEADER=X-Tenant-Id              # opcional; padrao segue a constante da biblioteca
 TRACE_REQUEST_HEADER=X-Request-Id         # opcional para servicos
 TLS_CA=/etc/ssl/certs/ca.pem              # CA opcional para chamadas ao auth-gateway

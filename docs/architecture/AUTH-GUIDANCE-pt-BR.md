@@ -9,7 +9,17 @@
 - Claims: incluir `tenantId` (ou tenant "platform" para infra), `service` (ID do chamador), `scopes` mínimos por ação interna; `exp` curta (5–15m), `nbf` recomendado.
 - Issuer: auth-gateway/issuer central; `iss` consistente.
 - Chaves: preferir JWKS (`JWKS_URL`, `kid` permitido); rotacionar; HMAC só como fallback dev.
-- Validação: `AllowedAlgs` RS256/ES256; `Audience` = `SERVICE_AUDIENCE` por serviço.
+- Validação: `AllowedAlgs` RS256/ES256; `Audience` = `SERVICE_AUDIENCE` por serviço. Exemplo:
+
+	```go
+	serviceAudience := os.Getenv("SERVICE_AUDIENCE")
+	authjwt.SetValidationConfig(authjwt.ValidationConfig{
+			Audience:    serviceAudience,
+			AllowedAlgs: []string{"RS256"},
+	})
+	```
+
+- Regra de emissão: tokens de serviço devem conter `service` e `scopes` não vazios; aceitar `tenantId = platform` para chamadas de infra, demais tenants devem ser UUID válido.
 - Propagação: sempre encaminhar `X-Request-Id`, `Traceparent` e `X-Tenant-Id`; use o transporte HTTP instrumentado (já propaga request/trace/tenant).
 - Mínimo privilégio: scopes internos específicos (ex.: `tenant-manager:read-tenants`, `billing:write-invoices`); rejeitar tokens internos sem scope.
 

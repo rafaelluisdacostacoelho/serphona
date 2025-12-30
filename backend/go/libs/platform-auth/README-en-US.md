@@ -97,6 +97,19 @@ authClient := client.NewWithOptions(
 resp, err := authClient.ValidateToken("user-token") // keeps user token header
 ```
 
+Service tokens must be issued with `service` and `scopes` claims and use the service audience:
+
+```go
+serviceAudience := os.Getenv("SERVICE_AUDIENCE")
+authjwt.SetValidationConfig(authjwt.ValidationConfig{
+    Audience:     serviceAudience,      // must match the SERVICE_AUDIENCE used at issuance
+    AllowedAlgs:  []string{"RS256"},   // prefer asymmetric keys for internal calls
+    AllowedKIDs:  []string{"kid-1"},   // optional allow-list
+})
+```
+
+Issuers should set `service` (caller ID), `tenantId` (`platform` allowed for infra), and non-empty `scopes` per internal action.
+
 ### 4. Manual JWT Validation
 
 ```go
@@ -131,6 +144,8 @@ Environment variables expected by consumers:
 ```env
 JWT_SECRET=your-super-secret-jwt-key-change-in-production
 AUTH_GATEWAY_URL=http://auth-gateway:8080
+SERVICE_AUDIENCE=serphona-service          # audience for service-to-service tokens
+SERVICE_AUTH_TOKEN=internal-service-token  # optional static bearer for internal calls
 TENANT_ID_HEADER=X-Tenant-Id               # optional override; default matches library constant
 TRACE_REQUEST_HEADER=X-Request-Id          # optional override in services
 TLS_CA=/etc/ssl/certs/ca.pem               # optional client CA for auth-gateway calls
