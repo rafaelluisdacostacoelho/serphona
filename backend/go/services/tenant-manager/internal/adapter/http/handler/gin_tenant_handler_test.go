@@ -216,3 +216,46 @@ func TestGinTenantHandlerListEnvelopeContract(t *testing.T) {
 		t.Fatalf("expected 1 tenant, got %d", len(payload.Data.Tenants))
 	}
 }
+
+func TestGinTenantHandlerGetErrorEnvelopeContract(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := newTenantRepoStub()
+	svc := tenant.NewService(repo, nil, noopCache{}, noopPublisher{}, zaptest.NewLogger(t))
+	h := NewGinTenantHandler(svc, zaptest.NewLogger(t))
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/not-a-uuid", nil)
+
+	tracer := sdktrace.NewTracerProvider()
+	ctx, span := tracer.Tracer("test").Start(req.Context(), "get-tenant-error")
+	ctx = authmw.WithRequestID(ctx, "req-tenant-err")
+	req = req.WithContext(ctx)
+	span.End()
+
+	c.Request = req
+
+	h.Get(c)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+
+	var payload struct {
+		Error response.ErrorPayload `json:"error"`
+	}
+
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if payload.Error.RequestID != "req-tenant-err" {
+		t.Fatalf("expected request_id req-tenant-err, got %s", payload.Error.RequestID)
+	}
+	if payload.Error.TraceID == "" {
+		t.Fatalf("expected trace_id to be populated")
+	}
+	if payload.Error.Code == "" || payload.Error.Message == "" {
+		t.Fatalf("expected error code/message to be set")
+	}
+}

@@ -26,6 +26,7 @@
 9) Testing/benchmarks: golden tokens (valid/expired/wrong alg/wrong aud/issuer/missing tenant/scope), JWKS rotation tests, middleware scope/role tests, client retry tests, outbound propagation assertions across services, fuzz for header parsing (✅), benchmark middleware overhead (✅).
 
 ## Ordered follow-ups (do in this sequence)
+- [ ] Track cross-service adoption em BACKLOG-AUTH.md na raiz (pt-BR é a fonte de verdade); sincronizar status antes de editar.
 - [ ] Voice-gateway: use tenant/agent clients inside StartConversation to open the conversation and pull agent config from tenant-manager before starting the loop.
 - [ ] Voice-gateway readiness: wire readinessHandler to check Redis/Kafka/Asterisk (and fail closed when dependencies unavailable).
 - [ ] Voice-gateway providers: register real STT/TTS providers instead of empty maps in main wiring.

@@ -110,3 +110,48 @@ func TestGetOAuthURLEnvelopeContract(t *testing.T) {
 		t.Fatalf("expected auth URL to be set")
 	}
 }
+
+func TestGetOAuthURLErrorEnvelopeContract(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	jwtSvc := &jwt.Service{}
+	uc := auth.NewUseCase(stubUserRepo{}, jwtSvc, stubTenantService{}, time.Hour)
+	h := NewAuthHandler(uc, jwtSvc, zaptest.NewLogger(t))
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	req := httptest.NewRequest(http.MethodGet, "/auth/oauth/unknown", nil)
+
+	tracer := sdktrace.NewTracerProvider()
+	ctx, span := tracer.Tracer("test").Start(req.Context(), "oauth-url-error")
+	ctx = authmw.WithRequestID(ctx, "req-auth-err")
+	req = req.WithContext(ctx)
+	span.End()
+
+	c.Params = gin.Params{gin.Param{Key: "provider", Value: "unknown"}}
+	c.Request = req
+
+	h.GetOAuthURL(c)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", rec.Code)
+	}
+
+	var payload struct {
+		Error response.ErrorPayload `json:"error"`
+	}
+
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if payload.Error.RequestID != "req-auth-err" {
+		t.Fatalf("expected request_id req-auth-err, got %s", payload.Error.RequestID)
+	}
+	if payload.Error.TraceID == "" {
+		t.Fatalf("expected trace_id to be populated")
+	}
+	if payload.Error.Code == "" || payload.Error.Message == "" {
+		t.Fatalf("expected error code/message to be set")
+	}
+}
