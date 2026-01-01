@@ -11,7 +11,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	autherrors "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/errors"
+	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 
 	"tenant-manager/internal/domain/apikey"
 )
@@ -19,16 +20,33 @@ import (
 // APIKeyRepository implements apikey.Repository using PostgreSQL.
 // Note: persiste apenas campos suportados pelo schema atual (scopes, rate_limit, timestamps, revogação).
 type APIKeyRepository struct {
-	pool *pgxpool.Pool
+	pool pgxPool
+}
+
+func requireTenantMatch(ctx context.Context, tenantID uuid.UUID) error {
+	tenantCtx, err := authmw.TenantIDFromContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	if tenantCtx != "platform" && tenantCtx != tenantID.String() {
+		return autherrors.ErrInsufficientPermissions
+	}
+
+	return nil
 }
 
 // NewAPIKeyRepository creates a new APIKeyRepository.
-func NewAPIKeyRepository(pool *pgxpool.Pool) *APIKeyRepository {
+func NewAPIKeyRepository(pool pgxPool) *APIKeyRepository {
 	return &APIKeyRepository{pool: pool}
 }
 
 // Save saves a new API key.
 func (r *APIKeyRepository) Save(ctx context.Context, key *apikey.APIKey) error {
+	if err := requireTenantMatch(ctx, key.TenantID); err != nil {
+		return err
+	}
+
 	query := `
 		INSERT INTO api_keys (
 			id, tenant_id, name, key_hash, key_prefix, scopes, rate_limit, expires_at, created_at, last_used_at, revoked_at
@@ -55,6 +73,10 @@ func (r *APIKeyRepository) Save(ctx context.Context, key *apikey.APIKey) error {
 
 // Update updates an existing API key.
 func (r *APIKeyRepository) Update(ctx context.Context, key *apikey.APIKey) error {
+	if err := requireTenantMatch(ctx, key.TenantID); err != nil {
+		return err
+	}
+
 	query := `
 		UPDATE api_keys SET
 			name = $2,
@@ -92,11 +114,24 @@ func (r *APIKeyRepository) FindByID(ctx context.Context, id uuid.UUID) (*apikey.
 		WHERE id = $1
 	`
 	row := r.pool.QueryRow(ctx, query, id)
-	return scanAPIKey(row)
+	key, err := scanAPIKey(row)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := requireTenantMatch(ctx, key.TenantID); err != nil {
+		return nil, err
+	}
+
+	return key, nil
 }
 
 // FindByTenantID finds all API keys for a tenant.
 func (r *APIKeyRepository) FindByTenantID(ctx context.Context, tenantID uuid.UUID) ([]*apikey.APIKey, error) {
+	if err := requireTenantMatch(ctx, tenantID); err != nil {
+		return nil, err
+	}
+
 	query := `
 		SELECT id, tenant_id, name, key_hash, key_prefix, scopes, rate_limit, expires_at, last_used_at, created_at, revoked_at
 		FROM api_keys
@@ -127,7 +162,16 @@ func (r *APIKeyRepository) FindByKeyHash(ctx context.Context, keyHash string) (*
 		WHERE key_hash = $1
 	`
 	row := r.pool.QueryRow(ctx, query, keyHash)
-	return scanAPIKey(row)
+	key, err := scanAPIKey(row)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := requireTenantMatch(ctx, key.TenantID); err != nil {
+		return nil, err
+	}
+
+	return key, nil
 }
 
 // FindByKeyPrefix finds an API key by its prefix.
@@ -138,11 +182,24 @@ func (r *APIKeyRepository) FindByKeyPrefix(ctx context.Context, prefix string) (
 		WHERE key_prefix = $1
 	`
 	row := r.pool.QueryRow(ctx, query, prefix)
-	return scanAPIKey(row)
+	key, err := scanAPIKey(row)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := requireTenantMatch(ctx, key.TenantID); err != nil {
+		return nil, err
+	}
+
+	return key, nil
 }
 
 // FindActiveByTenantID finds all active API keys for a tenant.
 func (r *APIKeyRepository) FindActiveByTenantID(ctx context.Context, tenantID uuid.UUID) ([]*apikey.APIKey, error) {
+	if err := requireTenantMatch(ctx, tenantID); err != nil {
+		return nil, err
+	}
+
 	query := `
 		SELECT id, tenant_id, name, key_hash, key_prefix, scopes, rate_limit, expires_at, last_used_at, created_at, revoked_at
 		FROM api_keys
@@ -169,7 +226,16 @@ func (r *APIKeyRepository) FindActiveByTenantID(ctx context.Context, tenantID uu
 
 // Delete deletes an API key (hard delete).
 func (r *APIKeyRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	_, err := r.pool.Exec(ctx, `DELETE FROM api_keys WHERE id = $1`, id)
+	key, err := r.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if err := requireTenantMatch(ctx, key.TenantID); err != nil {
+		return err
+	}
+
+	_, err = r.pool.Exec(ctx, `DELETE FROM api_keys WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete api key: %w", err)
 	}
@@ -178,6 +244,10 @@ func (r *APIKeyRepository) Delete(ctx context.Context, id uuid.UUID) error {
 
 // ExistsByName checks if an API key with the given name exists for a tenant.
 func (r *APIKeyRepository) ExistsByName(ctx context.Context, tenantID uuid.UUID, name string) (bool, error) {
+	if err := requireTenantMatch(ctx, tenantID); err != nil {
+		return false, err
+	}
+
 	var exists bool
 	err := r.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM api_keys WHERE tenant_id = $1 AND name = $2)`, tenantID, name).Scan(&exists)
 	if err != nil {
@@ -188,6 +258,10 @@ func (r *APIKeyRepository) ExistsByName(ctx context.Context, tenantID uuid.UUID,
 
 // CountByTenantID counts API keys for a tenant.
 func (r *APIKeyRepository) CountByTenantID(ctx context.Context, tenantID uuid.UUID) (int64, error) {
+	if err := requireTenantMatch(ctx, tenantID); err != nil {
+		return 0, err
+	}
+
 	var count int64
 	if err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM api_keys WHERE tenant_id = $1`, tenantID).Scan(&count); err != nil {
 		return 0, fmt.Errorf("failed to count api keys: %w", err)
@@ -197,6 +271,10 @@ func (r *APIKeyRepository) CountByTenantID(ctx context.Context, tenantID uuid.UU
 
 // CountActiveByTenantID counts active API keys for a tenant.
 func (r *APIKeyRepository) CountActiveByTenantID(ctx context.Context, tenantID uuid.UUID) (int64, error) {
+	if err := requireTenantMatch(ctx, tenantID); err != nil {
+		return 0, err
+	}
+
 	var count int64
 	if err := r.pool.QueryRow(ctx, `
 		SELECT COUNT(*) FROM api_keys
@@ -234,6 +312,10 @@ func (r *APIKeyRepository) ListExpired(ctx context.Context, limit int) ([]*apike
 
 // RevokeAll revokes all API keys for a tenant.
 func (r *APIKeyRepository) RevokeAll(ctx context.Context, tenantID uuid.UUID, revokedBy uuid.UUID) error {
+	if err := requireTenantMatch(ctx, tenantID); err != nil {
+		return err
+	}
+
 	now := time.Now().UTC()
 	_, err := r.pool.Exec(ctx, `
 		UPDATE api_keys

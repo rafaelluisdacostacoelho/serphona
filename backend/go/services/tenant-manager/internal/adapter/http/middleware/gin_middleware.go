@@ -12,15 +12,143 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"fmt"
+	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"go.uber.org/zap"
 	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/types"
+	"go.uber.org/zap"
+	"golang.org/x/time/rate"
 )
+
+// RateLimit applies a simple IP-based rate limiter (requests per minute). A non-positive rpm disables limiting.
+func RateLimit(rpm int) gin.HandlerFunc {
+	if rpm <= 0 {
+		return func(c *gin.Context) { c.Next() }
+	}
+
+	limit := rate.Limit(float64(rpm) / 60.0)
+	bucket := rpm // burst
+
+	limiter := struct {
+		mu sync.Mutex
+		m  map[string]*rate.Limiter
+	}{m: make(map[string]*rate.Limiter)}
+
+	getLimiter := func(ip string) *rate.Limiter {
+		limiter.mu.Lock()
+		defer limiter.mu.Unlock()
+		if l, ok := limiter.m[ip]; ok {
+			return l
+		}
+		l := rate.NewLimiter(limit, bucket)
+		limiter.m[ip] = l
+		return l
+	}
+
+	return func(c *gin.Context) {
+		ip := clientIP(c.Request)
+		if ip == "" {
+			ip = "unknown"
+		}
+		if !getLimiter(ip).Allow() {
+			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "rate limit exceeded"})
+			return
+		}
+		c.Next()
+	}
+}
+
+func clientIP(r *http.Request) string {
+	if ip := r.Header.Get("X-Forwarded-For"); ip != "" {
+		parts := strings.Split(ip, ",")
+		return strings.TrimSpace(parts[0])
+	}
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return ""
+	}
+	return ip
+}
+
+// BodyLimit caps request body size. Non-positive disables.
+func BodyLimit(maxBytes int64) gin.HandlerFunc {
+	if maxBytes <= 0 {
+		return func(c *gin.Context) { c.Next() }
+	}
+	return func(c *gin.Context) {
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBytes)
+		c.Next()
+	}
+}
+
+type CORSConfig struct {
+	AllowedOrigins   []string
+	AllowedMethods   []string
+	AllowedHeaders   []string
+	AllowCredentials bool
+	MaxAge           time.Duration
+}
+
+// CORSWithConfig applies a restrictive CORS policy.
+func CORSWithConfig(cfg CORSConfig) gin.HandlerFunc {
+	allowedMethods := cfg.AllowedMethods
+	if len(allowedMethods) == 0 {
+		allowedMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
+	}
+	allowedHeaders := cfg.AllowedHeaders
+	if len(allowedHeaders) == 0 {
+		allowedHeaders = []string{"Authorization", "Content-Type", "X-Request-ID"}
+	}
+	allowAll := len(cfg.AllowedOrigins) == 1 && cfg.AllowedOrigins[0] == "*"
+
+	return func(c *gin.Context) {
+		origin := c.GetHeader("Origin")
+		if origin != "" && !allowAll && !originAllowed(origin, cfg.AllowedOrigins) {
+			c.AbortWithStatus(http.StatusForbidden)
+			return
+		}
+
+		if origin != "" {
+			if allowAll {
+				c.Header("Access-Control-Allow-Origin", "*")
+			} else {
+				c.Header("Access-Control-Allow-Origin", origin)
+			}
+		}
+		c.Header("Access-Control-Allow-Methods", strings.Join(allowedMethods, ", "))
+		c.Header("Access-Control-Allow-Headers", strings.Join(allowedHeaders, ", "))
+		c.Header("Access-Control-Expose-Headers", "Content-Length, X-Request-ID")
+		if cfg.AllowCredentials {
+			c.Header("Access-Control-Allow-Credentials", "true")
+		}
+		if cfg.MaxAge > 0 {
+			c.Header("Access-Control-Max-Age", fmt.Sprintf("%d", int(cfg.MaxAge/time.Second)))
+		}
+
+		if c.Request.Method == http.MethodOptions {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+
+		c.Next()
+	}
+}
+
+func originAllowed(origin string, allowed []string) bool {
+	for _, o := range allowed {
+		if o == origin {
+			return true
+		}
+	}
+	return false
+}
 
 // RequestID adds a request ID to each request.
 func RequestID() gin.HandlerFunc {
@@ -33,8 +161,9 @@ func RequestID() gin.HandlerFunc {
 		c.Set("request_id", requestID)
 		c.Header("X-Request-ID", requestID)
 
-		// Also inject into request context so downstream handlers that rely on Context values can read it.
+		// Inject into both legacy and platform-auth contexts so envelopes can emit IDs.
 		ctx := context.WithValue(c.Request.Context(), "request_id", requestID)
+		ctx = authmw.WithRequestID(ctx, requestID)
 		c.Request = c.Request.WithContext(ctx)
 
 		c.Next()
@@ -110,27 +239,80 @@ func JWTAuth(secret, publicKey, issuer string, audience []string) gin.HandlerFun
 			return
 		}
 
-		tenantID, _ := claims["tenant_id"].(string)
-		userID, _ := claims["sub"].(string)
-
-		if tenantID == "" || userID == "" {
+		claimsObj := buildClaims(claims)
+		if claimsObj.TenantID == "" || claimsObj.UserID == "" {
 			unauthorized(c, "Missing tenant_id or sub claim")
 			return
 		}
 
-		c.Set("tenant_id", tenantID)
-		c.Set("user_id", userID)
+		c.Set("tenant_id", claimsObj.TenantID)
+		c.Set("user_id", claimsObj.UserID)
+		c.Set("claims", claimsObj)
 
-		ctx := authmw.WithTenantID(c.Request.Context(), tenantID)
+		ctx := authmw.WithClaims(c.Request.Context(), claimsObj)
+		ctx = authmw.WithTenantID(ctx, claimsObj.TenantID)
 		c.Request = c.Request.WithContext(ctx)
 
 		c.Next()
 	}
 }
 
+func buildClaims(raw map[string]interface{}) *types.Claims {
+	claims := &types.Claims{}
+
+	if tenantID, _ := raw["tenant_id"].(string); tenantID != "" {
+		claims.TenantID = tenantID
+	}
+	if sub, _ := raw["sub"].(string); sub != "" {
+		claims.UserID = sub
+	}
+	if role, _ := raw["role"].(string); role != "" {
+		claims.Role = role
+	}
+
+	// Accept either "scopes" claim as array or "scope" as space-delimited string.
+	if scopesRaw, ok := raw["scopes"]; ok {
+		if arr, ok := scopesRaw.([]interface{}); ok {
+			for _, v := range arr {
+				if s, ok := v.(string); ok {
+					claims.Scopes = append(claims.Scopes, s)
+				}
+			}
+		}
+	}
+	if scopeStr, ok := raw["scope"].(string); ok {
+		for _, s := range strings.Split(scopeStr, " ") {
+			if trimmed := strings.TrimSpace(s); trimmed != "" {
+				claims.Scopes = append(claims.Scopes, trimmed)
+			}
+		}
+	}
+
+	return claims
+}
+
 func unauthorized(c *gin.Context, msg string) {
 	c.JSON(http.StatusUnauthorized, gin.H{"error": msg})
 	c.Abort()
+}
+
+// RequireScopes enforces that the request context contains all required scopes.
+func RequireScopes(scopes ...string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		claims, err := authmw.ClaimsFromContext(c.Request.Context())
+		if err != nil {
+			unauthorized(c, "missing claims")
+			return
+		}
+
+		if !claims.HasAllScopes(scopes...) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "insufficient scopes"})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
 }
 
 // parseAndValidateJWT validates HS256 or RS256 JWT without external deps.

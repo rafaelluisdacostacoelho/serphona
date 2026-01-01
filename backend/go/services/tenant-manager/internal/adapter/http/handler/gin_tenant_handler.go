@@ -6,6 +6,9 @@ import (
 	"net/http"
 	"strconv"
 
+	"tenant-manager/internal/application/tenant"
+	apperrors "tenant-manager/pkg/errors"
+
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
@@ -13,8 +16,6 @@ import (
 	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/response"
 	"go.uber.org/zap"
-	"tenant-manager/internal/application/tenant"
-	apperrors "tenant-manager/pkg/errors"
 )
 
 // GinTenantHandler wraps TenantHandler for Gin framework.
@@ -35,6 +36,10 @@ func NewGinTenantHandler(service *tenant.Service, logger *zap.Logger) *GinTenant
 
 // Create handles POST /api/v1/tenants.
 func (h *GinTenantHandler) Create(c *gin.Context) {
+	if !h.requireScope(c, "write:tenants") {
+		return
+	}
+
 	var req CreateTenantRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.WriteError(c.Request.Context(), c.Writer, http.StatusBadRequest, "INVALID_REQUEST", "Invalid JSON body", nil)
@@ -70,6 +75,10 @@ func (h *GinTenantHandler) Create(c *gin.Context) {
 
 // Get handles GET /api/v1/tenants/:id.
 func (h *GinTenantHandler) Get(c *gin.Context) {
+	if !h.requireScope(c, "read:tenants") {
+		return
+	}
+
 	tenantID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		response.WriteError(c.Request.Context(), c.Writer, http.StatusBadRequest, "INVALID_ID", "Invalid tenant ID format", nil)
@@ -88,6 +97,10 @@ func (h *GinTenantHandler) Get(c *gin.Context) {
 
 // Update handles PUT /api/v1/tenants/:id.
 func (h *GinTenantHandler) Update(c *gin.Context) {
+	if !h.requireScope(c, "write:tenants") {
+		return
+	}
+
 	tenantID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		response.WriteError(c.Request.Context(), c.Writer, http.StatusBadRequest, "INVALID_ID", "Invalid tenant ID format", nil)
@@ -128,6 +141,10 @@ func (h *GinTenantHandler) Update(c *gin.Context) {
 
 // Delete handles DELETE /api/v1/tenants/:id.
 func (h *GinTenantHandler) Delete(c *gin.Context) {
+	if !h.requireScope(c, "write:tenants") {
+		return
+	}
+
 	tenantID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		response.WriteError(c.Request.Context(), c.Writer, http.StatusBadRequest, "INVALID_ID", "Invalid tenant ID format", nil)
@@ -140,11 +157,22 @@ func (h *GinTenantHandler) Delete(c *gin.Context) {
 		h.handleServiceError(c, err)
 		return
 	}
-	response.WriteSuccess(c.Request.Context(), c.Writer, http.StatusNoContent, nil)
+	c.Status(http.StatusNoContent)
+	c.Writer.WriteHeaderNow()
 }
 
 // List handles GET /api/v1/tenants.
 func (h *GinTenantHandler) List(c *gin.Context) {
+	if !h.requireScope(c, "read:tenants") {
+		return
+	}
+
+	tenantID, err := authmw.TenantIDFromContext(c.Request.Context())
+	if err != nil {
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusUnauthorized, "UNAUTHORIZED", "missing tenant context", nil)
+		return
+	}
+
 	page := parseIntQueryGin(c, "page", 1)
 	pageSize := parseIntQueryGin(c, "page_size", 20)
 	if pageSize < 1 || pageSize > 100 {
@@ -159,6 +187,31 @@ func (h *GinTenantHandler) List(c *gin.Context) {
 		PageSize: pageSize,
 		Status:   c.Query("status"),
 		Search:   c.Query("search"),
+	}
+
+	// If caller is a tenant (non-platform), return only its own record.
+	if tenantID != "platform" {
+		tID, parseErr := uuid.Parse(tenantID)
+		if parseErr != nil {
+			response.WriteError(c.Request.Context(), c.Writer, http.StatusUnauthorized, "UNAUTHORIZED", "invalid tenant context", nil)
+			return
+		}
+
+		tenantDTO, getErr := h.service.GetTenant(c.Request.Context(), tID)
+		if getErr != nil {
+			h.handleServiceError(c, getErr)
+			return
+		}
+
+		resp := ListTenantsResponse{
+			Tenants:    []TenantResponse{*toTenantResponse(tenantDTO)},
+			Total:      1,
+			Page:       1,
+			PageSize:   1,
+			TotalPages: 1,
+		}
+		response.WriteSuccess(c.Request.Context(), c.Writer, http.StatusOK, resp, response.WithPagination(response.Pagination{Page: 1, PageSize: 1, Total: 1, TotalPages: 1}))
+		return
 	}
 
 	result, err := h.service.ListTenants(c.Request.Context(), query)
@@ -218,8 +271,33 @@ func parseIntQueryGin(c *gin.Context, key string, defaultVal int) int {
 	return i
 }
 
+func (h *GinTenantHandler) requireScope(c *gin.Context, scope string) bool {
+	claims, err := authmw.ClaimsFromContext(c.Request.Context())
+	if err != nil {
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusUnauthorized, "UNAUTHORIZED", "missing claims", nil)
+		return false
+	}
+
+	if !claims.HasAllScopes(scope) {
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusForbidden, "FORBIDDEN", "insufficient scopes", nil)
+		return false
+	}
+
+	return true
+}
+
 func (h *GinTenantHandler) enforceTenantContext(c *gin.Context, tenantID uuid.UUID) bool {
-	if err := authmw.EnforceTenant(c.Request.Context(), tenantID.String()); err != nil {
+	ctxTenant, err := authmw.TenantIDFromContext(c.Request.Context())
+	if err != nil {
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusUnauthorized, "UNAUTHORIZED", "missing tenant context", nil)
+		return false
+	}
+
+	if ctxTenant == "platform" {
+		return true
+	}
+
+	if err := authmw.EnforceTenant(authmw.WithTenantID(c.Request.Context(), ctxTenant), tenantID.String()); err != nil {
 		switch {
 		case errors.Is(err, autherrors.ErrUnauthorized):
 			response.WriteError(c.Request.Context(), c.Writer, http.StatusUnauthorized, "UNAUTHORIZED", "missing tenant context", nil)

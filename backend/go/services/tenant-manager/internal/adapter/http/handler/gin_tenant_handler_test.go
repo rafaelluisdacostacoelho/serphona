@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/response"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/types"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.uber.org/zap/zaptest"
 
@@ -130,6 +131,44 @@ func (noopPublisher) PublishSettingsUpdated(_ context.Context, _ uuid.UUID, _ *d
 	return nil
 }
 
+func TestGinTenantHandlerDeleteTenantContextEnforced(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	tenantID := uuid.New()
+
+	cases := []struct {
+		name       string
+		ctx        context.Context
+		expectCode int
+	}{
+		{name: "no tenant context", ctx: context.Background(), expectCode: http.StatusUnauthorized},
+		{name: "foreign tenant", ctx: ctxWithClaims(uuid.NewString(), "write:tenants"), expectCode: http.StatusForbidden},
+		{name: "matching tenant", ctx: ctxWithClaims(tenantID.String(), "write:tenants"), expectCode: http.StatusNoContent},
+		{name: "platform tenant", ctx: ctxWithClaims("platform", "write:tenants"), expectCode: http.StatusNoContent},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newTenantRepoStub()
+			repo.items[tenantID] = &domain.Tenant{ID: tenantID, Name: "Acme", Email: "acme@example.com"}
+			svc := tenant.NewService(repo, nil, noopCache{}, noopPublisher{}, zaptest.NewLogger(t))
+			h := NewGinTenantHandler(svc, zaptest.NewLogger(t))
+
+			rec := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(rec)
+			req := httptest.NewRequest(http.MethodDelete, "/api/v1/tenants/"+tenantID.String(), nil)
+			req = req.WithContext(tc.ctx)
+			c.Params = gin.Params{gin.Param{Key: "id", Value: tenantID.String()}}
+			c.Request = req
+
+			h.Delete(c)
+
+			if rec.Code != tc.expectCode {
+				t.Fatalf("expected %d, got %d", tc.expectCode, rec.Code)
+			}
+		})
+	}
+}
+
 func TestGinTenantHandlerCreateAndList(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	repo := newTenantRepoStub()
@@ -140,7 +179,9 @@ func TestGinTenantHandlerCreateAndList(t *testing.T) {
 	body := `{"name":"Acme","email":"acme@example.com","plan":"starter"}`
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
-	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/tenants", bytes.NewBufferString(body))
+	reqCreate := httptest.NewRequest(http.MethodPost, "/api/v1/tenants", bytes.NewBufferString(body))
+	reqCreate = reqCreate.WithContext(ctxWithClaims("platform", "write:tenants"))
+	c.Request = reqCreate
 	handler.Create(c)
 
 	if rec.Code != http.StatusCreated {
@@ -150,7 +191,9 @@ func TestGinTenantHandlerCreateAndList(t *testing.T) {
 	// List
 	rec2 := httptest.NewRecorder()
 	c2, _ := gin.CreateTestContext(rec2)
-	c2.Request = httptest.NewRequest(http.MethodGet, "/api/v1/tenants?page=1&page_size=10", nil)
+	reqList := httptest.NewRequest(http.MethodGet, "/api/v1/tenants?page=1&page_size=10", nil)
+	reqList = reqList.WithContext(ctxWithClaims("platform", "read:tenants"))
+	c2.Request = reqList
 	handler.List(c2)
 
 	if rec2.Code != http.StatusOK {
@@ -167,6 +210,59 @@ func TestGinTenantHandlerCreateAndList(t *testing.T) {
 	}
 }
 
+func TestGinTenantHandlerListRequiresTenantContext(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := newTenantRepoStub()
+	svc := tenant.NewService(repo, nil, noopCache{}, noopPublisher{}, zaptest.NewLogger(t))
+	h := NewGinTenantHandler(svc, zaptest.NewLogger(t))
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants?page=1&page_size=5", nil)
+	c.Request = req
+
+	h.List(c)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 when tenant context missing, got %d", rec.Code)
+	}
+}
+
+func TestGinTenantHandlerListNonPlatformReturnsSelf(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := newTenantRepoStub()
+	svc := tenant.NewService(repo, nil, noopCache{}, noopPublisher{}, zaptest.NewLogger(t))
+	h := NewGinTenantHandler(svc, zaptest.NewLogger(t))
+
+	tenantID := uuid.New()
+	repo.items[tenantID] = &domain.Tenant{ID: tenantID, Name: "Acme", Email: "acme@example.com"}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants?page=1&page_size=5", nil)
+	req = req.WithContext(ctxWithClaims(tenantID.String(), "read:tenants"))
+	c.Request = req
+
+	h.List(c)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	var listResp struct {
+		Data ListTenantsResponse `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &listResp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	if len(listResp.Data.Tenants) != 1 {
+		t.Fatalf("expected only own tenant, got %d", len(listResp.Data.Tenants))
+	}
+	if listResp.Data.Tenants[0].ID != tenantID.String() {
+		t.Fatalf("expected tenant %s, got %s", tenantID, listResp.Data.Tenants[0].ID)
+	}
+}
+
 func TestGinTenantHandlerListEnvelopeContract(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	repo := newTenantRepoStub()
@@ -180,6 +276,7 @@ func TestGinTenantHandlerListEnvelopeContract(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants?page=1&page_size=5", nil)
+	req = req.WithContext(ctxWithClaims("platform", "read:tenants"))
 
 	tracer := sdktrace.NewTracerProvider()
 	ctx, span := tracer.Tracer("test").Start(req.Context(), "list-tenants")
@@ -217,6 +314,60 @@ func TestGinTenantHandlerListEnvelopeContract(t *testing.T) {
 	}
 }
 
+func TestGinTenantHandlerListWithTenantContext(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := newTenantRepoStub()
+	svc := tenant.NewService(repo, nil, noopCache{}, noopPublisher{}, zaptest.NewLogger(t))
+	h := NewGinTenantHandler(svc, zaptest.NewLogger(t))
+
+	// Seed one tenant directly via repo stub.
+	tenantID := uuid.New()
+	repo.items[tenantID] = &domain.Tenant{ID: tenantID, Name: "Acme", Email: "acme@example.com"}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants?page=1&page_size=5", nil)
+	req = req.WithContext(ctxWithClaims(tenantID.String(), "read:tenants"))
+
+	tracer := sdktrace.NewTracerProvider()
+	ctx, span := tracer.Tracer("test").Start(req.Context(), "list-tenants-tenant")
+	ctx = authmw.WithRequestID(ctx, "req-tenant-self")
+	req = req.WithContext(ctx)
+	span.End()
+
+	c.Request = req
+	h.List(c)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	var payload struct {
+		Data ListTenantsResponse `json:"data"`
+		Meta response.Meta       `json:"meta"`
+	}
+
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if payload.Meta.RequestID != "req-tenant-self" {
+		t.Fatalf("expected request_id req-tenant-self, got %s", payload.Meta.RequestID)
+	}
+	if payload.Meta.TraceID == "" {
+		t.Fatalf("expected trace_id to be populated")
+	}
+	if payload.Meta.Pagination == nil || payload.Meta.Pagination.Total != 1 || payload.Meta.Pagination.PageSize != 1 {
+		t.Fatalf("unexpected pagination meta: %#v", payload.Meta.Pagination)
+	}
+	if len(payload.Data.Tenants) != 1 {
+		t.Fatalf("expected 1 tenant, got %d", len(payload.Data.Tenants))
+	}
+	if payload.Data.Tenants[0].ID != tenantID.String() {
+		t.Fatalf("expected tenant %s, got %s", tenantID, payload.Data.Tenants[0].ID)
+	}
+}
+
 func TestGinTenantHandlerGetErrorEnvelopeContract(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	repo := newTenantRepoStub()
@@ -226,6 +377,7 @@ func TestGinTenantHandlerGetErrorEnvelopeContract(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/not-a-uuid", nil)
+	req = req.WithContext(ctxWithClaims("platform", "read:tenants"))
 
 	tracer := sdktrace.NewTracerProvider()
 	ctx, span := tracer.Tracer("test").Start(req.Context(), "get-tenant-error")
@@ -258,4 +410,33 @@ func TestGinTenantHandlerGetErrorEnvelopeContract(t *testing.T) {
 	if payload.Error.Code == "" || payload.Error.Message == "" {
 		t.Fatalf("expected error code/message to be set")
 	}
+}
+
+func TestGinTenantHandlerListMissingScopeDenied(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := newTenantRepoStub()
+	svc := tenant.NewService(repo, nil, noopCache{}, noopPublisher{}, zaptest.NewLogger(t))
+	h := NewGinTenantHandler(svc, zaptest.NewLogger(t))
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants?page=1&page_size=5", nil)
+	req = req.WithContext(ctxWithClaims("platform")) // no scopes
+	c.Request = req
+
+	h.List(c)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 when scopes missing, got %d", rec.Code)
+	}
+}
+
+func ctxWithClaims(tenantID string, scopes ...string) context.Context {
+	claims := &types.Claims{
+		TenantID: tenantID,
+		UserID:   "user-123",
+		Scopes:   scopes,
+	}
+	ctx := authmw.WithClaims(context.Background(), claims)
+	return authmw.WithTenantID(ctx, tenantID)
 }

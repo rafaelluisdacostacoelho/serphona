@@ -3,12 +3,16 @@ package handler
 
 import (
 	"context"
+	"errors"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/google/uuid"
+	autherrors "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/errors"
+	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 
 	"tenant-manager/internal/application/tenant"
 	tenantpb "tenant-manager/proto"
@@ -20,6 +24,35 @@ type TenantHandler struct {
 	service *tenant.Service
 }
 
+func mapTenantAuthError(err error) error {
+	switch {
+	case errors.Is(err, autherrors.ErrUnauthorized):
+		return status.Errorf(codes.Unauthenticated, "unauthenticated")
+	case errors.Is(err, autherrors.ErrInsufficientPermissions):
+		st := status.New(codes.PermissionDenied, "tenant mismatch")
+		detail := &errdetails.ErrorInfo{Reason: autherrors.CodeInsufficientPermissions}
+		if withDetails, detailErr := st.WithDetails(detail); detailErr == nil {
+			return withDetails.Err()
+		}
+		return st.Err()
+	default:
+		return status.Errorf(codes.Internal, "tenant enforcement failed")
+	}
+}
+
+func requireScopes(ctx context.Context, scopes ...string) error {
+	claims, err := authmw.ClaimsFromContext(ctx)
+	if err != nil {
+		return autherrors.ErrUnauthorized
+	}
+
+	if !claims.HasAllScopes(scopes...) {
+		return autherrors.ErrInsufficientPermissions
+	}
+
+	return nil
+}
+
 // NewTenantHandler creates a new gRPC tenant handler.
 func NewTenantHandler(service *tenant.Service) *TenantHandler {
 	return &TenantHandler{
@@ -29,6 +62,10 @@ func NewTenantHandler(service *tenant.Service) *TenantHandler {
 
 // CreateTenant creates a new tenant.
 func (h *TenantHandler) CreateTenant(ctx context.Context, req *tenantpb.CreateTenantRequest) (*tenantpb.CreateTenantResponse, error) {
+	if err := requireScopes(ctx, "write:tenants"); err != nil {
+		return nil, mapTenantAuthError(err)
+	}
+
 	cmd := tenant.CreateTenantCommand{
 		Name:         req.Name,
 		Email:        req.Email,
@@ -55,9 +92,17 @@ func (h *TenantHandler) CreateTenant(ctx context.Context, req *tenantpb.CreateTe
 
 // GetTenant retrieves a tenant by ID.
 func (h *TenantHandler) GetTenant(ctx context.Context, req *tenantpb.GetTenantRequest) (*tenantpb.GetTenantResponse, error) {
+	if err := requireScopes(ctx, "read:tenants"); err != nil {
+		return nil, mapTenantAuthError(err)
+	}
+
 	id, err := uuid.Parse(req.Id)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid tenant ID: %v", err)
+	}
+
+	if err := authmw.EnforceTenant(ctx, id.String()); err != nil {
+		return nil, mapTenantAuthError(err)
 	}
 
 	result, err := h.service.GetTenant(ctx, id)
@@ -72,9 +117,17 @@ func (h *TenantHandler) GetTenant(ctx context.Context, req *tenantpb.GetTenantRe
 
 // UpdateTenant updates an existing tenant.
 func (h *TenantHandler) UpdateTenant(ctx context.Context, req *tenantpb.UpdateTenantRequest) (*tenantpb.UpdateTenantResponse, error) {
+	if err := requireScopes(ctx, "write:tenants"); err != nil {
+		return nil, mapTenantAuthError(err)
+	}
+
 	id, err := uuid.Parse(req.Id)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid tenant ID: %v", err)
+	}
+
+	if err := authmw.EnforceTenant(ctx, id.String()); err != nil {
+		return nil, mapTenantAuthError(err)
 	}
 
 	cmd := tenant.UpdateTenantCommand{
@@ -96,9 +149,17 @@ func (h *TenantHandler) UpdateTenant(ctx context.Context, req *tenantpb.UpdateTe
 
 // DeleteTenant soft-deletes a tenant.
 func (h *TenantHandler) DeleteTenant(ctx context.Context, req *tenantpb.DeleteTenantRequest) (*tenantpb.DeleteTenantResponse, error) {
+	if err := requireScopes(ctx, "write:tenants"); err != nil {
+		return nil, mapTenantAuthError(err)
+	}
+
 	id, err := uuid.Parse(req.Id)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid tenant ID: %v", err)
+	}
+
+	if err := authmw.EnforceTenant(ctx, id.String()); err != nil {
+		return nil, mapTenantAuthError(err)
 	}
 
 	if err := h.service.DeleteTenant(ctx, id); err != nil {
@@ -112,6 +173,10 @@ func (h *TenantHandler) DeleteTenant(ctx context.Context, req *tenantpb.DeleteTe
 
 // ListTenants lists tenants with pagination.
 func (h *TenantHandler) ListTenants(ctx context.Context, req *tenantpb.ListTenantsRequest) (*tenantpb.ListTenantsResponse, error) {
+	if err := requireScopes(ctx, "read:tenants"); err != nil {
+		return nil, mapTenantAuthError(err)
+	}
+
 	query := tenant.ListTenantsQuery{
 		Page:     int(req.Page),
 		PageSize: int(req.PageSize),
@@ -140,9 +205,17 @@ func (h *TenantHandler) ListTenants(ctx context.Context, req *tenantpb.ListTenan
 
 // ActivateTenant activates a tenant.
 func (h *TenantHandler) ActivateTenant(ctx context.Context, req *tenantpb.ActivateTenantRequest) (*tenantpb.ActivateTenantResponse, error) {
+	if err := requireScopes(ctx, "write:tenants"); err != nil {
+		return nil, mapTenantAuthError(err)
+	}
+
 	id, err := uuid.Parse(req.Id)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid tenant ID: %v", err)
+	}
+
+	if err := authmw.EnforceTenant(ctx, id.String()); err != nil {
+		return nil, mapTenantAuthError(err)
 	}
 
 	if err := h.service.ActivateTenant(ctx, id); err != nil {
@@ -162,9 +235,17 @@ func (h *TenantHandler) ActivateTenant(ctx context.Context, req *tenantpb.Activa
 
 // SuspendTenant suspends a tenant.
 func (h *TenantHandler) SuspendTenant(ctx context.Context, req *tenantpb.SuspendTenantRequest) (*tenantpb.SuspendTenantResponse, error) {
+	if err := requireScopes(ctx, "write:tenants"); err != nil {
+		return nil, mapTenantAuthError(err)
+	}
+
 	id, err := uuid.Parse(req.Id)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid tenant ID: %v", err)
+	}
+
+	if err := authmw.EnforceTenant(ctx, id.String()); err != nil {
+		return nil, mapTenantAuthError(err)
 	}
 
 	if err := h.service.SuspendTenant(ctx, id); err != nil {

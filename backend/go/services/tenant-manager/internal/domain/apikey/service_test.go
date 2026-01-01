@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 )
 
 // In-memory repository stub for tests.
@@ -140,7 +141,8 @@ func TestAPIKeyServiceCreateAndAuthenticate(t *testing.T) {
 
 	tenantID := uuid.New()
 	userID := uuid.New()
-	key, raw, err := svc.Create(context.Background(), tenantID, "my-key", userID, []string{PermissionAll}, 0)
+	ctx := authmw.WithTenantID(context.Background(), tenantID.String())
+	key, raw, err := svc.Create(ctx, tenantID, "my-key", userID, []string{PermissionAll}, 0)
 	if err != nil {
 		t.Fatalf("unexpected error creating key: %v", err)
 	}
@@ -152,7 +154,7 @@ func TestAPIKeyServiceCreateAndAuthenticate(t *testing.T) {
 	}
 
 	// Authenticate with the raw key
-	authKey, err := svc.Authenticate(context.Background(), raw, "127.0.0.1")
+	authKey, err := svc.Authenticate(ctx, raw, "127.0.0.1")
 	if err != nil {
 		t.Fatalf("authenticate failed: %v", err)
 	}
@@ -167,12 +169,14 @@ func TestAPIKeyServiceCreateValidation(t *testing.T) {
 	tenantID := uuid.New()
 	userID := uuid.New()
 
-	_, _, err := svc.Create(context.Background(), tenantID, "", userID, []string{PermissionAll}, 0)
+	ctx := authmw.WithTenantID(context.Background(), tenantID.String())
+
+	_, _, err := svc.Create(ctx, tenantID, "", userID, []string{PermissionAll}, 0)
 	if err == nil {
 		t.Fatalf("expected error for empty name")
 	}
 
-	_, _, err = svc.Create(context.Background(), tenantID, "key", userID, []string{"invalid:permission"}, 0)
+	_, _, err = svc.Create(ctx, tenantID, "key", userID, []string{"invalid:permission"}, 0)
 	if err == nil {
 		t.Fatalf("expected error for invalid permission")
 	}

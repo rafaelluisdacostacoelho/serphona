@@ -1,7 +1,8 @@
 # Tenant Manager — Backlog (en-US)
 
 ## Status snapshot
-- Audit complete: HTTP + gRPC service with JWT middleware (HS256/optional RS256) but no scope/role enforcement. Tenants and API keys exist with validation; Kafka events optional (noop by default); Redis cache optional. No rate limiting, no RLS/multitenant DB guarantees, and quotas not enforced despite interfaces. Metrics endpoint is static gauge; tracing absent. TLS, CORS tightening, and config validation are minimal; password masking TODO.
+- Audit complete: HTTP + gRPC service with JWT middleware (HS256/optional RS256); tenant routes now enforce read/write scopes but roles remain unused. Tenants and API keys exist with validation; Kafka events optional (noop by default); Redis cache optional. No rate limiting, no RLS/multitenant DB guarantees, and quotas not enforced despite interfaces. Metrics endpoint is static gauge; tracing absent. TLS, CORS tightening, and config validation are minimal; password masking TODO.
+- Tenant safeguards tightened: repos/handlers enforce tenant context, DELETE honors platform override, Kafka producer injects X-Tenant-Id via helper with table-driven tests, and event publisher now retries with configurable backoff and optional DLQ fallback. HTTP hardened with body limits, rate limiting, and configurable CORS.
 
 ## Audit findings
 - Authz: JWT checked for tenant_id/sub but no scopes/roles; same secret for HTTP/gRPC; no mTLS; CORS middleware likely permissive; no rate limits or per-tenant quotas on API/gRPC.
@@ -15,7 +16,7 @@
 - Resilience: graceful shutdown present; Redis/Kafka optional; no backoff/retry around DB/Kafka; cache invalidation best-effort; rate limits missing.
 
 ## Action items
-1) AuthN/Z: enforce scopes/roles on HTTP/gRPC routes; integrate platform-auth; add rate limits per tenant/IP and request size limits; tighten CORS; support mTLS/TLS configs.
+1) AuthN/Z: scopes enforced on HTTP/gRPC tenant routes; next: roles where needed, rate limits per tenant/IP, request size limits; tighten CORS; support mTLS/TLS configs.
 2) Tenant/quotas: implement quota persistence/enforcement (ingest/query/telephony/etc.), usage counters, and align with billing-service; add RLS or strict tenant scoping in repos/queries.
 3) API keys: wire event publisher for create/revoke/use, add brute-force/lockout/IP throttle, and document/enforce permission model; expose hashed storage and prefix length limits; add audit logs.
 4) Events/resilience: add Kafka retries/backoff and DLQ for tenant events; fail loud when publisher disabled in prod; add idempotency keys for create/update to avoid duplicates.
@@ -33,11 +34,18 @@
 - Metrics/tracing exporters, log level/format, audit sink.
 
 ## Test coverage checklist
-- [ ] Scope/role enforcement on HTTP/gRPC
+- [ ] Scope/role enforcement on HTTP/gRPC (positive/negative, tenant vs platform contexts) — scopes covered; roles pending
 - [ ] Quota enforcement and RLS/tenant isolation
 - [ ] API key auth (success/failure), rate limits, and event emission
-- [ ] Kafka publish retry/DLQ paths and cache invalidation
+- [ ] Kafka publish retry/DLQ paths and cache invalidation (include tenant header propagation) — retry/backoff+DLQ implemented and covered; cache invalidation pending
+- [ ] Rate limits per tenant/IP and tighter CORS — IP rate limit and configurable CORS in place; per-tenant limits pending
 - [ ] Metrics/tracing/audit emitted and config validation errors
+
+### Coverage notes
+- Tenant context enforcement covered in handlers (including DELETE) and repos; Kafka producer has table-driven tenant header helper tests.
+- Scopes enforced and tested on HTTP (missing-scope 403) and gRPC (PermissionDenied when scopes absent).
+- Kafka publisher retry/backoff + DLQ fallback covered with producer stub tests.
+- HTTP hardening: body size limit, IP rate limit, and configurable CORS wired at startup.
 
 ## Next suggested steps
 - Add validated config and stricter authz/rate limits; implement quotas and tenant-scoped RLS, wire API key/tenant events with retries/DLQ, and add metrics/tracing plus audit logging.

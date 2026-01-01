@@ -11,18 +11,17 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"tenant-manager/internal/domain/tenant"
 )
 
 // TenantRepository implements tenant.Repository using PostgreSQL.
 type TenantRepository struct {
-	pool *pgxpool.Pool
+	pool pgxPool
 }
 
 // NewTenantRepository creates a new TenantRepository.
-func NewTenantRepository(pool *pgxpool.Pool) *TenantRepository {
+func NewTenantRepository(pool pgxPool) *TenantRepository {
 	return &TenantRepository{pool: pool}
 }
 
@@ -83,6 +82,10 @@ func (r *TenantRepository) Create(ctx context.Context, t *tenant.Tenant) error {
 
 // GetByID retrieves a tenant by its ID.
 func (r *TenantRepository) GetByID(ctx context.Context, id uuid.UUID) (*tenant.Tenant, error) {
+	if err := requireTenantMatch(ctx, id); err != nil {
+		return nil, err
+	}
+
 	query := `
 		SELECT 
 			id, name, slug, email, phone, status, plan,
@@ -106,7 +109,16 @@ func (r *TenantRepository) GetBySlug(ctx context.Context, slug string) (*tenant.
 		WHERE slug = $1 AND deleted_at IS NULL
 	`
 
-	return r.scanTenant(ctx, r.pool.QueryRow(ctx, query, slug))
+	t, err := r.scanTenant(ctx, r.pool.QueryRow(ctx, query, slug))
+	if err != nil {
+		return nil, err
+	}
+
+	if err := requireTenantMatch(ctx, t.ID); err != nil {
+		return nil, err
+	}
+
+	return t, nil
 }
 
 // GetByEmail retrieves a tenant by its email.
@@ -120,11 +132,24 @@ func (r *TenantRepository) GetByEmail(ctx context.Context, email string) (*tenan
 		WHERE email = $1 AND deleted_at IS NULL
 	`
 
-	return r.scanTenant(ctx, r.pool.QueryRow(ctx, query, email))
+	t, err := r.scanTenant(ctx, r.pool.QueryRow(ctx, query, email))
+	if err != nil {
+		return nil, err
+	}
+
+	if err := requireTenantMatch(ctx, t.ID); err != nil {
+		return nil, err
+	}
+
+	return t, nil
 }
 
 // Update updates an existing tenant.
 func (r *TenantRepository) Update(ctx context.Context, t *tenant.Tenant) error {
+	if err := requireTenantMatch(ctx, t.ID); err != nil {
+		return err
+	}
+
 	settingsJSON, err := json.Marshal(t.Settings)
 	if err != nil {
 		return fmt.Errorf("failed to marshal settings: %w", err)
@@ -177,6 +202,10 @@ func (r *TenantRepository) Update(ctx context.Context, t *tenant.Tenant) error {
 
 // Delete soft-deletes a tenant.
 func (r *TenantRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	if err := requireTenantMatch(ctx, id); err != nil {
+		return err
+	}
+
 	query := `
 		UPDATE tenants SET
 			status = $2,
@@ -310,6 +339,10 @@ func (r *TenantRepository) List(ctx context.Context, filter tenant.ListFilter) (
 
 // UpdateSettings updates only the tenant settings.
 func (r *TenantRepository) UpdateSettings(ctx context.Context, id uuid.UUID, settings tenant.Settings) error {
+	if err := requireTenantMatch(ctx, id); err != nil {
+		return err
+	}
+
 	settingsJSON, err := json.Marshal(settings)
 	if err != nil {
 		return fmt.Errorf("failed to marshal settings: %w", err)
@@ -336,6 +369,10 @@ func (r *TenantRepository) UpdateSettings(ctx context.Context, id uuid.UUID, set
 
 // GetQuota retrieves the quota for a tenant.
 func (r *TenantRepository) GetQuota(ctx context.Context, tenantID uuid.UUID) (*tenant.Quota, error) {
+	if err := requireTenantMatch(ctx, tenantID); err != nil {
+		return nil, err
+	}
+
 	query := `
 		SELECT 
 			tenant_id, max_api_keys, max_users, max_calls_per_month,
@@ -371,6 +408,10 @@ func (r *TenantRepository) GetQuota(ctx context.Context, tenantID uuid.UUID) (*t
 
 // UpdateQuota updates the quota for a tenant.
 func (r *TenantRepository) UpdateQuota(ctx context.Context, quota *tenant.Quota) error {
+	if err := requireTenantMatch(ctx, quota.TenantID); err != nil {
+		return err
+	}
+
 	query := `
 		INSERT INTO tenant_quotas (
 			tenant_id, max_api_keys, max_users, max_calls_per_month,
@@ -411,6 +452,10 @@ func (r *TenantRepository) UpdateQuota(ctx context.Context, quota *tenant.Quota)
 
 // IncrementUsage increments usage counters for a tenant.
 func (r *TenantRepository) IncrementUsage(ctx context.Context, tenantID uuid.UUID, calls, minutes int) error {
+	if err := requireTenantMatch(ctx, tenantID); err != nil {
+		return err
+	}
+
 	query := `
 		UPDATE tenant_quotas SET
 			used_calls = used_calls + $2,

@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package tenant.v1;
 
-option go_package = "tenant-manager/proto/tenantpb;tenantpb";
+option go_package = "tenant-manager/proto;tenantpb";
 
 import "google/protobuf/timestamp.proto";
 

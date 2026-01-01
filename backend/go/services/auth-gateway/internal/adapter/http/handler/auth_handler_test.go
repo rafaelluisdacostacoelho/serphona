@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -147,6 +148,182 @@ func TestGetOAuthURLErrorEnvelopeContract(t *testing.T) {
 
 	if payload.Error.RequestID != "req-auth-err" {
 		t.Fatalf("expected request_id req-auth-err, got %s", payload.Error.RequestID)
+	}
+	if payload.Error.TraceID == "" {
+		t.Fatalf("expected trace_id to be populated")
+	}
+	if payload.Error.Code == "" || payload.Error.Message == "" {
+		t.Fatalf("expected error code/message to be set")
+	}
+}
+
+func TestLoginValidationErrorEnvelopeContract(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	jwtSvc := &jwt.Service{}
+	uc := auth.NewUseCase(stubUserRepo{}, jwtSvc, stubTenantService{}, time.Hour)
+	h := NewAuthHandler(uc, jwtSvc, zaptest.NewLogger(t))
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString("{"))
+
+	tracer := sdktrace.NewTracerProvider()
+	ctx, span := tracer.Tracer("test").Start(req.Context(), "login-error")
+	ctx = authmw.WithRequestID(ctx, "req-auth-login-err")
+	req = req.WithContext(ctx)
+	span.End()
+
+	c.Request = req
+
+	h.Login(c)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", rec.Code)
+	}
+
+	var payload struct {
+		Error response.ErrorPayload `json:"error"`
+	}
+
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if payload.Error.RequestID != "req-auth-login-err" {
+		t.Fatalf("expected request_id req-auth-login-err, got %s", payload.Error.RequestID)
+	}
+	if payload.Error.TraceID == "" {
+		t.Fatalf("expected trace_id to be populated")
+	}
+	if payload.Error.Code == "" || payload.Error.Message == "" {
+		t.Fatalf("expected error code/message to be set")
+	}
+}
+
+func TestRegisterValidationErrorEnvelopeContract(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	jwtSvc := &jwt.Service{}
+	uc := auth.NewUseCase(stubUserRepo{}, jwtSvc, stubTenantService{}, time.Hour)
+	h := NewAuthHandler(uc, jwtSvc, zaptest.NewLogger(t))
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	req := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewBufferString("{"))
+
+	tracer := sdktrace.NewTracerProvider()
+	ctx, span := tracer.Tracer("test").Start(req.Context(), "register-error")
+	ctx = authmw.WithRequestID(ctx, "req-auth-register-err")
+	req = req.WithContext(ctx)
+	span.End()
+
+	c.Request = req
+
+	h.Register(c)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", rec.Code)
+	}
+
+	var payload struct {
+		Error response.ErrorPayload `json:"error"`
+	}
+
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if payload.Error.RequestID != "req-auth-register-err" {
+		t.Fatalf("expected request_id req-auth-register-err, got %s", payload.Error.RequestID)
+	}
+	if payload.Error.TraceID == "" {
+		t.Fatalf("expected trace_id to be populated")
+	}
+	if payload.Error.Code == "" || payload.Error.Message == "" {
+		t.Fatalf("expected error code/message to be set")
+	}
+}
+
+func TestRefreshValidationErrorEnvelopeContract(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	jwtSvc := &jwt.Service{}
+	uc := auth.NewUseCase(stubUserRepo{}, jwtSvc, stubTenantService{}, time.Hour)
+	h := NewAuthHandler(uc, jwtSvc, zaptest.NewLogger(t))
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", bytes.NewBufferString("{"))
+
+	tracer := sdktrace.NewTracerProvider()
+	ctx, span := tracer.Tracer("test").Start(req.Context(), "refresh-error")
+	ctx = authmw.WithRequestID(ctx, "req-auth-refresh-err")
+	req = req.WithContext(ctx)
+	span.End()
+
+	c.Request = req
+
+	h.RefreshToken(c)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", rec.Code)
+	}
+
+	var payload struct {
+		Error response.ErrorPayload `json:"error"`
+	}
+
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if payload.Error.RequestID != "req-auth-refresh-err" {
+		t.Fatalf("expected request_id req-auth-refresh-err, got %s", payload.Error.RequestID)
+	}
+	if payload.Error.TraceID == "" {
+		t.Fatalf("expected trace_id to be populated")
+	}
+	if payload.Error.Code == "" || payload.Error.Message == "" {
+		t.Fatalf("expected error code/message to be set")
+	}
+}
+
+func TestLogoutUnauthorizedEnvelopeContract(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	jwtSvc := &jwt.Service{}
+	uc := auth.NewUseCase(stubUserRepo{}, jwtSvc, stubTenantService{}, time.Hour)
+	h := NewAuthHandler(uc, jwtSvc, zaptest.NewLogger(t))
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	req := httptest.NewRequest(http.MethodPost, "/auth/logout", nil)
+
+	tracer := sdktrace.NewTracerProvider()
+	ctx, span := tracer.Tracer("test").Start(req.Context(), "logout-error")
+	ctx = authmw.WithRequestID(ctx, "req-auth-logout-err")
+	req = req.WithContext(ctx)
+	span.End()
+
+	c.Request = req
+
+	h.Logout(c)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status 401, got %d", rec.Code)
+	}
+
+	var payload struct {
+		Error response.ErrorPayload `json:"error"`
+	}
+
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if payload.Error.RequestID != "req-auth-logout-err" {
+		t.Fatalf("expected request_id req-auth-logout-err, got %s", payload.Error.RequestID)
 	}
 	if payload.Error.TraceID == "" {
 		t.Fatalf("expected trace_id to be populated")

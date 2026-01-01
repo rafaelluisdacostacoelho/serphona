@@ -14,11 +14,14 @@ import (
 )
 
 var (
-	ErrInvalidCredentials = errors.New("invalid credentials")
-	ErrUserNotFound       = errors.New("user not found")
-	ErrEmailAlreadyExists = errors.New("email already exists")
-	ErrInvalidToken       = errors.New("invalid token")
-	ErrSessionNotFound    = errors.New("session not found")
+	ErrInvalidCredentials  = errors.New("invalid credentials")
+	ErrUserNotFound        = errors.New("user not found")
+	ErrEmailAlreadyExists  = errors.New("email already exists")
+	ErrInvalidToken        = errors.New("invalid token")
+	ErrSessionNotFound     = errors.New("session not found")
+	ErrUnsupportedProvider = errors.New("provider not supported")
+	ErrInvalidState        = errors.New("invalid state")
+	ErrStateExpired        = errors.New("state expired")
 )
 
 // UseCase handles authentication business logic
@@ -194,7 +197,7 @@ func (uc *UseCase) Logout(ctx context.Context, userID uuid.UUID) error {
 func (uc *UseCase) GetOAuthURL(ctx context.Context, provider string) (*OAuthURLResponse, error) {
 	oauthProvider, ok := uc.oauthProviders[provider]
 	if !ok {
-		return nil, errors.New("provider not supported")
+		return nil, ErrUnsupportedProvider
 	}
 
 	// Generate state
@@ -224,11 +227,11 @@ func (uc *UseCase) HandleOAuthCallback(ctx context.Context, req OAuthCallbackReq
 	// Verify state
 	oauthState, err := uc.userRepo.GetOAuthState(ctx, req.State)
 	if err != nil {
-		return nil, errors.New("invalid state")
+		return nil, ErrInvalidState
 	}
 
 	if oauthState.ExpiresAt.Before(time.Now()) {
-		return nil, errors.New("state expired")
+		return nil, ErrStateExpired
 	}
 
 	// Delete used state
@@ -237,7 +240,7 @@ func (uc *UseCase) HandleOAuthCallback(ctx context.Context, req OAuthCallbackReq
 	// Get provider
 	oauthProvider, ok := uc.oauthProviders[oauthState.Provider]
 	if !ok {
-		return nil, errors.New("provider not found")
+		return nil, ErrUnsupportedProvider
 	}
 
 	// Exchange code for user info

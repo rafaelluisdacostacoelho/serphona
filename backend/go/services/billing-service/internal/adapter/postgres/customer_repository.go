@@ -27,11 +27,12 @@ func (r *customerRepository) Create(ctx context.Context, cust *customer.Customer
 
 func (r *customerRepository) FindByID(ctx context.Context, id uuid.UUID) (*customer.Customer, error) {
 	var cust customer.Customer
-	query := r.db.WithContext(ctx).Where("id = ?", id)
-	if tenantID, err := authmw.TenantIDFromContext(ctx); err == nil && tenantID != "" {
-		query = query.Where("tenant_id = ?", tenantID)
+	tenantID, err := authmw.TenantIDFromContext(ctx)
+	if err != nil {
+		return nil, err
 	}
-	err := query.First(&cust).Error
+
+	err = r.db.WithContext(ctx).Where("id = ? AND tenant_id = ?", id, tenantID).First(&cust).Error
 	if err != nil {
 		return nil, err
 	}
@@ -52,11 +53,12 @@ func (r *customerRepository) FindByTenantID(ctx context.Context, tenantID uuid.U
 
 func (r *customerRepository) FindByStripeCustomerID(ctx context.Context, stripeCustomerID string) (*customer.Customer, error) {
 	var cust customer.Customer
-	query := r.db.WithContext(ctx).Where("stripe_customer_id = ?", stripeCustomerID)
-	if tenantID, err := authmw.TenantIDFromContext(ctx); err == nil && tenantID != "" {
-		query = query.Where("tenant_id = ?", tenantID)
+	tenantID, err := authmw.TenantIDFromContext(ctx)
+	if err != nil {
+		return nil, err
 	}
-	err := query.First(&cust).Error
+
+	err = r.db.WithContext(ctx).Where("stripe_customer_id = ? AND tenant_id = ?", stripeCustomerID, tenantID).First(&cust).Error
 	if err != nil {
 		return nil, err
 	}
@@ -71,9 +73,10 @@ func (r *customerRepository) Update(ctx context.Context, cust *customer.Customer
 }
 
 func (r *customerRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	query := r.db.WithContext(ctx).Where("id = ?", id)
-	if tenantID, err := authmw.TenantIDFromContext(ctx); err == nil && tenantID != "" {
-		query = query.Where("tenant_id = ?", tenantID)
+	tenantID, err := authmw.TenantIDFromContext(ctx)
+	if err != nil {
+		return err
 	}
-	return query.Delete(&customer.Customer{}).Error
+
+	return r.db.WithContext(ctx).Where("id = ? AND tenant_id = ?", id, tenantID).Delete(&customer.Customer{}).Error
 }

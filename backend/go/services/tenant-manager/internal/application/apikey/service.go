@@ -99,6 +99,9 @@ func (s *Service) RevokeAPIKey(ctx context.Context, id uuid.UUID, revokedBy uuid
 	if s.cache != nil {
 		cacheKey := fmt.Sprintf("apikey:%s", key.KeyPrefix)
 		_ = s.cache.Delete(ctx, cacheKey)
+
+		cacheKey = fmt.Sprintf("apikey:id:%s", key.ID.String())
+		_ = s.cache.Delete(ctx, cacheKey)
 	}
 
 	// Publish event
@@ -137,6 +140,9 @@ func (s *Service) RevokeAllForTenant(ctx context.Context, tenantID uuid.UUID, re
 	if s.cache != nil {
 		for _, key := range keys {
 			cacheKey := fmt.Sprintf("apikey:%s", key.KeyPrefix)
+			_ = s.cache.Delete(ctx, cacheKey)
+
+			cacheKey = fmt.Sprintf("apikey:id:%s", key.ID.String())
 			_ = s.cache.Delete(ctx, cacheKey)
 		}
 	}
@@ -321,15 +327,22 @@ func (s *Service) CountAPIKeys(ctx context.Context, tenantID uuid.UUID, activeOn
 // MarkExpiredKeys marks expired API keys and publishes events.
 func (s *Service) MarkExpiredKeys(ctx context.Context, limit int) (int, error) {
 	// Mark expired via domain service
-	count, err := s.domainService.MarkExpired(ctx, limit)
+	expiredKeys, err := s.domainService.MarkExpired(ctx, limit)
 	if err != nil {
 		return 0, err
 	}
 
-	// Note: In a real implementation, you'd want to get the list of expired keys
-	// and publish individual events for each one
+	if s.cache != nil {
+		for _, key := range expiredKeys {
+			cacheKey := fmt.Sprintf("apikey:%s", key.KeyPrefix)
+			_ = s.cache.Delete(ctx, cacheKey)
 
-	return count, nil
+			cacheKey = fmt.Sprintf("apikey:id:%s", key.ID.String())
+			_ = s.cache.Delete(ctx, cacheKey)
+		}
+	}
+
+	return len(expiredKeys), nil
 }
 
 // publishEvent publishes an event to Kafka.

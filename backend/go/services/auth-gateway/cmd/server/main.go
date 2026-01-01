@@ -209,6 +209,7 @@ func setupRouter(authHandler *handler.AuthHandler, authMiddleware *middleware.Au
 	router := gin.Default()
 
 	// Middleware
+	router.Use(middleware.Correlation())
 	router.Use(middleware.CORS())
 	router.Use(gin.Recovery())
 

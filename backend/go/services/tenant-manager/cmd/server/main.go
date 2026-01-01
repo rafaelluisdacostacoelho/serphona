@@ -25,6 +25,7 @@ import (
 	tenantpb "tenant-manager/proto"
 
 	"github.com/gin-gonic/gin"
+	authjwt "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/jwt"
 	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -32,15 +33,13 @@ import (
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
-	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"strings"
 )
 
 const (
-	serviceName    = "tenant-manager"
-	serviceVersion = "1.0.0"
+	serviceName      = "tenant-manager"
+	serviceVersion   = "1.0.0"
+	readTenantScope  = "read:tenants"
+	writeTenantScope = "write:tenants"
 )
 
 func main() {
@@ -58,6 +57,8 @@ func main() {
 		os.Exit(1)
 	}
 	defer log.Sync()
+
+	configureAuth(cfg)
 
 	log.Info("Starting Tenant Manager Service",
 		zap.String("service", serviceName),
@@ -183,7 +184,7 @@ func initializeDependencies(ctx context.Context, cfg *config.Config, log *zap.Lo
 		producer = nil
 	} else {
 		deps.Producer = producer
-		deps.EventPublisher = kafka.NewEventPublisher(producer, cfg.Kafka.TopicPrefix)
+		deps.EventPublisher = kafka.NewEventPublisher(producer, cfg.Kafka.TopicPrefix, cfg.Kafka.DLQTopic)
 		cleanupFuncs = append(cleanupFuncs, func() {
 			log.Info("Closing Kafka connection")
 			if err := producer.Close(); err != nil {
@@ -242,6 +243,18 @@ func initializeDependencies(ctx context.Context, cfg *config.Config, log *zap.Lo
 	return deps, cleanup, nil
 }
 
+func configureAuth(cfg *config.Config) {
+	authjwt.SetSecret(cfg.JWT.Secret)
+	vc := authjwt.ValidationConfig{Issuer: cfg.JWT.Issuer}
+	if len(cfg.JWT.Audience) > 0 {
+		vc.Audience = cfg.JWT.Audience[0]
+	}
+	if cfg.JWT.PublicKey != "" {
+		vc.AllowedAlgs = []string{"HS256", "RS256"}
+	}
+	authjwt.SetValidationConfig(vc)
+}
+
 // startHTTPServer creates and configures the HTTP server
 func startHTTPServer(cfg *config.Config, deps *Dependencies, log *zap.Logger) *http.Server {
 	// Create Gin router
@@ -251,7 +264,15 @@ func startHTTPServer(cfg *config.Config, deps *Dependencies, log *zap.Logger) *h
 	r.Use(gin.Recovery())
 	r.Use(middleware.RequestID())
 	r.Use(middleware.ZapLogger(log))
-	r.Use(middleware.CORS())
+	r.Use(middleware.BodyLimit(cfg.Server.BodyLimitBytes))
+	r.Use(middleware.RateLimit(cfg.Server.RateLimitRPM))
+	r.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowedOrigins:   cfg.Server.CORSAllowedOrigins,
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Authorization", "Content-Type", "X-Request-ID"},
+		AllowCredentials: true,
+		MaxAge:           10 * time.Minute,
+	}))
 
 	// Health checks (no auth required)
 	healthHandler := httpHandler.NewHealthHandler(deps.DB.Pool, nil)
@@ -276,17 +297,17 @@ func startHTTPServer(cfg *config.Config, deps *Dependencies, log *zap.Logger) *h
 	{
 		// Tenant routes
 		tenantHandler := httpHandler.NewGinTenantHandler(deps.TenantService, log)
-		api.POST("/tenants", tenantHandler.Create)
-		api.GET("/tenants", tenantHandler.List)
-		api.GET("/tenants/:id", tenantHandler.Get)
-		api.PUT("/tenants/:id", tenantHandler.Update)
-		api.DELETE("/tenants/:id", tenantHandler.Delete)
+		api.POST("/tenants", middleware.RequireScopes(writeTenantScope), tenantHandler.Create)
+		api.GET("/tenants", middleware.RequireScopes(readTenantScope), tenantHandler.List)
+		api.GET("/tenants/:id", middleware.RequireScopes(readTenantScope), tenantHandler.Get)
+		api.PUT("/tenants/:id", middleware.RequireScopes(writeTenantScope), tenantHandler.Update)
+		api.DELETE("/tenants/:id", middleware.RequireScopes(writeTenantScope), tenantHandler.Delete)
 
 		// API Key routes
 		apiKeyHandler := httpHandler.NewGinAPIKeyHandler(deps.APIKeyService, log)
-		api.POST("/tenants/:id/api-keys", apiKeyHandler.Create)
-		api.GET("/tenants/:id/api-keys", apiKeyHandler.List)
-		api.DELETE("/tenants/:id/api-keys/:keyId", apiKeyHandler.Delete)
+		api.POST("/tenants/:id/api-keys", middleware.RequireScopes(writeTenantScope), apiKeyHandler.Create)
+		api.GET("/tenants/:id/api-keys", middleware.RequireScopes(readTenantScope), apiKeyHandler.List)
+		api.DELETE("/tenants/:id/api-keys/:keyId", middleware.RequireScopes(writeTenantScope), apiKeyHandler.Delete)
 	}
 
 	// Create HTTP server
@@ -312,11 +333,14 @@ func startGRPCServer(cfg *config.Config, deps *Dependencies, log *zap.Logger) *g
 
 	opts := []grpc.ServerOption{
 		grpc.ChainUnaryInterceptor(
-			grpcUnaryInterceptor(log),
+			authmw.UnaryAuthInterceptor(),
 			enforceDeadline(cfg.GRPC.DefaultRequestTimeout, log),
-			grpcAuthInterceptor(cfg.JWT.Secret, cfg.JWT.PublicKey, cfg.JWT.Issuer, cfg.JWT.Audience, log),
+			grpcUnaryInterceptor(log),
 		),
-		grpc.StreamInterceptor(grpcStreamInterceptor(log)),
+		grpc.ChainStreamInterceptor(
+			authmw.StreamAuthInterceptor(),
+			grpcStreamInterceptor(log),
+		),
 		grpc.MaxRecvMsgSize(maxRecv),
 		grpc.MaxSendMsgSize(maxSend),
 		grpc.ConnectionTimeout(grpcCfg.ConnectionTimeout),
@@ -441,42 +465,6 @@ func enforceDeadline(defaultTimeout time.Duration, log *zap.Logger) grpc.UnarySe
 			ctx, cancel = context.WithTimeout(ctx, defaultTimeout)
 			defer cancel()
 		}
-		return handler(ctx, req)
-	}
-}
-
-// grpcAuthInterceptor validates JWT on unary gRPC calls using the same HS256/RS256 logic as HTTP middleware.
-func grpcAuthInterceptor(secret, publicKey, issuer string, audience []string, log *zap.Logger) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		md, ok := metadata.FromIncomingContext(ctx)
-		if !ok {
-			return nil, status.Errorf(codes.Unauthenticated, "missing metadata")
-		}
-		authHeaders := md.Get("authorization")
-		if len(authHeaders) == 0 {
-			return nil, status.Errorf(codes.Unauthenticated, "authorization header required")
-		}
-
-		token := authHeaders[0]
-		if strings.HasPrefix(strings.ToLower(token), "bearer ") {
-			token = strings.TrimSpace(token[7:])
-		}
-
-		claims, err := middleware.ParseJWT(token, secret, publicKey, issuer, audience)
-		if err != nil {
-			return nil, status.Errorf(codes.Unauthenticated, "invalid token: %v", err)
-		}
-
-		tenantID, _ := claims["tenant_id"].(string)
-		userID, _ := claims["sub"].(string)
-		if tenantID == "" || userID == "" {
-			return nil, status.Errorf(codes.Unauthenticated, "missing tenant_id or sub claim")
-		}
-
-		ctx = context.WithValue(ctx, "tenant_id", tenantID)
-		ctx = context.WithValue(ctx, "user_id", userID)
-		ctx = authmw.WithTenantID(ctx, tenantID)
-
 		return handler(ctx, req)
 	}
 }

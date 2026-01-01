@@ -11,17 +11,24 @@ import (
 	"tenant-manager/internal/domain/tenant"
 )
 
+// ProducerSender represents the minimal producer behavior used by the publisher.
+type ProducerSender interface {
+	SendMessage(ctx context.Context, topic string, key, value []byte) error
+}
+
 // EventPublisher implements tenant.EventPublisher using Kafka.
 type EventPublisher struct {
-	producer    *Producer
+	producer    ProducerSender
 	topicPrefix string
+	dlqTopic    string
 }
 
 // NewEventPublisher creates a new Kafka event publisher.
-func NewEventPublisher(producer *Producer, topicPrefix string) *EventPublisher {
+func NewEventPublisher(producer ProducerSender, topicPrefix, dlqTopic string) *EventPublisher {
 	return &EventPublisher{
 		producer:    producer,
 		topicPrefix: topicPrefix,
+		dlqTopic:    dlqTopic,
 	}
 }
 
@@ -70,7 +77,23 @@ func (p *EventPublisher) publishEvent(ctx context.Context, eventType, key string
 	}
 
 	if err := p.producer.SendMessage(ctx, topic, []byte(key), value); err != nil {
-		return fmt.Errorf("failed to publish event: %w", err)
+		if p.dlqTopic == "" {
+			return fmt.Errorf("failed to publish event: %w", err)
+		}
+
+		dlqPayload, marshalErr := json.Marshal(map[string]any{
+			"event_type": eventType,
+			"payload":    json.RawMessage(value),
+			"error":      err.Error(),
+		})
+		if marshalErr != nil {
+			return fmt.Errorf("failed to publish event: %w", err)
+		}
+
+		if dlqErr := p.producer.SendMessage(ctx, p.dlqTopic, []byte(key), dlqPayload); dlqErr != nil {
+			return fmt.Errorf("failed to publish event: %w; dlq error: %v", err, dlqErr)
+		}
+		return nil
 	}
 
 	return nil

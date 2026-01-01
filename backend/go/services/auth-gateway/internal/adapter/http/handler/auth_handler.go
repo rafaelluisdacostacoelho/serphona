@@ -232,6 +232,10 @@ func (h *AuthHandler) handleError(c *gin.Context, err error) {
 		response.WriteError(c.Request.Context(), c.Writer, http.StatusConflict, "EMAIL_EXISTS", "Email already exists", nil)
 	case auth.ErrInvalidToken, auth.ErrSessionNotFound:
 		response.WriteError(c.Request.Context(), c.Writer, http.StatusUnauthorized, "INVALID_TOKEN", "Invalid or expired token", nil)
+	case auth.ErrUnsupportedProvider:
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusBadRequest, "UNSUPPORTED_PROVIDER", "Provider not supported", nil)
+	case auth.ErrInvalidState, auth.ErrStateExpired:
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusBadRequest, "INVALID_STATE", "Invalid or expired OAuth state", nil)
 	default:
 		h.logger.Error("Internal server error", zap.Error(err))
 		response.WriteError(c.Request.Context(), c.Writer, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error", nil)

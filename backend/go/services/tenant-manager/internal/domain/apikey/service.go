@@ -9,11 +9,21 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	autherrors "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/errors"
+	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 )
 
 // Service encapsulates API key domain business logic.
 type Service struct {
 	repo Repository
+}
+
+// ensureTenant enforces that the tenant in context matches the target tenant.
+func ensureTenant(ctx context.Context, tenantID uuid.UUID) error {
+	if tenantID == uuid.Nil {
+		return autherrors.ErrUnauthorized
+	}
+	return authmw.EnforceTenant(ctx, tenantID.String())
 }
 
 // NewService creates a new API key domain service.
@@ -25,6 +35,10 @@ func NewService(repo Repository) *Service {
 
 // Create creates a new API key with validation.
 func (s *Service) Create(ctx context.Context, tenantID uuid.UUID, name string, createdBy uuid.UUID, permissions []string, expiryDays int) (*APIKey, string, error) {
+	if err := ensureTenant(ctx, tenantID); err != nil {
+		return nil, "", err
+	}
+
 	// Validate inputs
 	if err := s.validateName(name); err != nil {
 		return nil, "", err
@@ -71,6 +85,10 @@ func (s *Service) Revoke(ctx context.Context, id uuid.UUID, revokedBy uuid.UUID)
 		return err
 	}
 
+	if err := ensureTenant(ctx, key.TenantID); err != nil {
+		return err
+	}
+
 	if key.Status == StatusRevoked {
 		return ErrKeyRevoked
 	}
@@ -86,6 +104,10 @@ func (s *Service) Revoke(ctx context.Context, id uuid.UUID, revokedBy uuid.UUID)
 
 // RevokeAllForTenant revokes all API keys for a tenant.
 func (s *Service) RevokeAllForTenant(ctx context.Context, tenantID uuid.UUID, revokedBy uuid.UUID) error {
+	if err := ensureTenant(ctx, tenantID); err != nil {
+		return err
+	}
+
 	if err := s.repo.RevokeAll(ctx, tenantID, revokedBy); err != nil {
 		return fmt.Errorf("failed to revoke all API keys: %w", err)
 	}
@@ -107,6 +129,10 @@ func (s *Service) Authenticate(ctx context.Context, rawKey string, ipAddress str
 	key, err := s.repo.FindByKeyHash(ctx, keyHash)
 	if err != nil {
 		return nil, ErrInvalidKeyHash
+	}
+
+	if err := ensureTenant(ctx, key.TenantID); err != nil {
+		return nil, err
 	}
 
 	// Verify key hash
@@ -145,6 +171,10 @@ func (s *Service) RecordUsage(ctx context.Context, id uuid.UUID, ipAddress, user
 		return err
 	}
 
+	if err := ensureTenant(ctx, key.TenantID); err != nil {
+		return err
+	}
+
 	if success {
 		key.RecordUsage(ipAddress, userAgent)
 	} else {
@@ -162,6 +192,10 @@ func (s *Service) RecordUsage(ctx context.Context, id uuid.UUID, ipAddress, user
 func (s *Service) UpdateMetadata(ctx context.Context, id uuid.UUID, metadata Metadata) error {
 	key, err := s.repo.FindByID(ctx, id)
 	if err != nil {
+		return err
+	}
+
+	if err := ensureTenant(ctx, key.TenantID); err != nil {
 		return err
 	}
 
@@ -196,6 +230,10 @@ func (s *Service) AddIPToWhitelist(ctx context.Context, id uuid.UUID, ip string)
 		return err
 	}
 
+	if err := ensureTenant(ctx, key.TenantID); err != nil {
+		return err
+	}
+
 	// Check if IP already in whitelist
 	for _, existingIP := range key.Metadata.IPWhitelist {
 		if existingIP == ip {
@@ -216,6 +254,10 @@ func (s *Service) AddIPToWhitelist(ctx context.Context, id uuid.UUID, ip string)
 func (s *Service) RemoveIPFromWhitelist(ctx context.Context, id uuid.UUID, ip string) error {
 	key, err := s.repo.FindByID(ctx, id)
 	if err != nil {
+		return err
+	}
+
+	if err := ensureTenant(ctx, key.TenantID); err != nil {
 		return err
 	}
 
@@ -245,30 +287,37 @@ func (s *Service) CheckPermission(key *APIKey, permission string) error {
 	return nil
 }
 
-// MarkExpired marks expired API keys as expired.
-func (s *Service) MarkExpired(ctx context.Context, limit int) (int, error) {
+// MarkExpired marks expired API keys as expired and returns the updated keys.
+func (s *Service) MarkExpired(ctx context.Context, limit int) ([]*APIKey, error) {
 	expiredKeys, err := s.repo.ListExpired(ctx, limit)
 	if err != nil {
-		return 0, fmt.Errorf("failed to list expired keys: %w", err)
+		return nil, fmt.Errorf("failed to list expired keys: %w", err)
 	}
 
-	count := 0
+	updated := make([]*APIKey, 0, len(expiredKeys))
 	for _, key := range expiredKeys {
-		if key.Status == StatusActive {
-			key.MarkExpired()
-			if err := s.repo.Update(ctx, key); err != nil {
-				// Log error but continue
-				continue
-			}
-			count++
+		if key.Status != StatusActive {
+			continue
 		}
+
+		key.MarkExpired()
+		if err := s.repo.Update(ctx, key); err != nil {
+			// Log error but continue
+			continue
+		}
+
+		updated = append(updated, key.Sanitize())
 	}
 
-	return count, nil
+	return updated, nil
 }
 
 // ListForTenant lists all API keys for a tenant.
 func (s *Service) ListForTenant(ctx context.Context, tenantID uuid.UUID, activeOnly bool) ([]*APIKey, error) {
+	if err := ensureTenant(ctx, tenantID); err != nil {
+		return nil, err
+	}
+
 	var keys []*APIKey
 	var err error
 
@@ -298,14 +347,22 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*APIKey, error) {
 		return nil, err
 	}
 
+	if err := ensureTenant(ctx, key.TenantID); err != nil {
+		return nil, err
+	}
+
 	return key.Sanitize(), nil
 }
 
 // Delete deletes an API key.
 func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
 	// Check if key exists
-	_, err := s.repo.FindByID(ctx, id)
+	key, err := s.repo.FindByID(ctx, id)
 	if err != nil {
+		return err
+	}
+
+	if err := ensureTenant(ctx, key.TenantID); err != nil {
 		return err
 	}
 
@@ -318,6 +375,10 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
 
 // CountForTenant counts API keys for a tenant.
 func (s *Service) CountForTenant(ctx context.Context, tenantID uuid.UUID, activeOnly bool) (int64, error) {
+	if err := ensureTenant(ctx, tenantID); err != nil {
+		return 0, err
+	}
+
 	var count int64
 	var err error
 

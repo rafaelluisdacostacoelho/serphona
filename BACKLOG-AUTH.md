@@ -18,11 +18,11 @@ Propósito: plano coordenado para adotar o platform-auth nos serviços com RLS/t
 - [ ] Helper de autorização de cliente para chamadas internas adotado onde necessário (identidade do serviço + scopes).
 
 ### Fase 1 — Testes de contrato do envelope
-- [ ] Auth-gateway e tenant-manager: handlers HTTP usam helpers de envelope; adicionar testes de contrato para sucesso/erro + metadata de trace_id.
-- [ ] Superfícies gRPC (tenant-manager, agent-orchestrator) mapeiam status/metadata via interceptors do platform-auth; adicionar testes de contrato.
+- [x] Auth-gateway e tenant-manager: handlers HTTP usam helpers de envelope; adicionar testes de contrato para sucesso/erro + metadata de trace_id.
+- [x] Superfícies gRPC (tenant-manager) mapeiam status/metadata via interceptors do platform-auth; testes de contrato prontos. Agent-orchestrator não expõe gRPC no momento (N/A).
 
 ### Fase 2 — Propagação de tenant (ordem)
-- [ ] tenant-manager: helpers de tenant nos repositórios; EnsureTenantHeader no outbound/Kafka; testes table-driven de injeção de header.
+- [ ] tenant-manager: helpers de tenant nos repositórios; EnsureTenantHeader no outbound/Kafka; testes table-driven de injeção de header. (progresso: repos + testes de validação em repos/handlers ✅; falta header outbound/Kafka)
 - [ ] billing-service: guard rails de tenant em DB/Kafka; HTTP outbound usa transporte do platform-auth + EnsureTenantHeader; adicionar testes.
 - [ ] analytics-query-service: helpers de tenant no caminho de consulta; outbound (quando existir) valida header de tenant; adicionar testes.
 - [ ] tools-gateway: todos os clients outbound usam transporte do platform-auth + EnsureTenantHeader; guard rails de tenant nos fluxos de execução; adicionar testes.

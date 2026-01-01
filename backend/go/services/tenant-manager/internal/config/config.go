@@ -25,17 +25,20 @@ type Config struct {
 
 // ServerConfig represents server configuration.
 type ServerConfig struct {
-	Host     string `envconfig:"SERVER_HOST" default:"0.0.0.0"`
-	Port     int    `envconfig:"SERVER_PORT" default:"8080"`
-	GRPCPort int    `envconfig:"SERVER_GRPC_PORT" default:"9090"`
+	Host           string `envconfig:"SERVER_HOST" default:"0.0.0.0"`
+	Port           int    `envconfig:"SERVER_PORT" default:"8080"`
+	GRPCPort       int    `envconfig:"SERVER_GRPC_PORT" default:"9090"`
+	BodyLimitBytes int64  `envconfig:"SERVER_BODY_LIMIT_BYTES" default:"1048576"`
 
 	ReadTimeout       time.Duration `envconfig:"SERVER_READ_TIMEOUT" default:"10s"`
 	ReadHeaderTimeout time.Duration `envconfig:"SERVER_READ_HEADER_TIMEOUT" default:"5s"`
 	WriteTimeout      time.Duration `envconfig:"SERVER_WRITE_TIMEOUT" default:"10s"`
 	IdleTimeout       time.Duration `envconfig:"SERVER_IDLE_TIMEOUT" default:"120s"`
 
-	MaxHeaderBytes  int           `envconfig:"SERVER_MAX_HEADER_BYTES" default:"1048576"` // 1MB
-	ShutdownTimeout time.Duration `envconfig:"SERVER_SHUTDOWN_TIMEOUT" default:"30s"`
+	MaxHeaderBytes     int           `envconfig:"SERVER_MAX_HEADER_BYTES" default:"1048576"` // 1MB
+	ShutdownTimeout    time.Duration `envconfig:"SERVER_SHUTDOWN_TIMEOUT" default:"30s"`
+	RateLimitRPM       int           `envconfig:"SERVER_RATE_LIMIT_RPM" default:"600"`
+	CORSAllowedOrigins []string      `envconfig:"CORS_ALLOWED_ORIGINS" default:"*"`
 }
 
 type GRPCConfig struct {
@@ -93,17 +96,20 @@ type RedisConfig struct {
 
 // KafkaConfig represents Kafka configuration.
 type KafkaConfig struct {
-	Brokers     []string `envconfig:"KAFKA_BROKERS" default:"localhost:9092"`
-	TopicPrefix string   `envconfig:"KAFKA_TOPIC_PREFIX" default:"serphona"`
-	GroupID     string   `envconfig:"KAFKA_GROUP_ID" default:"tenant-manager"`
+	Brokers      []string      `envconfig:"KAFKA_BROKERS" default:"localhost:9092"`
+	TopicPrefix  string        `envconfig:"KAFKA_TOPIC_PREFIX" default:"serphona"`
+	GroupID      string        `envconfig:"KAFKA_GROUP_ID" default:"tenant-manager"`
+	RetryMax     int           `envconfig:"KAFKA_RETRY_MAX" default:"3"`
+	RetryBackoff time.Duration `envconfig:"KAFKA_RETRY_BACKOFF" default:"500ms"`
+	DLQTopic     string        `envconfig:"KAFKA_DLQ_TOPIC"`
 }
 
 // JWTConfig represents JWT configuration.
 type JWTConfig struct {
 	Secret    string   `envconfig:"JWT_SECRET" required:"true"`
-	PublicKey string   `envconfig:"JWT_PUBLIC_KEY"`                 // PEM encoded RSA public key for RS256 (optional)
-	Issuer    string   `envconfig:"JWT_ISSUER" default:"serphona"`  // Expected issuer (optional)
-	Audience  []string `envconfig:"JWT_AUDIENCE"`                   // Expected audience list (optional)
+	PublicKey string   `envconfig:"JWT_PUBLIC_KEY"`                // PEM encoded RSA public key for RS256 (optional)
+	Issuer    string   `envconfig:"JWT_ISSUER" default:"serphona"` // Expected issuer (optional)
+	Audience  []string `envconfig:"JWT_AUDIENCE"`                  // Expected audience list (optional)
 }
 
 // MetricsConfig represents metrics configuration.
