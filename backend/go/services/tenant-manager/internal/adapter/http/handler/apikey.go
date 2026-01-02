@@ -162,6 +162,8 @@ func (h *GinAPIKeyHandler) handleDomainError(c *gin.Context, err error) {
 		response.WriteError(c.Request.Context(), c.Writer, http.StatusUnauthorized, "UNAUTHORIZED", "missing tenant context", nil)
 	case errors.Is(err, autherrors.ErrInsufficientPermissions):
 		response.WriteError(c.Request.Context(), c.Writer, http.StatusForbidden, "FORBIDDEN", "tenant mismatch", nil)
+	case errors.Is(err, domainapikey.ErrQuotaExceeded):
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusTooManyRequests, "QUOTA_EXCEEDED", err.Error(), nil)
 	case errors.Is(err, domainapikey.ErrNotFound):
 		response.WriteError(c.Request.Context(), c.Writer, http.StatusNotFound, "NOT_FOUND", err.Error(), nil)
 	case errors.Is(err, domainapikey.ErrNameAlreadyExists):

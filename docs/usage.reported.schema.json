@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://serphona.dev/schemas/usage.reported.schema.json",
+  "title": "usage.reported",
+  "description": "Usage delta event emitted by producers and consumed by billing-service.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "tenant_id",
+    "period",
+    "occurred_at",
+    "source",
+    "calls",
+    "minutes",
+    "messages",
+    "storage_gb",
+    "api_requests",
+    "request_id"
+  ],
+  "properties": {
+    "tenant_id": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+      "description": "Tenant identifier; also used as the Kafka partition key."
+    },
+    "period": {
+      "type": "string",
+      "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+      "description": "Monthly usage bucket in UTC formatted as YYYY-MM."
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when the usage happened (RFC3339, UTC)."
+    },
+    "source": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Producer of the usage event (e.g., tenant-manager, voice-gateway)."
+    },
+    "calls": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Delta of calls in this message."
+    },
+    "minutes": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Delta of call minutes in this message."
+    },
+    "messages": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Delta of messages in this message."
+    },
+    "storage_gb": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Delta of storage consumption in GB; fractional values allowed."
+    },
+    "api_requests": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Delta of API requests in this message."
+    },
+    "plan": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Plan code at the time of usage."
+    },
+    "subscription_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Billing subscription identifier if available."
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Idempotency key for this usage record; duplicates should be treated as no-op per tenant."
+    },
+    "trace_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional tracing identifier for observability correlation."
+    }
+  },
+  "examples": [
+    {
+      "tenant_id": "9c1c3e79-7e5d-4e30-8a6e-4f3bb7cb4c0f",
+      "period": "2025-12",
+      "occurred_at": "2025-12-31T23:59:12Z",
+      "source": "tenant-manager",
+      "calls": 2,
+      "minutes": 6,
+      "messages": 0,
+      "storage_gb": 0.0,
+      "api_requests": 3,
+      "plan": "starter",
+      "subscription_id": "sub_123",
+      "request_id": "req-7f5f8d1e-321e-4c71-9a3f-62b6f0e9c111",
+      "trace_id": "2a4b5c6d7e8f9a0b"
+    }
+  ]
+}

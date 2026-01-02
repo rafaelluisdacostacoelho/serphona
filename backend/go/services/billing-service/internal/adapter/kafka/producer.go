@@ -32,10 +32,7 @@ func NewProducer(cfg config.KafkaConfig) (*Producer, error) {
 
 // SendMessage sends a message to a Kafka topic, propagating the tenant header when present.
 func (p *Producer) SendMessage(ctx context.Context, topic string, key, value []byte) error {
-	var headers []sarama.RecordHeader
-	if tenantID, err := authmw.TenantIDFromContext(ctx); err == nil && tenantID != "" {
-		headers = append(headers, sarama.RecordHeader{Key: []byte(authmw.TenantIDHeader), Value: []byte(tenantID)})
-	}
+	headers := ensureTenantHeaders(ctx, nil)
 
 	msg := &sarama.ProducerMessage{
 		Topic:   topic,
@@ -49,6 +46,23 @@ func (p *Producer) SendMessage(ctx context.Context, topic string, key, value []b
 	}
 
 	return nil
+}
+
+// ensureTenantHeaders clones provided headers and injects the tenant header when available.
+func ensureTenantHeaders(ctx context.Context, headers []sarama.RecordHeader) []sarama.RecordHeader {
+	if tenantID, err := authmw.TenantIDFromContext(ctx); err == nil && tenantID != "" {
+		for i := range headers {
+			if string(headers[i].Key) == authmw.TenantIDHeader {
+				if len(headers[i].Value) == 0 {
+					headers[i].Value = []byte(tenantID)
+				}
+				return headers
+			}
+		}
+		return append(headers, sarama.RecordHeader{Key: []byte(authmw.TenantIDHeader), Value: []byte(tenantID)})
+	}
+
+	return headers
 }
 
 // Close closes the Kafka producer.

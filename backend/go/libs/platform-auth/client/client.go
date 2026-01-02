@@ -19,6 +19,12 @@ import (
 const (
 	// EnvAuthGatewayURL is the default environment variable name used to configure the gateway URL.
 	EnvAuthGatewayURL = "AUTH_GATEWAY_URL"
+	// EnvServiceAuthToken is the environment variable used to inject a static bearer for internal calls.
+	EnvServiceAuthToken = "SERVICE_AUTH_TOKEN"
+	// EnvServiceName is the environment variable used to set the calling service name header.
+	EnvServiceName = "SERVICE_NAME"
+	// EnvServiceInstance is the environment variable used to set the calling service instance header.
+	EnvServiceInstance = "SERVICE_INSTANCE"
 )
 
 // Client is an HTTP client used to communicate with auth-gateway.
@@ -45,6 +51,30 @@ func NewFromEnv() (*Client, error) {
 		return nil, fmt.Errorf("environment variable %s not set", EnvAuthGatewayURL)
 	}
 	return New(baseURL), nil
+}
+
+// NewServiceClientFromEnv builds a client preloaded with service identity and optional static bearer for internal calls.
+// If serviceName or serviceInstance are empty, the function falls back to ENV vars when present.
+func NewServiceClientFromEnv(serviceName, serviceInstance string, opts ...Option) (*Client, error) {
+	baseURL := os.Getenv(EnvAuthGatewayURL)
+	if baseURL == "" {
+		return nil, fmt.Errorf("environment variable %s not set", EnvAuthGatewayURL)
+	}
+
+	if serviceName == "" {
+		serviceName = os.Getenv(EnvServiceName)
+	}
+	if serviceInstance == "" {
+		serviceInstance = os.Getenv(EnvServiceInstance)
+	}
+
+	options := []Option{WithServiceIdentity(serviceName, serviceInstance)}
+	if token := os.Getenv(EnvServiceAuthToken); token != "" {
+		options = append(options, WithStaticBearerToken(token))
+	}
+	options = append(options, opts...)
+
+	return NewWithOptions(baseURL, options...), nil
 }
 
 // Option customizes the client behavior (retries, TLS/mTLS, service identity).

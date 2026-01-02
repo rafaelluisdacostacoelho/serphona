@@ -39,6 +39,44 @@ func TestNewFromEnv(t *testing.T) {
 	}
 }
 
+func TestNewServiceClientFromEnv(t *testing.T) {
+	t.Setenv(EnvAuthGatewayURL, "http://auth:8080")
+	t.Setenv(EnvServiceAuthToken, "svc-token")
+	t.Setenv(EnvServiceName, "billing-service")
+	t.Setenv(EnvServiceInstance, "billing-1")
+
+	cl, err := NewServiceClientFromEnv("", "")
+	if err != nil {
+		t.Fatalf("expected client to be created, got: %v", err)
+	}
+
+	// Inspect transport wiring to ensure headers/bearer are set.
+	rt := instrumentTransport(roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		if got := r.Header.Get(serviceNameHeader); got != "billing-service" {
+			t.Fatalf("expected service name header, got %q", got)
+		}
+		if got := r.Header.Get(serviceInstanceHeader); got != "billing-1" {
+			t.Fatalf("expected service instance header, got %q", got)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer svc-token" {
+			t.Fatalf("expected static bearer token, got %q", got)
+		}
+		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+	}), cl.serviceHeaders, cl.serviceBearer)
+
+	req, _ := http.NewRequest(http.MethodGet, "http://example.com", nil)
+	if _, err := rt.RoundTrip(req); err != nil {
+		t.Fatalf("expected roundtrip success, got %v", err)
+	}
+}
+
+func TestNewServiceClientFromEnvMissingURL(t *testing.T) {
+	t.Setenv(EnvAuthGatewayURL, "")
+	if _, err := NewServiceClientFromEnv("svc", "instance"); err == nil {
+		t.Fatalf("expected error when %s is missing", EnvAuthGatewayURL)
+	}
+}
+
 func TestValidateTokenCallsGateway(t *testing.T) {
 	var receivedAuth string
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

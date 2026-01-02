@@ -3,8 +3,10 @@ package tenant
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -86,6 +88,67 @@ func (cmd UpdateTenantCommand) Validate() error {
 		if !isValidEmail(*cmd.BillingEmail) {
 			return errors.New("invalid billing email format")
 		}
+	}
+
+	return nil
+}
+
+// UpdateQuotaCommand represents a partial update of tenant quotas.
+type UpdateQuotaCommand struct {
+	TenantID           uuid.UUID  `json:"-"`
+	MaxAPIKeys         *int       `json:"max_api_keys,omitempty"`
+	MaxUsers           *int       `json:"max_users,omitempty"`
+	MaxCallsPerMonth   *int       `json:"max_calls_per_month,omitempty"`
+	MaxMinutesPerMonth *int       `json:"max_minutes_per_month,omitempty"`
+	MaxStorageGB       *int       `json:"max_storage_gb,omitempty"`
+	ResetAt            *time.Time `json:"reset_at,omitempty"`
+}
+
+// Validate validates the quota update payload.
+func (cmd UpdateQuotaCommand) Validate() error {
+	if cmd.TenantID == uuid.Nil {
+		return errors.New("tenant_id is required")
+	}
+
+	checks := []struct {
+		name string
+		val  *int
+	}{
+		{name: "max_api_keys", val: cmd.MaxAPIKeys},
+		{name: "max_users", val: cmd.MaxUsers},
+		{name: "max_calls_per_month", val: cmd.MaxCallsPerMonth},
+		{name: "max_minutes_per_month", val: cmd.MaxMinutesPerMonth},
+		{name: "max_storage_gb", val: cmd.MaxStorageGB},
+	}
+
+	for _, check := range checks {
+		if check.val != nil && *check.val < 0 {
+			return fmt.Errorf("%s must be non-negative", check.name)
+		}
+	}
+
+	return nil
+}
+
+// IncrementUsageCommand represents a request to increment usage counters.
+type IncrementUsageCommand struct {
+	TenantID uuid.UUID `json:"-"`
+	Calls    int       `json:"calls"`
+	Minutes  int       `json:"minutes"`
+}
+
+// Validate validates the usage increment payload.
+func (cmd IncrementUsageCommand) Validate() error {
+	if cmd.TenantID == uuid.Nil {
+		return errors.New("tenant_id is required")
+	}
+
+	if cmd.Calls < 0 {
+		return errors.New("calls must be non-negative")
+	}
+
+	if cmd.Minutes < 0 {
+		return errors.New("minutes must be non-negative")
 	}
 
 	return nil

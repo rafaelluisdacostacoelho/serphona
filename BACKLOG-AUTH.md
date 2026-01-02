@@ -14,21 +14,21 @@ Propósito: plano coordenado para adotar o platform-auth nos serviços com RLS/t
 ### Fase 0 — Base da lib
 - [x] Publicar orientação e rollout de tokens service-to-service (AUTH-GUIDANCE en/pt-BR).
 - [x] Helpers de tenant para DB/Kafka e transportes outbound entregues no platform-auth.
-- [ ] Seção de exemplos dos helpers de envelope em Gin/chi/gRPC finalizada e referenciada nos serviços.
-- [ ] Helper de autorização de cliente para chamadas internas adotado onde necessário (identidade do serviço + scopes).
+- [x] Seção de exemplos dos helpers de envelope em Gin/chi/gRPC finalizada e referenciada nos serviços.
+- [x] Helper de autorização de cliente para chamadas internas adotado onde necessário (identidade do serviço + scopes).
 
 ### Fase 1 — Testes de contrato do envelope
 - [x] Auth-gateway e tenant-manager: handlers HTTP usam helpers de envelope; adicionar testes de contrato para sucesso/erro + metadata de trace_id.
 - [x] Superfícies gRPC (tenant-manager) mapeiam status/metadata via interceptors do platform-auth; testes de contrato prontos. Agent-orchestrator não expõe gRPC no momento (N/A).
 
 ### Fase 2 — Propagação de tenant (ordem)
-- [ ] tenant-manager: helpers de tenant nos repositórios; EnsureTenantHeader no outbound/Kafka; testes table-driven de injeção de header. (progresso: repos + testes de validação em repos/handlers ✅; falta header outbound/Kafka)
-- [ ] billing-service: guard rails de tenant em DB/Kafka; HTTP outbound usa transporte do platform-auth + EnsureTenantHeader; adicionar testes.
-- [ ] analytics-query-service: helpers de tenant no caminho de consulta; outbound (quando existir) valida header de tenant; adicionar testes.
-- [ ] tools-gateway: todos os clients outbound usam transporte do platform-auth + EnsureTenantHeader; guard rails de tenant nos fluxos de execução; adicionar testes.
-- [ ] auth-gateway: auditar chamadas outbound (se houver) para garantir transporte do platform-auth + EnsureTenantHeader; adicionar testes.
-- [ ] voice-gateway: propagar header de tenant nos clients de agente/tenant e eventos Kafka; testes ao iniciar conversa.
-- [ ] rag-gateway: verificar que a injeção de header de tenant continua correta; adicionar testes se faltar.
+- [x] tenant-manager: helpers de tenant nos repositórios; EnsureTenantHeader no outbound/Kafka; testes table-driven de injeção de header. (progresso: repos + testes de validação em repos/handlers ✅; header Kafka coberto por ensureTenantHeaders + testes)
+- [x] billing-service: guard rails de tenant em DB/Kafka; HTTP outbound usa transporte do platform-auth + EnsureTenantHeader; adicionar testes. (DB já usa EnforceTenant/TenantIDFromContext; Kafka producer/DLQ agora injeta X-Tenant-Id com testes; não há HTTP outbound hoje)
+- [x] analytics-query-service: helpers de tenant no caminho de consulta; outbound (quando existir) valida header de tenant; adicionar testes. (tenantIDFromContext já enforça via GetTenantIDFromContext e EnsureTenantHeader; sem HTTP outbound; testes de propagação adicionados)
+- [x] tools-gateway: todos os clients outbound usam transporte do platform-auth + EnsureTenantHeader; guard rails de tenant nos fluxos de execução; adicionar testes. (SOAP/GraphQL/HTTP clients agora injetam X-Tenant-Id via middleware.TenantIDFromContext; handler ExecuteTool propaga tenant context via WithTenantID; testes table-driven para injeção de header HTTP ✅)
+- [x] auth-gateway: auditar chamadas outbound (se houver) para garantir transporte do platform-auth + EnsureTenantHeader; adicionar testes. (Apple OAuth não requer tenant; CreateTenant é stub sem implementação; verificado ✅)
+- [x] voice-gateway: propagar header de tenant nos clients de agente/tenant e eventos Kafka; testes ao iniciar conversa. (Agent/tenant clients já usam authclient.WithDefaultTransport; callService propaga WithTenantID antes de chamar agentes; testes de agent client adicionados ✅)
+- [x] rag-gateway: verificar que a injeção de header de tenant continua correta; adicionar testes se faltar. (Embedding client para OpenAI; authclient.WithDefaultTransport em uso; X-Tenant-Id para chamadas internas incluído; verificado ✅)
 - [ ] Cross-service: testes de integração assegurando X-Tenant-Id em chamadas outbound quando o tenant está no contexto.
 
 ### Fase 3 — Auth/resiliência no outbound

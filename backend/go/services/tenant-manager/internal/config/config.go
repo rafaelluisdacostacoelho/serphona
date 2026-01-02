@@ -38,6 +38,7 @@ type ServerConfig struct {
 	MaxHeaderBytes     int           `envconfig:"SERVER_MAX_HEADER_BYTES" default:"1048576"` // 1MB
 	ShutdownTimeout    time.Duration `envconfig:"SERVER_SHUTDOWN_TIMEOUT" default:"30s"`
 	RateLimitRPM       int           `envconfig:"SERVER_RATE_LIMIT_RPM" default:"600"`
+	TenantRateLimitRPM int           `envconfig:"SERVER_TENANT_RATE_LIMIT_RPM" default:"1200"`
 	CORSAllowedOrigins []string      `envconfig:"CORS_ALLOWED_ORIGINS" default:"*"`
 }
 

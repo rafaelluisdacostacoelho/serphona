@@ -130,6 +130,9 @@ func (noopPublisher) PublishSuspended(_ context.Context, _ *domain.Tenant) error
 func (noopPublisher) PublishSettingsUpdated(_ context.Context, _ uuid.UUID, _ *domain.Settings) error {
 	return nil
 }
+func (noopPublisher) PublishUsageReported(_ context.Context, _ domain.UsageReportedEvent) error {
+	return nil
+}
 
 func TestGinTenantHandlerDeleteTenantContextEnforced(t *testing.T) {
 	gin.SetMode(gin.TestMode)

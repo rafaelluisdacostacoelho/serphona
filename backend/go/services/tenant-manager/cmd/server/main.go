@@ -42,6 +42,11 @@ const (
 	writeTenantScope = "write:tenants"
 )
 
+var (
+	tenantRateMetrics *middleware.TenantRateMetrics
+	tenantRateLimiter *middleware.TenantRateLimiter
+)
+
 func main() {
 	// Load configuration
 	cfg, err := config.Load()
@@ -59,6 +64,8 @@ func main() {
 	defer log.Sync()
 
 	configureAuth(cfg)
+	tenantRateMetrics = middleware.NewTenantRateMetrics()
+	tenantRateLimiter = middleware.NewTenantRateLimiter(cfg.Server.TenantRateLimitRPM, tenantRateMetrics)
 
 	log.Info("Starting Tenant Manager Service",
 		zap.String("service", serviceName),
@@ -223,6 +230,7 @@ func initializeDependencies(ctx context.Context, cfg *config.Config, log *zap.Lo
 	)
 	deps.APIKeyService = apikeyapp.NewService(
 		apiKeyDomainService,
+		deps.TenantRepo,
 		nil, // TODO: wire event publisher
 		apiKeyCache,
 	)
@@ -294,6 +302,7 @@ func startHTTPServer(cfg *config.Config, deps *Dependencies, log *zap.Logger) *h
 	// API routes with authentication
 	api := r.Group("/api/v1")
 	api.Use(middleware.JWTAuth(cfg.JWT.Secret, cfg.JWT.PublicKey, cfg.JWT.Issuer, cfg.JWT.Audience))
+	api.Use(middleware.TenantRateLimitWithLimiter(tenantRateLimiter))
 	{
 		// Tenant routes
 		tenantHandler := httpHandler.NewGinTenantHandler(deps.TenantService, log)
@@ -302,6 +311,9 @@ func startHTTPServer(cfg *config.Config, deps *Dependencies, log *zap.Logger) *h
 		api.GET("/tenants/:id", middleware.RequireScopes(readTenantScope), tenantHandler.Get)
 		api.PUT("/tenants/:id", middleware.RequireScopes(writeTenantScope), tenantHandler.Update)
 		api.DELETE("/tenants/:id", middleware.RequireScopes(writeTenantScope), tenantHandler.Delete)
+		api.GET("/tenants/:id/quota", middleware.RequireScopes(readTenantScope), tenantHandler.GetQuota)
+		api.PUT("/tenants/:id/quota", middleware.RequireScopes(writeTenantScope), tenantHandler.UpdateQuota)
+		api.POST("/tenants/:id/usage", middleware.RequireScopes(writeTenantScope), tenantHandler.IncrementUsage)
 
 		// API Key routes
 		apiKeyHandler := httpHandler.NewGinAPIKeyHandler(deps.APIKeyService, log)
@@ -334,11 +346,13 @@ func startGRPCServer(cfg *config.Config, deps *Dependencies, log *zap.Logger) *g
 	opts := []grpc.ServerOption{
 		grpc.ChainUnaryInterceptor(
 			authmw.UnaryAuthInterceptor(),
+			middleware.TenantUnaryRateLimit(tenantRateLimiter),
 			enforceDeadline(cfg.GRPC.DefaultRequestTimeout, log),
 			grpcUnaryInterceptor(log),
 		),
 		grpc.ChainStreamInterceptor(
 			authmw.StreamAuthInterceptor(),
+			middleware.TenantStreamRateLimit(tenantRateLimiter),
 			grpcStreamInterceptor(log),
 		),
 		grpc.MaxRecvMsgSize(maxRecv),
@@ -498,4 +512,18 @@ func startMetricsServer(cfg config.MetricsConfig, log *zap.Logger) {
 func metricsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 	fmt.Fprintf(w, "# HELP tenant_manager_up Service health\n# TYPE tenant_manager_up gauge\ntenant_manager_up 1\n")
+
+	if tenantRateMetrics != nil {
+		snapshot := tenantRateMetrics.Snapshot()
+		fmt.Fprintf(w, "# HELP tenant_manager_tenant_rate_allowed Total requests allowed per tenant\n")
+		fmt.Fprintf(w, "# TYPE tenant_manager_tenant_rate_allowed counter\n")
+		for tenantID, s := range snapshot {
+			fmt.Fprintf(w, "tenant_manager_tenant_rate_allowed{tenant_id=\"%s\"} %d\n", tenantID, s.Allowed)
+		}
+		fmt.Fprintf(w, "# HELP tenant_manager_tenant_rate_blocked Total requests blocked per tenant\n")
+		fmt.Fprintf(w, "# TYPE tenant_manager_tenant_rate_blocked counter\n")
+		for tenantID, s := range snapshot {
+			fmt.Fprintf(w, "tenant_manager_tenant_rate_blocked{tenant_id=\"%s\"} %d\n", tenantID, s.Blocked)
+		}
+	}
 }

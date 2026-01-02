@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gosimple/slug"
+	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"go.uber.org/zap"
 
 	"tenant-manager/internal/domain/tenant"
@@ -367,6 +368,103 @@ func (s *Service) ValidateAPIKey(ctx context.Context, apiKey string) (*uuid.UUID
 	return tenantID, nil
 }
 
+// GetQuota returns the quota for a tenant.
+func (s *Service) GetQuota(ctx context.Context, tenantID uuid.UUID) (*QuotaDTO, error) {
+	quota, err := s.repo.GetQuota(ctx, tenantID)
+	if err != nil {
+		s.logger.Error("failed to get tenant quota", zap.Error(err))
+		return nil, apperrors.NewNotFoundError("quota not found for tenant")
+	}
+
+	return toQuotaDTO(quota), nil
+}
+
+// UpdateQuota updates tenant quota limits.
+func (s *Service) UpdateQuota(ctx context.Context, cmd UpdateQuotaCommand) (*QuotaDTO, error) {
+	if err := cmd.Validate(); err != nil {
+		return nil, apperrors.NewValidationError(err.Error())
+	}
+
+	quota, err := s.repo.GetQuota(ctx, cmd.TenantID)
+	if err != nil {
+		s.logger.Error("failed to load quota before update", zap.Error(err))
+		return nil, apperrors.NewNotFoundError("quota not found for tenant")
+	}
+
+	if cmd.MaxAPIKeys != nil {
+		quota.MaxAPIKeys = *cmd.MaxAPIKeys
+	}
+	if cmd.MaxUsers != nil {
+		quota.MaxUsers = *cmd.MaxUsers
+	}
+	if cmd.MaxCallsPerMonth != nil {
+		quota.MaxCallsPerMonth = *cmd.MaxCallsPerMonth
+	}
+	if cmd.MaxMinutesPerMonth != nil {
+		quota.MaxMinutesPerMonth = *cmd.MaxMinutesPerMonth
+	}
+	if cmd.MaxStorageGB != nil {
+		quota.MaxStorageGB = *cmd.MaxStorageGB
+	}
+	if cmd.ResetAt != nil {
+		quota.ResetAt = *cmd.ResetAt
+	}
+
+	if err := s.repo.UpdateQuota(ctx, quota); err != nil {
+		s.logger.Error("failed to update quota", zap.Error(err))
+		return nil, apperrors.NewInternalError("failed to update quota")
+	}
+
+	return toQuotaDTO(quota), nil
+}
+
+// IncrementUsage increments usage counters and returns the updated quota snapshot.
+func (s *Service) IncrementUsage(ctx context.Context, cmd IncrementUsageCommand) (*QuotaDTO, error) {
+	if err := cmd.Validate(); err != nil {
+		return nil, apperrors.NewValidationError(err.Error())
+	}
+
+	if err := s.repo.IncrementUsage(ctx, cmd.TenantID, cmd.Calls, cmd.Minutes); err != nil {
+		s.logger.Error("failed to increment tenant usage", zap.Error(err))
+		return nil, apperrors.NewInternalError("failed to increment usage")
+	}
+
+	now := time.Now().UTC()
+	period := now.Format("2006-01")
+
+	reqID, err := authmw.RequestIDFromContext(ctx)
+	if err != nil || reqID == "" {
+		reqID = uuid.New().String()
+	}
+
+	usageEvent := tenant.UsageReportedEvent{
+		TenantID:    cmd.TenantID,
+		Period:      period,
+		OccurredAt:  now,
+		Source:      "tenant-manager",
+		Calls:       cmd.Calls,
+		Minutes:     cmd.Minutes,
+		Messages:    0,
+		StorageGB:   0,
+		APIRequests: 0,
+		RequestID:   reqID,
+	}
+
+	if s.eventPublisher != nil {
+		if err := s.eventPublisher.PublishUsageReported(ctx, usageEvent); err != nil {
+			s.logger.Error("failed to publish usage.reported event", zap.Error(err))
+			return nil, apperrors.NewInternalError("failed to publish usage event")
+		}
+	}
+
+	updated, err := s.repo.GetQuota(ctx, cmd.TenantID)
+	if err != nil {
+		return nil, apperrors.NewInternalError("failed to fetch updated quota")
+	}
+
+	return toQuotaDTO(updated), nil
+}
+
 // toDTO converts a domain tenant to a DTO.
 func toDTO(t *tenant.Tenant) *TenantDTO {
 	return &TenantDTO{
@@ -452,5 +550,20 @@ func (s *Service) publishSuspended(ctx context.Context, t *tenant.Tenant) {
 	}
 	if err := s.eventPublisher.PublishSuspended(ctx, t); err != nil {
 		s.logger.Error("failed to publish tenant suspended event", zap.Error(err))
+	}
+}
+
+func toQuotaDTO(q *tenant.Quota) *QuotaDTO {
+	return &QuotaDTO{
+		TenantID:           q.TenantID,
+		MaxAPIKeys:         q.MaxAPIKeys,
+		MaxUsers:           q.MaxUsers,
+		MaxCallsPerMonth:   q.MaxCallsPerMonth,
+		MaxMinutesPerMonth: q.MaxMinutesPerMonth,
+		MaxStorageGB:       q.MaxStorageGB,
+		UsedCalls:          q.UsedCalls,
+		UsedMinutes:        q.UsedMinutes,
+		UsedStorageGB:      q.UsedStorageGB,
+		ResetAt:            q.ResetAt,
 	}
 }

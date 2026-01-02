@@ -87,12 +87,56 @@ authjwt.SetValidationConfig(authjwt.ValidationConfig{
 
 O emissor deve preencher `service` (ID do chamador), `tenantId` (`platform` permitido para infra) e `scopes` nao vazios por acao interna.
 
+Tambem e possivel instanciar um cliente endurecido a partir das variaveis de ambiente (URL + identidade + bearer estatico opcional):
+
+```go
+svcClient, err := client.NewServiceClientFromEnv("billing-service", "billing-1")
+if err != nil {
+    log.Fatal(err)
+}
+```
+
 ### 4. Validacao JWT manual
 
 ```go
 claims, err := authjwt.ValidateToken(tokenString)
 rawToken, err := authjwt.ExtractTokenFromHeader(authHeader)
 ```
+
+### Envelopes de resposta (Gin / chi / gRPC)
+
+Exemplo Gin (adiciona `trace_id` e `request_id` quando `RequireAuth` ja rodou):
+
+```go
+func listarFaturas(c *gin.Context) {
+    data := []gin.H{{"id": "inv-1", "status": "pago"}}
+    response.WriteSuccess(c.Request.Context(), c.Writer, http.StatusOK, data, response.WithPagination(response.Pagination{Page: 1, PageSize: 10, Total: 1, TotalPages: 1}))
+}
+
+func criarFatura(c *gin.Context) {
+    response.WriteError(c.Request.Context(), c.Writer, http.StatusBadRequest, "INVALID_INPUT", "payload invalido", nil)
+}
+```
+
+Exemplo net/http (compatível com chi):
+
+```go
+mux := http.NewServeMux()
+mux.Handle("/reports", middleware.RequireAuthHTTP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+    payload := []map[string]any{{"id": "r1"}}
+    response.WriteSuccess(r.Context(), w, http.StatusOK, payload)
+})))
+```
+
+gRPC: use os interceptors para carregar request/trace ID em metadata. Erros mapeiam para `codes.Unauthenticated`/`PermissionDenied`/`Internal` com `errdetails.ErrorInfo` preenchido a partir do codigo de auth:
+
+```go
+grpcServer := grpc.NewServer(
+    grpc.UnaryInterceptor(middleware.UnaryAuthInterceptor("scope:read")),
+)
+```
+
+Exemplos executaveis dos envelopes estao em `examples/envelope_gin` e `examples/envelope_http`.
 
 ## Estrutura
 
@@ -119,6 +163,8 @@ JWT_SECRET=sua-chave-jwt-super-secreta
 AUTH_GATEWAY_URL=http://auth-gateway:8080
 SERVICE_AUDIENCE=serphona-service         # audience para tokens de servico
 SERVICE_AUTH_TOKEN=internal-service-token # bearer estatico opcional para chamadas internas
+SERVICE_NAME=billing-service              # identidade opcional quando usar NewServiceClientFromEnv
+SERVICE_INSTANCE=billing-1                # instancia opcional quando usar NewServiceClientFromEnv
 TENANT_ID_HEADER=X-Tenant-Id              # opcional; padrao segue a constante da biblioteca
 TRACE_REQUEST_HEADER=X-Request-Id         # opcional para servicos
 TLS_CA=/etc/ssl/certs/ca.pem              # CA opcional para chamadas ao auth-gateway

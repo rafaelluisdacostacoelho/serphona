@@ -456,16 +456,33 @@ func (r *TenantRepository) IncrementUsage(ctx context.Context, tenantID uuid.UUI
 		return err
 	}
 
-	query := `
+	now := time.Now().UTC()
+	period := now.Format("2006-01")
+
+	updateQuota := `
 		UPDATE tenant_quotas SET
 			used_calls = used_calls + $2,
-			used_minutes = used_minutes + $3
+			used_minutes = used_minutes + $3,
+			updated_at = $4
 		WHERE tenant_id = $1
 	`
 
-	_, err := r.pool.Exec(ctx, query, tenantID, calls, minutes)
-	if err != nil {
+	if _, err := r.pool.Exec(ctx, updateQuota, tenantID, calls, minutes, now); err != nil {
 		return fmt.Errorf("failed to increment usage: %w", err)
+	}
+
+	upsertHistory := `
+		INSERT INTO tenant_usage_history (
+			tenant_id, period, total_calls, total_minutes, total_messages, storage_used_gb, api_requests
+		) VALUES ($1, $2, $3, $4, 0, 0, 0)
+		ON CONFLICT (tenant_id, period) DO UPDATE SET
+			total_calls = tenant_usage_history.total_calls + EXCLUDED.total_calls,
+			total_minutes = tenant_usage_history.total_minutes + EXCLUDED.total_minutes,
+			api_requests = tenant_usage_history.api_requests + EXCLUDED.api_requests
+	`
+
+	if _, err := r.pool.Exec(ctx, upsertHistory, tenantID, period, calls, minutes); err != nil {
+		return fmt.Errorf("failed to record usage history: %w", err)
 	}
 
 	return nil

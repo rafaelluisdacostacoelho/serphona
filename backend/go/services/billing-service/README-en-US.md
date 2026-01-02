@@ -157,7 +157,17 @@ billing-service/
 │   ├── 000002_create_subscriptions.up.sql
 │   ├── 000002_create_subscriptions.down.sql
 │   ├── 000003_create_wallets.up.sql
-│   └── 000003_create_wallets.down.sql
+│   ├── 000003_create_wallets.down.sql
+│   ├── 000004_create_pricing_plans.up.sql
+│   ├── 000004_create_pricing_plans.down.sql
+│   ├── 000005_add_wallet_transactions_reference_unique.up.sql
+│   ├── 000005_add_wallet_transactions_reference_unique.down.sql
+│   ├── 000006_seed_test_wallets_optional.up.sql
+│   ├── 000006_seed_test_wallets_optional.down.sql
+│   ├── 000007_update_pricing_plans_real.up.sql
+│   ├── 000007_update_pricing_plans_real.down.sql
+│   ├── 000008_add_wallet_transactions_request_unique.up.sql
+│   └── 000008_add_wallet_transactions_request_unique.down.sql
 ├── scripts/
 │   ├── migrate.sh
 │   └── setup-stripe.sh
@@ -190,6 +200,9 @@ make test
 
 # Run migrations
 make migrate-up
+
+# Optionally seed test wallets (non-production)
+SEED_TEST_WALLETS=true make migrate-up
 ```
 
 ## API Endpoints
@@ -308,6 +321,9 @@ make migrate-up
 | KAFKA_BROKERS | Kafka brokers | localhost:9092 |
 | KAFKA_GROUP_ID | Consumer group ID | billing-service |
 | KAFKA_TOPICS | Topics for publishing events | billing.events,payments.webhooks |
+| KAFKA_DLQ_TOPIC | DLQ topic for failed usage messages | usage.reported.dlq |
+| KAFKA_MAX_RETRIES | Retries before sending to DLQ | 3 |
+| KAFKA_RETRY_BACKOFF_MS | Backoff (ms) between retries | 2000 |
 
 ### Wallet
 
@@ -317,6 +333,15 @@ make migrate-up
 | WALLET_INITIAL_CREDITS | Initial credits | 100 |
 | WALLET_MIN_TOPUP_AMOUNT | Minimum top-up amount | 1000 (cents) |
 | WALLET_MAX_TOPUP_AMOUNT | Maximum top-up amount | 1000000 (cents) |
+
+### Pricing
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| PRICING_DEFAULT_PLAN | Plan used when an event does not provide a plan id | starter |
+| PRICING_PLANS_JSON | JSON map of plan ids to per-dimension pricing in cents; overrides defaults | empty (uses built-ins) |
+
+Defaults baked into the service: `starter` (call 1, minute 2, message 1, api_request 1, storage_gb 5), `professional` (storage_gb 4), and `enterprise` (storage_gb 3). Provide overrides via `PRICING_PLANS_JSON`, for example `{"starter":{"call_cents":1,"minute_cents":2,"message_cents":1,"api_request_cents":1,"storage_gb_cents":5}}`.
 
 ### Feature Flags
 
@@ -345,6 +370,8 @@ make migrate-up
 
 - `tenant.created` - New tenant created (create Stripe customer)
 - `usage.reported` - Usage reported (debit wallet)
+
+See schema: [docs/usage.reported.schema.json](docs/usage.reported.schema.json)
 
 ## Stripe Webhooks
 

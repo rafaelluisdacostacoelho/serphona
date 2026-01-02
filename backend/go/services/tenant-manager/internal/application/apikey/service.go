@@ -8,6 +8,7 @@ import (
 
 	"tenant-manager/internal/domain/apikey"
 	"tenant-manager/internal/domain/events"
+	"tenant-manager/internal/domain/tenant"
 
 	"github.com/google/uuid"
 )
@@ -25,23 +26,45 @@ type Cache interface {
 }
 
 // Service handles application-level API key operations.
+type TenantQuotaRepository interface {
+	GetQuota(ctx context.Context, tenantID uuid.UUID) (*tenant.Quota, error)
+}
+
 type Service struct {
-	domainService  *apikey.Service
-	eventPublisher EventPublisher
-	cache          Cache
+	domainService   *apikey.Service
+	tenantQuotaRepo TenantQuotaRepository
+	eventPublisher  EventPublisher
+	cache           Cache
 }
 
 // NewService creates a new application service.
-func NewService(domainService *apikey.Service, eventPublisher EventPublisher, cache Cache) *Service {
+func NewService(domainService *apikey.Service, tenantQuotaRepo TenantQuotaRepository, eventPublisher EventPublisher, cache Cache) *Service {
 	return &Service{
-		domainService:  domainService,
-		eventPublisher: eventPublisher,
-		cache:          cache,
+		domainService:   domainService,
+		tenantQuotaRepo: tenantQuotaRepo,
+		eventPublisher:  eventPublisher,
+		cache:           cache,
 	}
 }
 
 // CreateAPIKey creates a new API key and publishes event.
 func (s *Service) CreateAPIKey(ctx context.Context, tenantID uuid.UUID, name string, createdBy uuid.UUID, permissions []string, expiryDays int) (*apikey.APIKey, string, error) {
+	if s.tenantQuotaRepo != nil {
+		quota, err := s.tenantQuotaRepo.GetQuota(ctx, tenantID)
+		if err != nil {
+			return nil, "", err
+		}
+
+		count, err := s.domainService.CountForTenant(ctx, tenantID, true)
+		if err != nil {
+			return nil, "", err
+		}
+
+		if count >= int64(quota.MaxAPIKeys) {
+			return nil, "", apikey.NewQuotaExceededError(count, int64(quota.MaxAPIKeys))
+		}
+	}
+
 	// Create API key via domain service
 	key, rawKey, err := s.domainService.Create(ctx, tenantID, name, createdBy, permissions, expiryDays)
 	if err != nil {

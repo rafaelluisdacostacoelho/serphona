@@ -110,4 +110,7 @@ type EventPublisher interface {
 
 	// PublishSettingsUpdated publishes a settings updated event.
 	PublishSettingsUpdated(ctx context.Context, tenantID uuid.UUID, settings *Settings) error
+
+	// PublishUsageReported publishes a usage delta event to billing/analytics pipeline.
+	PublishUsageReported(ctx context.Context, event UsageReportedEvent) error
 }

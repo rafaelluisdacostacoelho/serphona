@@ -67,6 +67,11 @@ func (p *EventPublisher) PublishSettingsUpdated(ctx context.Context, tenantID uu
 	return p.publishEvent(ctx, "tenant.settings.updated", tenantID.String(), event)
 }
 
+// PublishUsageReported publishes a usage.reported event with the tenant as key.
+func (p *EventPublisher) PublishUsageReported(ctx context.Context, evt tenant.UsageReportedEvent) error {
+	return p.publishEvent(ctx, "usage.reported", evt.TenantID.String(), evt)
+}
+
 // publishEvent publishes an event to Kafka.
 func (p *EventPublisher) publishEvent(ctx context.Context, eventType, key string, payload interface{}) error {
 	topic := fmt.Sprintf("%s.%s", p.topicPrefix, eventType)

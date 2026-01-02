@@ -232,6 +232,40 @@ if err != nil {
 }
 ```
 
+### Exemplos de envelopes de resposta (Gin / chi / gRPC)
+
+Gin:
+
+```go
+api := router.Group("/api")
+api.Use(middleware.RequireAuth())
+api.GET("/invoices", func(c *gin.Context) {
+    invoices := []gin.H{{"id": "inv-1"}}
+    response.WriteSuccess(c.Request.Context(), c.Writer, http.StatusOK, invoices, response.WithPagination(response.Pagination{Page: 1, PageSize: 10, Total: 1, TotalPages: 1}))
+})
+api.POST("/invoices", func(c *gin.Context) {
+    response.WriteError(c.Request.Context(), c.Writer, http.StatusBadRequest, "INVALID_INPUT", "payload invalido", nil)
+})
+```
+
+net/http (compatível com chi):
+
+```go
+mux := http.NewServeMux()
+mux.Handle("/reports", middleware.RequireAuthHTTP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+    payload := []map[string]any{{"id": "r1"}}
+    response.WriteSuccess(r.Context(), w, http.StatusOK, payload)
+})))
+```
+
+gRPC: use o interceptor para carregar request/trace ID via metadata e mapear erros de auth para os status corretos:
+
+```go
+grpcServer := grpc.NewServer(grpc.UnaryInterceptor(middleware.UnaryAuthInterceptor("scope:read")))
+```
+
+Consulte os exemplos executaveis em `examples/envelope_gin` e `examples/envelope_http`.
+
 ---
 
 ## Seguranca

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/entity"
 )
 
@@ -287,6 +288,11 @@ func (c *soapClientImpl) addHeaders(
 	// Add authentication
 	if token != "" {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	}
+
+	// Add tenant header from context (platform-auth)
+	if tenantID, err := middleware.TenantIDFromContext(req.Context()); err == nil && tenantID != "" {
+		req.Header.Set(middleware.TenantIDHeader, tenantID)
 	}
 
 	// Add default headers

@@ -314,7 +314,12 @@ func TestTenantRepository_IncrementUsage_TenantValidation(t *testing.T) {
 			repo := NewTenantRepository(mock)
 
 			if tc.expectExec {
-				mock.ExpectExec("UPDATE tenant_quotas SET").WithArgs(tenantID, 5, 7).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+				mock.ExpectExec("UPDATE tenant_quotas SET").
+					WithArgs(tenantID, 5, 7, pgxmock.AnyArg()).
+					WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+				mock.ExpectExec("INSERT INTO tenant_usage_history").
+					WithArgs(tenantID, pgxmock.AnyArg(), 5, 7).
+					WillReturnResult(pgxmock.NewResult("INSERT", 1))
 			}
 
 			err = repo.IncrementUsage(tc.ctx, tenantID, 5, 7)

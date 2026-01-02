@@ -97,6 +97,15 @@ authClient := client.NewWithOptions(
 resp, err := authClient.ValidateToken("user-token") // keeps user token header
 ```
 
+You can also bootstrap a hardened client from env (URL + service identity + optional static bearer):
+
+```go
+svcClient, err := client.NewServiceClientFromEnv("billing-service", "billing-1")
+if err != nil {
+    log.Fatal(err)
+}
+```
+
 Service tokens must be issued with `service` and `scopes` claims and use the service audience:
 
 ```go
@@ -120,6 +129,41 @@ claims, err := authjwt.ValidateToken(tokenString)
 // Extract token from Authorization header
 rawToken, err := authjwt.ExtractTokenFromHeader(authHeader)
 ```
+
+### Response envelopes (Gin / chi / gRPC)
+
+Gin example (adds `trace_id` and `request_id` automatically when `RequireAuth` ran):
+
+```go
+func listInvoices(c *gin.Context) {
+    data := []gin.H{{"id": "inv-1", "status": "paid"}}
+    response.WriteSuccess(c.Request.Context(), c.Writer, http.StatusOK, data, response.WithPagination(response.Pagination{Page: 1, PageSize: 10, Total: 1, TotalPages: 1}))
+}
+
+func createInvoice(c *gin.Context) {
+    response.WriteError(c.Request.Context(), c.Writer, http.StatusBadRequest, "INVALID_INPUT", "missing fields", nil)
+}
+```
+
+net/http (chi-compatible) example:
+
+```go
+mux := http.NewServeMux()
+mux.Handle("/reports", middleware.RequireAuthHTTP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+    payload := []map[string]any{{"id": "r1"}}
+    response.WriteSuccess(r.Context(), w, http.StatusOK, payload)
+})))
+```
+
+gRPC: use the interceptors so request/trace IDs flow via metadata. Errors map to `codes.Unauthenticated`/`PermissionDenied`/`Internal` with `errdetails.ErrorInfo` reason set from the auth error code:
+
+```go
+grpcServer := grpc.NewServer(
+    grpc.UnaryInterceptor(middleware.UnaryAuthInterceptor("scope:read")),
+)
+```
+
+Runnable envelope examples live in `examples/envelope_gin` and `examples/envelope_http`.
 
 ## Structure
 
@@ -146,6 +190,8 @@ JWT_SECRET=your-super-secret-jwt-key-change-in-production
 AUTH_GATEWAY_URL=http://auth-gateway:8080
 SERVICE_AUDIENCE=serphona-service          # audience for service-to-service tokens
 SERVICE_AUTH_TOKEN=internal-service-token  # optional static bearer for internal calls
+SERVICE_NAME=billing-service               # optional identity header when using NewServiceClientFromEnv
+SERVICE_INSTANCE=billing-1                 # optional instance header when using NewServiceClientFromEnv
 TENANT_ID_HEADER=X-Tenant-Id               # optional override; default matches library constant
 TRACE_REQUEST_HEADER=X-Request-Id          # optional override in services
 TLS_CA=/etc/ssl/certs/ca.pem               # optional client CA for auth-gateway calls

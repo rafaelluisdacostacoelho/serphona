@@ -18,4 +18,5 @@ type Repository interface {
 	CreateTransaction(ctx context.Context, transaction *WalletTransaction) error
 	FindTransactionsByWalletID(ctx context.Context, walletID uuid.UUID, offset, limit int) ([]*WalletTransaction, error)
 	FindTransactionByID(ctx context.Context, id uuid.UUID) (*WalletTransaction, error)
+	FindTransactionByReference(ctx context.Context, walletID uuid.UUID, reference string) (*WalletTransaction, error)
 }

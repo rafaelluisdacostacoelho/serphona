@@ -65,6 +65,134 @@ func RateLimit(rpm int) gin.HandlerFunc {
 	}
 }
 
+// TenantRateMetrics tracks allow/deny counts per tenant for observability.
+type TenantRateMetrics struct {
+	mu      sync.Mutex
+	allow   map[string]int64
+	blocked map[string]int64
+}
+
+// NewTenantRateMetrics creates a new metrics accumulator.
+func NewTenantRateMetrics() *TenantRateMetrics {
+	return &TenantRateMetrics{allow: make(map[string]int64), blocked: make(map[string]int64)}
+}
+
+// RecordAllowed increments the allowed counter for a tenant.
+func (m *TenantRateMetrics) RecordAllowed(tenantID string) {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.allow[tenantID]++
+}
+
+// RecordBlocked increments the blocked counter for a tenant.
+func (m *TenantRateMetrics) RecordBlocked(tenantID string) {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.blocked[tenantID]++
+}
+
+// TenantRateSnapshot provides a read-only view of metrics.
+type TenantRateSnapshot struct {
+	Allowed int64
+	Blocked int64
+}
+
+// Snapshot returns copies of counters per tenant.
+func (m *TenantRateMetrics) Snapshot() map[string]TenantRateSnapshot {
+	result := make(map[string]TenantRateSnapshot)
+	if m == nil {
+		return result
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for tenantID, allowed := range m.allow {
+		result[tenantID] = TenantRateSnapshot{Allowed: allowed, Blocked: m.blocked[tenantID]}
+	}
+	for tenantID, blocked := range m.blocked {
+		if _, ok := result[tenantID]; !ok {
+			result[tenantID] = TenantRateSnapshot{Allowed: m.allow[tenantID], Blocked: blocked}
+		}
+	}
+	return result
+}
+
+// TenantRateLimiter enforces per-tenant limits and records metrics.
+type TenantRateLimiter struct {
+	limit    rate.Limit
+	burst    int
+	metrics  *TenantRateMetrics
+	mu       sync.Mutex
+	byTenant map[string]*rate.Limiter
+}
+
+// NewTenantRateLimiter builds a limiter; nil when disabled.
+func NewTenantRateLimiter(rpm int, metrics *TenantRateMetrics) *TenantRateLimiter {
+	if rpm <= 0 {
+		return nil
+	}
+	return &TenantRateLimiter{
+		limit:    rate.Limit(float64(rpm) / 60.0),
+		burst:    rpm,
+		metrics:  metrics,
+		byTenant: make(map[string]*rate.Limiter),
+	}
+}
+
+// Allow checks quota for a tenant and updates metrics.
+func (l *TenantRateLimiter) Allow(tenantID string) bool {
+	if l == nil || tenantID == "" {
+		return true
+	}
+
+	l.mu.Lock()
+	limiter, ok := l.byTenant[tenantID]
+	if !ok {
+		limiter = rate.NewLimiter(l.limit, l.burst)
+		l.byTenant[tenantID] = limiter
+	}
+	l.mu.Unlock()
+
+	if limiter.Allow() {
+		l.metrics.RecordAllowed(tenantID)
+		return true
+	}
+
+	l.metrics.RecordBlocked(tenantID)
+	return false
+}
+
+// TenantRateLimit applies a tenant-scoped rate limiter using JWT claims. Missing tenant IDs are skipped.
+func TenantRateLimit(rpm int, metrics *TenantRateMetrics) gin.HandlerFunc {
+	return TenantRateLimitWithLimiter(NewTenantRateLimiter(rpm, metrics))
+}
+
+// TenantRateLimitWithLimiter reuses a shared limiter across transports.
+func TenantRateLimitWithLimiter(limiter *TenantRateLimiter) gin.HandlerFunc {
+	if limiter == nil {
+		return func(c *gin.Context) { c.Next() }
+	}
+
+	return func(c *gin.Context) {
+		tenantID, err := authmw.TenantIDFromContext(c.Request.Context())
+		if err != nil || tenantID == "" {
+			c.Next()
+			return
+		}
+
+		if limiter.Allow(tenantID) {
+			c.Next()
+			return
+		}
+
+		c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "tenant rate limit exceeded"})
+	}
+}
 func clientIP(r *http.Request) string {
 	if ip := r.Header.Get("X-Forwarded-For"); ip != "" {
 		parts := strings.Split(ip, ",")

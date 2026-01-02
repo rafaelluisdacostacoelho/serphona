@@ -5,6 +5,7 @@ SERVICE_NAME=billing-service
 DOCKER_IMAGE=serphona/$(SERVICE_NAME)
 DOCKER_TAG=latest
 GO_VERSION=1.24
+SEED_TEST_WALLETS?=false
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -29,6 +30,9 @@ test-coverage: ## Run tests with coverage
 	go test -v -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
 
+test-integration: ## Run integration tests (requires integration build tag)
+	go test -v -tags=integration ./...
+
 clean: ## Clean build artifacts
 	rm -rf bin/
 	rm -f coverage.out coverage.html
@@ -37,14 +41,14 @@ migrate-up: ## Run database migrations up
 	@echo "Running migrations up..."
 	@for file in migrations/*up.sql; do \
 		echo "Applying $$file..."; \
-		psql $(DATABASE_URL) -f $$file; \
+		psql $(DATABASE_URL) -v seed_test_wallets=$(SEED_TEST_WALLETS) -f $$file; \
 	done
 
 migrate-down: ## Run database migrations down
 	@echo "Running migrations down..."
 	@for file in migrations/*down.sql; do \
 		echo "Reverting $$file..."; \
-		psql $(DATABASE_URL) -f $$file; \
+		psql $(DATABASE_URL) -v seed_test_wallets=$(SEED_TEST_WALLETS) -f $$file; \
 	done
 
 docker-build: ## Build Docker image

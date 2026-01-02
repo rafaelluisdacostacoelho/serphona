@@ -153,6 +153,8 @@ chmod +x scripts/deploy.sh
 
 # Ou manualmente
 kubectl apply -f k8s/ -n serphona-prod
+
+> CORS: defina `CORS_ALLOWED_ORIGINS` por ambiente no `k8s/configmap.yaml` (ou via Helm/Kustomize overlays) para evitar origens indevidas em produção.
 ```
 
 ### Ambientes

@@ -2,11 +2,13 @@ package apikey
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
 	"tenant-manager/internal/domain/apikey"
+	"tenant-manager/internal/domain/tenant"
 
 	"github.com/google/uuid"
 	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
@@ -27,7 +29,7 @@ func TestRevokeAPIKeyInvalidatesCache(t *testing.T) {
 		t.Fatalf("failed to save key: %v", err)
 	}
 
-	svc := NewService(apikey.NewService(repo), nil, &spyCache{})
+	svc := NewService(apikey.NewService(repo), nil, nil, &spyCache{})
 	cache := svc.cache.(*spyCache)
 
 	ctx := withTenantClaims(context.Background(), tenantID)
@@ -56,7 +58,7 @@ func TestRevokeAllForTenantInvalidatesCache(t *testing.T) {
 	_ = repo.Save(context.Background(), keyTwo)
 
 	cache := &spyCache{}
-	svc := NewService(apikey.NewService(repo), nil, cache)
+	svc := NewService(apikey.NewService(repo), nil, nil, cache)
 
 	ctx := withTenantClaims(context.Background(), tenantID)
 	revokedBy := uuid.New()
@@ -95,7 +97,7 @@ func TestMarkExpiredKeysInvalidatesCache(t *testing.T) {
 	_ = repo.Save(context.Background(), keyValid)
 
 	cache := &spyCache{}
-	svc := NewService(apikey.NewService(repo), nil, cache)
+	svc := NewService(apikey.NewService(repo), nil, nil, cache)
 
 	count, err := svc.MarkExpiredKeys(context.Background(), 10)
 	if err != nil {
@@ -114,6 +116,24 @@ func TestMarkExpiredKeysInvalidatesCache(t *testing.T) {
 	}
 
 	assertDeletedKeys(t, cache.deleted, expected)
+}
+
+func TestCreateAPIKeyRespectsQuota(t *testing.T) {
+	tenantID := uuid.New()
+	repo := newMemoryAPIKeyRepo()
+	quotaRepo := &stubQuotaRepo{quota: &tenant.Quota{TenantID: tenantID, MaxAPIKeys: 1}}
+
+	svc := NewService(apikey.NewService(repo), quotaRepo, nil, nil)
+	ctx := withTenantClaims(context.Background(), tenantID)
+
+	if _, _, err := svc.CreateAPIKey(ctx, tenantID, "first", uuid.New(), []string{apikey.PermissionAll}, 0); err != nil {
+		t.Fatalf("expected first key to succeed, got %v", err)
+	}
+
+	_, _, err := svc.CreateAPIKey(ctx, tenantID, "second", uuid.New(), []string{apikey.PermissionAll}, 0)
+	if !errors.Is(err, apikey.ErrQuotaExceeded) {
+		t.Fatalf("expected quota exceeded error, got %v", err)
+	}
 }
 
 func withTenantClaims(ctx context.Context, tenantID uuid.UUID) context.Context {
@@ -250,6 +270,14 @@ func (r *memoryAPIKeyRepo) RevokeAll(_ context.Context, tenantID uuid.UUID, revo
 		}
 	}
 	return nil
+}
+
+type stubQuotaRepo struct {
+	quota *tenant.Quota
+}
+
+func (s *stubQuotaRepo) GetQuota(_ context.Context, _ uuid.UUID) (*tenant.Quota, error) {
+	return s.quota, nil
 }
 
 func assertDeletedKeys(t *testing.T, got []string, expected []string) {

@@ -51,3 +51,28 @@ func TestSendMessageWithoutTenantHeader(t *testing.T) {
 		t.Fatalf("expected success, got %v", err)
 	}
 }
+
+func TestEnsureTenantHeadersPreservesExisting(t *testing.T) {
+	ctx := authmw.WithTenantID(context.Background(), "tenant-123")
+	headers := []sarama.RecordHeader{{Key: []byte(authmw.TenantIDHeader), Value: []byte("existing")}}
+
+	got := ensureTenantHeaders(ctx, headers)
+
+	if len(got) != 1 {
+		t.Fatalf("expected 1 header, got %d", len(got))
+	}
+	if string(got[0].Value) != "existing" {
+		t.Fatalf("expected to preserve existing header value, got %s", string(got[0].Value))
+	}
+}
+
+func TestEnsureTenantHeadersFillsEmptyValue(t *testing.T) {
+	ctx := authmw.WithTenantID(context.Background(), "tenant-123")
+	headers := []sarama.RecordHeader{{Key: []byte(authmw.TenantIDHeader), Value: []byte("")}}
+
+	got := ensureTenantHeaders(ctx, headers)
+
+	if string(got[0].Value) != "tenant-123" {
+		t.Fatalf("expected header value to be filled, got %s", string(got[0].Value))
+	}
+}

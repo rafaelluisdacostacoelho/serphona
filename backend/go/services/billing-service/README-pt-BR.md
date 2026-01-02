@@ -157,7 +157,17 @@ billing-service/
 │   ├── 000002_create_subscriptions.up.sql
 │   ├── 000002_create_subscriptions.down.sql
 │   ├── 000003_create_wallets.up.sql
-│   └── 000003_create_wallets.down.sql
+│   ├── 000003_create_wallets.down.sql
+│   ├── 000004_create_pricing_plans.up.sql
+│   ├── 000004_create_pricing_plans.down.sql
+│   ├── 000005_add_wallet_transactions_reference_unique.up.sql
+│   ├── 000005_add_wallet_transactions_reference_unique.down.sql
+│   ├── 000006_seed_test_wallets_optional.up.sql
+│   ├── 000006_seed_test_wallets_optional.down.sql
+│   ├── 000007_update_pricing_plans_real.up.sql
+│   ├── 000007_update_pricing_plans_real.down.sql
+│   ├── 000008_add_wallet_transactions_request_unique.up.sql
+│   └── 000008_add_wallet_transactions_request_unique.down.sql
 ├── scripts/
 │   ├── migrate.sh
 │   └── setup-stripe.sh
@@ -190,6 +200,9 @@ make test
 
 # Executar migrações
 make migrate-up
+
+# Opcional: semear wallets de teste (somente ambientes não produtivos)
+SEED_TEST_WALLETS=true make migrate-up
 ```
 
 ## Endpoints da API
@@ -308,6 +321,9 @@ make migrate-up
 | KAFKA_BROKERS | Brokers Kafka | localhost:9092 |
 | KAFKA_GROUP_ID | ID do grupo consumidor | billing-service |
 | KAFKA_TOPICS | Tópicos para publicar eventos | billing.events,payments.webhooks |
+| KAFKA_DLQ_TOPIC | Tópico de DLQ para falhas no uso | usage.reported.dlq |
+| KAFKA_MAX_RETRIES | Número de tentativas antes de mandar para DLQ | 3 |
+| KAFKA_RETRY_BACKOFF_MS | Intervalo (ms) entre tentativas | 2000 |
 
 ### Wallet
 
@@ -317,6 +333,15 @@ make migrate-up
 | WALLET_INITIAL_CREDITS | Créditos iniciais | 100 |
 | WALLET_MIN_TOPUP_AMOUNT | Valor mínimo de recarga | 1000 (centavos) |
 | WALLET_MAX_TOPUP_AMOUNT | Valor máximo de recarga | 1000000 (centavos) |
+
+### Pricing
+
+| Variável | Descrição | Padrão |
+|----------|-----------|--------|
+| PRICING_DEFAULT_PLAN | Plano usado quando o evento não traz plan id | starter |
+| PRICING_PLANS_JSON | Mapa JSON de planos para preços por dimensão em centavos; sobrescreve os padrões | vazio (usa embutidos) |
+
+Padrões embutidos no serviço: `starter` (call 1, minute 2, message 1, api_request 1, storage_gb 5), `professional` (storage_gb 4) e `enterprise` (storage_gb 3). Envie overrides via `PRICING_PLANS_JSON`, por exemplo `{"starter":{"call_cents":1,"minute_cents":2,"message_cents":1,"api_request_cents":1,"storage_gb_cents":5}}`.
 
 ### Feature Flags
 
@@ -345,6 +370,9 @@ make migrate-up
 
 - `tenant.created` - Novo tenant criado (criar customer no Stripe)
 - `usage.reported` - Uso reportado (debitar wallet)
+ 
+Esquema: [docs/usage.reported.schema.json](docs/usage.reported.schema.json)
+
 
 ## Webhooks do Stripe
 

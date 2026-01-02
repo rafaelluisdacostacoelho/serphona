@@ -112,3 +112,50 @@ func TestSearchEventsEnvelopeContract(t *testing.T) {
 		t.Fatalf("unexpected data payload: %#v", payload.Data)
 	}
 }
+
+func TestTenantIDFromContextExtractsAndPropagates(t *testing.T) {
+	t.Parallel()
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+
+	claims := &types.Claims{TenantID: "tenant-123"}
+	ctxWithTenant := authmw.WithTenantID(context.Background(), "tenant-123")
+	ctxWithClaims := authmw.WithClaims(ctxWithTenant, claims)
+
+	req := httptest.NewRequest("GET", "/test", nil).WithContext(ctxWithClaims)
+	ctx.Request = req
+	ctx.Set("claims", claims)
+
+	tenantID, ok := tenantIDFromContext(ctx)
+
+	if !ok {
+		t.Fatalf("expected ok=true")
+	}
+	if tenantID != "tenant-123" {
+		t.Fatalf("expected tenantID=tenant-123, got %s", tenantID)
+	}
+	if got := ctx.Request.Header.Get(authmw.TenantIDHeader); got != "tenant-123" {
+		t.Fatalf("expected X-Tenant-Id header=tenant-123, got %s", got)
+	}
+}
+
+func TestTenantIDFromContextRejectsMissing(t *testing.T) {
+	t.Parallel()
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest("GET", "/test", nil)
+
+	tenantID, ok := tenantIDFromContext(ctx)
+
+	if ok {
+		t.Fatalf("expected ok=false when tenant missing")
+	}
+	if tenantID != "" {
+		t.Fatalf("expected empty tenantID")
+	}
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status 401, got %d", recorder.Code)
+	}
+}

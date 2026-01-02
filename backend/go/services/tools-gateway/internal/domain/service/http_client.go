@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/avast/retry-go/v4"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/entity"
 )
 
@@ -113,6 +114,11 @@ func (c *httpClientImpl) executeOnce(ctx context.Context, tool *entity.Tool, inp
 	// Add headers
 	if err := c.addHeaders(req, tool, authConfig); err != nil {
 		return nil, err
+	}
+
+	// Add tenant header from context (platform-auth)
+	if tenantID, err := middleware.TenantIDFromContext(ctx); err == nil && tenantID != "" {
+		req.Header.Set(middleware.TenantIDHeader, tenantID)
 	}
 
 	// Add query parameters for GET requests

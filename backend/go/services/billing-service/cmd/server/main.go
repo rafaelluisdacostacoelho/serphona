@@ -8,6 +8,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -15,13 +16,17 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/billing-service/internal/adapter/kafka"
+	pgrepo "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/billing-service/internal/adapter/postgres"
+	walletapp "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/billing-service/internal/application/wallet"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/billing-service/internal/config"
-	"gorm.io/driver/postgres"
+	gormpostgres "gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -40,6 +45,21 @@ func main() {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 
+	walletRepo := pgrepo.NewWalletRepository(db)
+	configPricingTable := walletapp.NewConfigPricingTable(cfg.Pricing)
+	pricingTable := pgrepo.NewPricingTable(db, configPricingTable)
+	walletSvc := walletapp.NewService(walletRepo, cfg.Wallet.DefaultCurrency, cfg.Wallet.InitialCredits, pricingTable)
+
+	usageConsumer, err := kafka.NewUsageConsumer(cfg.Kafka, walletSvc, log.Default())
+	if err != nil {
+		log.Printf("Kafka consumer disabled (init error): %v", err)
+	} else {
+		usageCtx, usageCancel := context.WithCancel(context.Background())
+		usageConsumer.Start(usageCtx)
+		defer usageCancel()
+		defer usageConsumer.Close()
+	}
+
 	// Setup router
 	router := setupRouter(cfg, db)
 
@@ -48,8 +68,8 @@ func main() {
 	srv := &http.Server{
 		Addr:         addr,
 		Handler:      router,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
+		ReadTimeout:  time.Duration(cfg.Server.ReadTimeoutMs) * time.Millisecond,
+		WriteTimeout: time.Duration(cfg.Server.WriteTimeoutMs) * time.Millisecond,
 	}
 
 	// Start server
@@ -77,7 +97,7 @@ func main() {
 }
 
 func initDatabase(cfg *config.Config) (*gorm.DB, error) {
-	db, err := gorm.Open(postgres.Open(cfg.Database.URL), &gorm.Config{})
+	db, err := gorm.Open(gormpostgres.Open(cfg.Database.URL), &gorm.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
@@ -95,7 +115,11 @@ func initDatabase(cfg *config.Config) (*gorm.DB, error) {
 }
 
 func setupRouter(cfg *config.Config, db *gorm.DB) *gin.Engine {
-	router := gin.Default()
+	router := gin.New()
+	router.Use(gin.Recovery())
+	router.Use(limitBody(cfg.Server.MaxBodyBytes))
+	router.Use(cors(cfg.Server))
+	router.Use(gin.Logger())
 
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "healthy", "service": "billing-service"})
@@ -248,6 +272,63 @@ func cancelSubscription(c *gin.Context) {
 		"subscription_id": subID,
 		"message":         "Subscription cancelled",
 	})
+}
+
+// ==============================================================================
+// Middleware
+// ==============================================================================
+
+func limitBody(maxBytes int64) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if maxBytes <= 0 {
+			c.Next()
+			return
+		}
+
+		limited := http.MaxBytesReader(c.Writer, c.Request.Body, maxBytes)
+		buf := &bytes.Buffer{}
+		if _, err := buf.ReadFrom(limited); err != nil {
+			c.AbortWithStatusJSON(http.StatusRequestEntityTooLarge, gin.H{"error": "request body too large"})
+			return
+		}
+
+		c.Request.Body = io.NopCloser(bytes.NewReader(buf.Bytes()))
+		c.Next()
+	}
+}
+
+func cors(cfg config.ServerConfig) gin.HandlerFunc {
+	allowedOrigins := make(map[string]struct{})
+	for _, o := range cfg.AllowedOrigins {
+		allowedOrigins[o] = struct{}{}
+	}
+	allowedMethods := strings.Join(cfg.AllowedMethods, ", ")
+	allowedHeaders := strings.Join(cfg.AllowedHeaders, ", ")
+
+	return func(c *gin.Context) {
+		origin := c.GetHeader("Origin")
+		if origin != "" {
+			if len(allowedOrigins) > 0 {
+				if _, ok := allowedOrigins[origin]; !ok {
+					c.AbortWithStatus(http.StatusForbidden)
+					return
+				}
+			}
+			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+			c.Writer.Header().Set("Vary", "Origin")
+		}
+
+		c.Writer.Header().Set("Access-Control-Allow-Methods", allowedMethods)
+		c.Writer.Header().Set("Access-Control-Allow-Headers", allowedHeaders)
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+
+		if c.Request.Method == http.MethodOptions {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+
+		c.Next()
+	}
 }
 
 // ==============================================================================

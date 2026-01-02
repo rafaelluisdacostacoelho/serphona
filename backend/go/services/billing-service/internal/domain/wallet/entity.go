@@ -104,7 +104,7 @@ type WalletTransaction struct {
 	Type        TransactionType        `json:"type" gorm:"not null"`
 	Description string                 `json:"description"`
 	Reference   string                 `json:"reference"` // External reference (e.g., invoice ID, usage record ID)
-	Metadata    map[string]interface{} `json:"metadata" gorm:"type:jsonb"`
+	Metadata    map[string]interface{} `json:"metadata" gorm:"type:jsonb;serializer:json"`
 	CreatedAt   time.Time              `json:"created_at" gorm:"autoCreateTime;index"`
 }
 

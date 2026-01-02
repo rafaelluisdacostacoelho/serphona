@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/response"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/adapter/http/dto"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/repository"
@@ -153,7 +154,10 @@ func (h *ToolHandler) ExecuteTool(c *gin.Context) {
 		Input:    req.Input,
 	}
 
-	resp, err := h.executorService.Execute(ctx, execReq)
+	// Set tenant context for outbound requests
+	ctxWithTenant := middleware.WithTenantID(ctx, tenantID.String())
+
+	resp, err := h.executorService.Execute(ctxWithTenant, execReq)
 	if err != nil {
 		// Execution errors are also returned in response with error status
 		if resp != nil {

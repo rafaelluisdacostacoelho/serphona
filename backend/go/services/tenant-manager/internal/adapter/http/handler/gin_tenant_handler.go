@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"tenant-manager/internal/application/tenant"
 	apperrors "tenant-manager/pkg/errors"
@@ -23,6 +24,33 @@ type GinTenantHandler struct {
 	service   *tenant.Service
 	logger    *zap.Logger
 	validator *validator.Validate
+}
+
+type QuotaResponse struct {
+	TenantID           string  `json:"tenant_id"`
+	MaxAPIKeys         int     `json:"max_api_keys"`
+	MaxUsers           int     `json:"max_users"`
+	MaxCallsPerMonth   int     `json:"max_calls_per_month"`
+	MaxMinutesPerMonth int     `json:"max_minutes_per_month"`
+	MaxStorageGB       int     `json:"max_storage_gb"`
+	UsedCalls          int     `json:"used_calls"`
+	UsedMinutes        int     `json:"used_minutes"`
+	UsedStorageGB      float64 `json:"used_storage_gb"`
+	ResetAt            string  `json:"reset_at"`
+}
+
+type UpdateQuotaRequest struct {
+	MaxAPIKeys         *int       `json:"max_api_keys,omitempty"`
+	MaxUsers           *int       `json:"max_users,omitempty"`
+	MaxCallsPerMonth   *int       `json:"max_calls_per_month,omitempty"`
+	MaxMinutesPerMonth *int       `json:"max_minutes_per_month,omitempty"`
+	MaxStorageGB       *int       `json:"max_storage_gb,omitempty"`
+	ResetAt            *time.Time `json:"reset_at,omitempty"`
+}
+
+type IncrementUsageRequest struct {
+	Calls   int `json:"calls"`
+	Minutes int `json:"minutes"`
 }
 
 // NewGinTenantHandler creates a new Gin-compatible tenant handler.
@@ -234,6 +262,101 @@ func (h *GinTenantHandler) List(c *gin.Context) {
 	}, response.WithPagination(response.Pagination{Page: result.Page, PageSize: result.PageSize, Total: int(result.Total), TotalPages: result.TotalPages}))
 }
 
+// GetQuota handles GET /api/v1/tenants/:id/quota.
+func (h *GinTenantHandler) GetQuota(c *gin.Context) {
+	if !h.requireScope(c, "read:tenants") {
+		return
+	}
+
+	tenantID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusBadRequest, "INVALID_ID", "Invalid tenant ID format", nil)
+		return
+	}
+	if !h.enforceTenantContext(c, tenantID) {
+		return
+	}
+
+	quota, err := h.service.GetQuota(c.Request.Context(), tenantID)
+	if err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+
+	response.WriteSuccess(c.Request.Context(), c.Writer, http.StatusOK, toQuotaResponse(quota))
+}
+
+// UpdateQuota handles PUT /api/v1/tenants/:id/quota.
+func (h *GinTenantHandler) UpdateQuota(c *gin.Context) {
+	if !h.requireScope(c, "write:tenants") {
+		return
+	}
+
+	tenantID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusBadRequest, "INVALID_ID", "Invalid tenant ID format", nil)
+		return
+	}
+	if !h.enforceTenantContext(c, tenantID) {
+		return
+	}
+
+	var req UpdateQuotaRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusBadRequest, "INVALID_REQUEST", "Invalid JSON body", nil)
+		return
+	}
+
+	cmd := tenant.UpdateQuotaCommand{
+		TenantID:           tenantID,
+		MaxAPIKeys:         req.MaxAPIKeys,
+		MaxUsers:           req.MaxUsers,
+		MaxCallsPerMonth:   req.MaxCallsPerMonth,
+		MaxMinutesPerMonth: req.MaxMinutesPerMonth,
+		MaxStorageGB:       req.MaxStorageGB,
+		ResetAt:            req.ResetAt,
+	}
+
+	updated, err := h.service.UpdateQuota(c.Request.Context(), cmd)
+	if err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+
+	response.WriteSuccess(c.Request.Context(), c.Writer, http.StatusOK, toQuotaResponse(updated))
+}
+
+// IncrementUsage handles POST /api/v1/tenants/:id/usage.
+func (h *GinTenantHandler) IncrementUsage(c *gin.Context) {
+	if !h.requireScope(c, "write:tenants") {
+		return
+	}
+
+	tenantID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusBadRequest, "INVALID_ID", "Invalid tenant ID format", nil)
+		return
+	}
+	if !h.enforceTenantContext(c, tenantID) {
+		return
+	}
+
+	var req IncrementUsageRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusBadRequest, "INVALID_REQUEST", "Invalid JSON body", nil)
+		return
+	}
+
+	cmd := tenant.IncrementUsageCommand{TenantID: tenantID, Calls: req.Calls, Minutes: req.Minutes}
+	updated, err := h.service.IncrementUsage(c.Request.Context(), cmd)
+	if err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+
+	response.WriteSuccess(c.Request.Context(), c.Writer, http.StatusOK, toQuotaResponse(updated))
+}
+
 // handleServiceError handles errors from the application service.
 func (h *GinTenantHandler) handleServiceError(c *gin.Context, err error) {
 	var appErr *apperrors.AppError
@@ -309,4 +432,19 @@ func (h *GinTenantHandler) enforceTenantContext(c *gin.Context, tenantID uuid.UU
 		return false
 	}
 	return true
+}
+
+func toQuotaResponse(q *tenant.QuotaDTO) QuotaResponse {
+	return QuotaResponse{
+		TenantID:           q.TenantID.String(),
+		MaxAPIKeys:         q.MaxAPIKeys,
+		MaxUsers:           q.MaxUsers,
+		MaxCallsPerMonth:   q.MaxCallsPerMonth,
+		MaxMinutesPerMonth: q.MaxMinutesPerMonth,
+		MaxStorageGB:       q.MaxStorageGB,
+		UsedCalls:          q.UsedCalls,
+		UsedMinutes:        q.UsedMinutes,
+		UsedStorageGB:      q.UsedStorageGB,
+		ResetAt:            q.ResetAt.UTC().Format(time.RFC3339),
+	}
 }
