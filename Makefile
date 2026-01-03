@@ -95,6 +95,7 @@ go-lint: ## Lint Go code
 		echo "$(CYAN)Linting $$svc...$(RESET)"; \
 		cd backend/go/services/$$svc && golangci-lint run && cd -; \
 	done
+	@bash backend/go/scripts/check-grpc-dial.sh
 
 # Platform RAG (library) integration test against pgvector
 .PHONY: rag-pgvector-int

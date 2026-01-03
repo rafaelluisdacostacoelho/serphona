@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	authclient "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/client"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/entity"
 )
 
@@ -69,7 +70,8 @@ type oauth2ServiceImpl struct {
 func NewOAuth2Service(timeout time.Duration) OAuth2Service {
 	return &oauth2ServiceImpl{
 		httpClient: &http.Client{
-			Timeout: timeout,
+			Timeout:   timeout,
+			Transport: authclient.WithDefaultTransport(nil),
 		},
 	}
 }

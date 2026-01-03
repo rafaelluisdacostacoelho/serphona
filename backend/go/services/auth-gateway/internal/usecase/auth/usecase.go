@@ -35,7 +35,7 @@ type UseCase struct {
 
 // TenantService defines tenant management operations
 type TenantService interface {
-	CreateTenant(ctx context.Context, name string) (uuid.UUID, error)
+	CreateTenant(ctx context.Context, name, email, plan, billingEmail, phone string) (uuid.UUID, error)
 }
 
 // OAuthProvider defines OAuth provider interface
@@ -82,7 +82,12 @@ func (uc *UseCase) Register(ctx context.Context, req RegisterRequest) (*AuthResp
 	}
 
 	// Create tenant
-	tenantID, err := uc.tenantService.CreateTenant(ctx, req.TenantName)
+	// Create tenant using provided plan/billing contact; default billing email falls back to user email.
+	billingEmail := req.BillingEmail
+	if billingEmail == "" {
+		billingEmail = req.Email
+	}
+	tenantID, err := uc.tenantService.CreateTenant(ctx, req.TenantName, req.Email, req.Plan, billingEmail, req.Phone)
 	if err != nil {
 		return nil, err
 	}
@@ -256,7 +261,7 @@ func (uc *UseCase) HandleOAuthCallback(ctx context.Context, req OAuthCallbackReq
 		u, err = uc.userRepo.GetByEmail(ctx, userInfo.Email)
 		if err != nil {
 			// Create new user with new tenant
-			tenantID, err := uc.tenantService.CreateTenant(ctx, userInfo.Name+"'s Organization")
+			tenantID, err := uc.tenantService.CreateTenant(ctx, userInfo.Name+"'s Organization", userInfo.Email, "starter", userInfo.Email, "")
 			if err != nil {
 				return nil, err
 			}

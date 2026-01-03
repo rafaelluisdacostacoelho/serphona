@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	authclient "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/client"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/entity"
 )
@@ -78,7 +79,8 @@ type soapClientImpl struct {
 func NewSOAPClient(timeout time.Duration) SOAPClient {
 	return &soapClientImpl{
 		httpClient: &http.Client{
-			Timeout: timeout,
+			Timeout:   timeout,
+			Transport: authclient.WithDefaultTransport(nil),
 		},
 	}
 }

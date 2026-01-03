@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/auth-gateway/internal/adapter/http/handler"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/auth-gateway/internal/adapter/http/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/auth-gateway/internal/adapter/oauth"
@@ -63,7 +64,13 @@ func main() {
 	)
 
 	userRepo := postgresadapter.NewUserRepository(db)
-	tenantService := tenant.NewService("http://localhost:8081") // TODO: Get from config
+	tenantService := tenant.NewService(
+		cfg.Outbound.TenantManagerURL,
+		cfg.Service.Name,
+		cfg.Service.Instance,
+		cfg.Outbound.ServiceAuthToken,
+		cfg.Service.Audience,
+	)
 
 	authUC := auth.NewUseCase(
 		userRepo,
@@ -207,19 +214,21 @@ func setupRouter(authHandler *handler.AuthHandler, authMiddleware *middleware.Au
 	}
 
 	router := gin.Default()
+	router.Use(middleware.Metrics())
 
 	// Middleware
 	router.Use(middleware.Correlation())
 	router.Use(middleware.CORS())
 	router.Use(gin.Recovery())
 
-	// Health check
+	// Health and metrics
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status":  "healthy",
 			"service": "auth-gateway",
 		})
 	})
+	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	// API routes
 	api := router.Group("/api/v1")

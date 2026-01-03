@@ -99,6 +99,9 @@ services:
     container_name: serphona-tenant-manager
     environment:
       SERVICE_NAME: tenant-manager
+      SERVICE_INSTANCE: tenant-manager-1
+      SERVICE_AUDIENCE: serphona-services
+      SERVICE_AUTH_TOKEN: ""
       HTTP_PORT: 8080
       DATABASE_URL: postgres://serphona:serphona_dev@postgres:5432/serphona?sslmode=disable
       REDIS_URL: redis://:serphona_dev@redis:6379/0
@@ -124,6 +127,8 @@ services:
     container_name: serphona-auth-gateway
     environment:
       SERVICE_NAME: auth-gateway
+      SERVICE_INSTANCE: auth-gateway-1
+      SERVICE_AUTH_TOKEN: ""
       HTTP_PORT: 8080
       DATABASE_URL: postgres://serphona:serphona_dev@postgres:5432/serphona?sslmode=disable
       REDIS_URL: redis://:serphona_dev@redis:6379/1
@@ -147,11 +152,15 @@ services:
     container_name: serphona-agent-orchestrator
     environment:
       SERVICE_NAME: agent-orchestrator
+      SERVICE_INSTANCE: agent-orchestrator-1
+      SERVICE_AUDIENCE: serphona-services
+      SERVICE_AUTH_TOKEN: ""
       HTTP_PORT: 8080
       REDIS_URL: redis://:serphona_dev@redis:6379/2
       KAFKA_BROKERS: kafka:29092
       TENANT_MANAGER_URL: http://tenant-manager:8080
       TOOLS_GATEWAY_URL: http://tools-gateway:8080
+      TOOLS_GATEWAY_TOKEN: dev-tools-gw-token
       LOG_LEVEL: debug
     ports:
       - "8083:8080"
@@ -170,6 +179,10 @@ services:
     container_name: serphona-tools-gateway
     environment:
       SERVICE_NAME: tools-gateway
+      SERVICE_INSTANCE: tools-gateway-1
+      SERVICE_AUDIENCE: serphona-services
+      SERVICE_AUTH_TOKEN: ""
+      TOOLS_GATEWAY_TOKEN: dev-tools-gw-token
       HTTP_PORT: 8080
       REDIS_URL: redis://:serphona_dev@redis:6379/3
       KAFKA_BROKERS: kafka:29092
@@ -190,6 +203,8 @@ services:
   #   container_name: serphona-voice-gateway
   #   environment:
   #     SERVICE_NAME: voice-gateway
+  #     SERVICE_INSTANCE: voice-gateway-1
+  #     SERVICE_AUTH_TOKEN: ""
   #     HTTP_PORT: 8080
   #     ASTERISK_ARI_URL: http://asterisk:8088/ari
   #     ASTERISK_ARI_USERNAME: serphona
@@ -220,6 +235,9 @@ services:
     container_name: serphona-billing-service
     environment:
       SERVICE_NAME: billing-service
+      SERVICE_INSTANCE: billing-service-1
+      SERVICE_AUDIENCE: serphona-services
+      SERVICE_AUTH_TOKEN: ""
       HTTP_PORT: 8080
       DATABASE_URL: postgres://serphona:serphona_dev@postgres:5432/serphona?sslmode=disable
       REDIS_URL: redis://:serphona_dev@redis:6379/5
@@ -246,6 +264,7 @@ services:
     container_name: serphona-analytics-processor
     environment:
       SERVICE_NAME: analytics-processor
+      SERVICE_INSTANCE: analytics-processor-1
       KAFKA_BROKERS: kafka:29092
       DATABASE_URL: postgres://serphona:serphona_dev@postgres:5432/serphona?sslmode=disable
       LOG_LEVEL: DEBUG

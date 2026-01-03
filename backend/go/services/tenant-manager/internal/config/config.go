@@ -21,6 +21,7 @@ type Config struct {
 	JWT      JWTConfig
 	Metrics  MetricsConfig
 	Tracing  TracingConfig
+	Service  ServiceConfig
 }
 
 // ServerConfig represents server configuration.
@@ -123,6 +124,14 @@ type MetricsConfig struct {
 type TracingConfig struct {
 	Enabled        bool   `envconfig:"TRACING_ENABLED" default:"false"`
 	JaegerEndpoint string `envconfig:"JAEGER_ENDPOINT"`
+}
+
+// ServiceConfig carries service identity.
+type ServiceConfig struct {
+	Name      string `envconfig:"SERVICE_NAME" default:"tenant-manager"`
+	Instance  string `envconfig:"SERVICE_INSTANCE" default:"tenant-manager-1"`
+	AuthToken string `envconfig:"SERVICE_AUTH_TOKEN"`
+	Audience  string `envconfig:"SERVICE_AUDIENCE"`
 }
 
 // Load loads the configuration from environment variables.

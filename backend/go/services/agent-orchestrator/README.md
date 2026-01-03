@@ -172,6 +172,9 @@ Environment variables:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
+| `SERVICE_NAME` | Service identity name propagated on outbound requests | `agent-orchestrator` |
+| `SERVICE_INSTANCE` | Service instance identifier for tracing | `agent-orchestrator-1` |
+| `SERVICE_AUTH_TOKEN` | Static bearer for internal calls when no Authorization header is present | - |
 | `HTTP_ADDR` | HTTP server address | `:8080` |
 | `REDIS_ADDR` | Redis address | `localhost:6379` |
 | `REDIS_PASSWORD` | Redis password | - |

@@ -196,7 +196,7 @@ func (u QueryUsecase) Query(ctx context.Context, req domain.QueryRequest) (domai
 		Namespace:   req.Namespace,
 		QueryVector: embs[0],
 		TopK:        topK,
-		Filters:     req.Filters,
+		Filters:     toModelFilters(req.Filters),
 		MinScore:    0,
 	}
 
@@ -207,15 +207,51 @@ func (u QueryUsecase) Query(ctx context.Context, req domain.QueryRequest) (domai
 
 	resp := domain.QueryResponse{Results: make([]domain.QueryResult, 0, len(chunks))}
 	for _, ch := range chunks {
+		meta := toResponseMetadata(ch.Metadata)
 		resp.Results = append(resp.Results, domain.QueryResult{
 			DocumentID: ch.DocumentID,
 			ChunkID:    ch.ChunkID,
 			Content:    ch.Content,
 			Score:      ch.Score,
-			Metadata:   ch.Metadata,
+			Metadata:   meta,
 			ETag:       ch.ETag,
 		})
 	}
 
 	return resp, nil
+}
+
+func toModelFilters(raw map[string]string) model.Filters {
+	if raw == nil {
+		return model.Filters{Attributes: map[string]string{}}
+	}
+
+	attrs := make(map[string]string, len(raw))
+	for k, v := range raw {
+		attrs[k] = v
+	}
+
+	return model.Filters{Attributes: attrs}
+}
+
+func toResponseMetadata(meta model.ChunkMetadata) map[string]string {
+	// Ensure Attributes carries canonical fields for the response map.
+	meta.Normalize()
+
+	out := make(map[string]string, len(meta.Attributes)+4)
+	for k, v := range meta.Attributes {
+		out[k] = v
+	}
+
+	if meta.Version != "" {
+		out["version"] = meta.Version
+	}
+	if meta.Source != "" {
+		out["source"] = meta.Source
+	}
+	if meta.URI != "" {
+		out["uri"] = meta.URI
+	}
+
+	return out
 }

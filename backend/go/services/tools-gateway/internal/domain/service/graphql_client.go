@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"time"
 
+	authclient "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/client"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/entity"
 )
@@ -91,7 +92,8 @@ type graphQLClientImpl struct {
 func NewGraphQLClient(timeout time.Duration) GraphQLClient {
 	return &graphQLClientImpl{
 		httpClient: &http.Client{
-			Timeout: timeout,
+			Timeout:   timeout,
+			Transport: authclient.WithDefaultTransport(nil),
 		},
 	}
 }

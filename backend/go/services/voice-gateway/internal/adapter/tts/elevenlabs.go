@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"time"
 
+	authclient "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/client"
 	"go.uber.org/zap"
 )
 
@@ -35,7 +36,8 @@ func NewElevenLabsProviderV2(apiKey string, logger *zap.Logger) (*ElevenLabsProv
 	return &ElevenLabsProviderV2{
 		apiKey: apiKey,
 		httpClient: &http.Client{
-			Timeout: 60 * time.Second,
+			Timeout:   60 * time.Second,
+			Transport: authclient.WithDefaultTransport(nil),
 		},
 		logger: logger,
 	}, nil

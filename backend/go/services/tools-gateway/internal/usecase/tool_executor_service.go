@@ -57,6 +57,7 @@ type toolExecutorServiceImpl struct {
 	executionRepo  repository.ToolExecutionRepository
 	validator      service.SchemaValidator
 	httpClient     service.HTTPClient
+	grpcClient     service.GRPCClient
 }
 
 // NewToolExecutorService creates a new ToolExecutorService
@@ -66,6 +67,7 @@ func NewToolExecutorService(
 	executionRepo repository.ToolExecutionRepository,
 	validator service.SchemaValidator,
 	httpClient service.HTTPClient,
+	grpcClient service.GRPCClient,
 ) ToolExecutorService {
 	return &toolExecutorServiceImpl{
 		toolRepo:       toolRepo,
@@ -73,6 +75,7 @@ func NewToolExecutorService(
 		executionRepo:  executionRepo,
 		validator:      validator,
 		httpClient:     httpClient,
+		grpcClient:     grpcClient,
 	}
 }
 

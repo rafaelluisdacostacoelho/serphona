@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/avast/retry-go/v4"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/entity"
 )
@@ -32,15 +33,21 @@ type HTTPResponse struct {
 
 // httpClientImpl implements HTTPClient
 type httpClientImpl struct {
-	client *http.Client
+	client          *http.Client
+	audience        string
+	serviceName     string
+	serviceInstance string
 }
 
 // NewHTTPClient creates a new HTTPClient
-func NewHTTPClient(timeout time.Duration) HTTPClient {
+func NewHTTPClient(timeout time.Duration, serviceName, serviceInstance, audience string) HTTPClient {
 	return &httpClientImpl{
 		client: &http.Client{
 			Timeout: timeout,
 		},
+		audience:        audience,
+		serviceName:     serviceName,
+		serviceInstance: serviceInstance,
 	}
 }
 
@@ -121,6 +128,9 @@ func (c *httpClientImpl) executeOnce(ctx context.Context, tool *entity.Tool, inp
 		req.Header.Set(middleware.TenantIDHeader, tenantID)
 	}
 
+	// Add service identity headers for internal tracing/auth
+	c.addServiceIdentity(req)
+
 	// Add query parameters for GET requests
 	if tool.Method == entity.HTTPMethodGET {
 		c.addQueryParams(req, input)
@@ -186,6 +196,16 @@ func (c *httpClientImpl) addHeaders(req *http.Request, tool *entity.Tool, authCo
 	}
 
 	return nil
+}
+
+// addServiceIdentity injects service identity headers when configured.
+func (c *httpClientImpl) addServiceIdentity(req *http.Request) {
+	if c.serviceName != "" {
+		req.Header.Set("X-Service-Name", c.serviceName)
+	}
+	if c.serviceInstance != "" {
+		req.Header.Set("X-Service-Instance", c.serviceInstance)
+	}
 }
 
 // addAuthentication adds authentication headers/params based on auth type
@@ -275,6 +295,12 @@ func (c *httpClientImpl) addBearerAuth(req *http.Request, config json.RawMessage
 		prefix = "Bearer"
 	}
 
+	if strings.EqualFold(prefix, "bearer") && c.audience != "" {
+		if err := validateAudience(authConfig.Token, c.audience); err != nil {
+			return err
+		}
+	}
+
 	req.Header.Set(headerName, fmt.Sprintf("%s %s", prefix, authConfig.Token))
 	return nil
 }
@@ -348,4 +374,25 @@ func isRetryableError(err error) bool {
 	}
 
 	return false
+}
+
+func validateAudience(token, expected string) error {
+	if expected == "" {
+		return nil
+	}
+
+	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
+	claims := &jwt.RegisteredClaims{}
+
+	if _, _, err := parser.ParseUnverified(token, claims); err != nil {
+		return err
+	}
+
+	for _, aud := range claims.Audience {
+		if aud == expected {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("service token audience mismatch")
 }

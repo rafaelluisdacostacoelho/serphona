@@ -270,8 +270,22 @@ func deriveRequestID(ctx context.Context) string {
 	return uuid.NewString()
 }
 
+// WithServiceTransport returns a hardened transport (retry + circuit breaker + propagation)
+// and injects service identity headers when provided.
+func WithServiceTransport(base http.RoundTripper, serviceName, serviceInstance string) http.RoundTripper {
+	serviceHeaders := map[string]string{}
+	if serviceName != "" {
+		serviceHeaders[serviceNameHeader] = serviceName
+	}
+	if serviceInstance != "" {
+		serviceHeaders[serviceInstanceHeader] = serviceInstance
+	}
+
+	return wrapTransport(base, defaultRetryConfig(), CircuitBreakerConfig{FailureThreshold: 5, Cooldown: 5 * time.Second}, serviceHeaders, "")
+}
+
 // WithDefaultTransport returns a hardened transport (retry + circuit breaker + propagation) with defaults.
 // Useful for callers that want instrumentation without constructing a full Client.
 func WithDefaultTransport(base http.RoundTripper) http.RoundTripper {
-	return wrapTransport(base, defaultRetryConfig(), CircuitBreakerConfig{FailureThreshold: 5, Cooldown: 5 * time.Second}, map[string]string{}, "")
+	return WithServiceTransport(base, "", "")
 }

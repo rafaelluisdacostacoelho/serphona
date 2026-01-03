@@ -1,0 +1,26 @@
+# Override values for agent-orchestrator deployment
+# Fill in real images and secrets before deploying.
+image:
+  repository: agent-orchestrator
+  tag: latest
+  pullPolicy: IfNotPresent
+
+env:
+  SERVICE_NAME: agent-orchestrator
+  SERVICE_INSTANCE: agent-orchestrator-1
+  SERVICE_AUDIENCE: serphona-services # TODO: set to actual audience
+  TOOLS_GATEWAY_URL: http://tools-gateway:8080
+  TOOLS_GATEWAY_TOKEN: "REPLACE_WITH_SERVICE_TOKEN"
+  SERVICE_AUTH_TOKEN: "" # optional
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+service:
+  type: ClusterIP
+  port: 8080

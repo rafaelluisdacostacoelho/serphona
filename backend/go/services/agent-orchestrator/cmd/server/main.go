@@ -68,7 +68,7 @@ func main() {
 	}
 
 	// Initialize Tools Gateway HTTP Client (optional)
-	var toolsClient = toolsHTTP.NewToolsClient(config.ToolsGatewayURL, config.ToolsGatewayTok)
+	var toolsClient = toolsHTTP.NewToolsClient(config.ToolsGatewayURL, config.ToolsGatewayTok, config.ServiceAudience, config.ServiceName, config.ServiceInstance)
 	if config.ToolsGatewayURL != "" {
 		log.Printf("✅ Tools Gateway client initialized (%s)", config.ToolsGatewayURL)
 	} else {
@@ -147,6 +147,9 @@ type Config struct {
 	DatabaseURL     string
 	ToolsGatewayURL string
 	ToolsGatewayTok string
+	ServiceAudience string
+	ServiceName     string
+	ServiceInstance string
 	RedisAddr       string
 	RedisPassword   string
 	RedisDB         int
@@ -161,6 +164,9 @@ func loadConfig() Config {
 		DatabaseURL:     getEnv("DATABASE_URL", ""),
 		ToolsGatewayURL: getEnv("TOOLS_GATEWAY_URL", ""),
 		ToolsGatewayTok: getEnv("TOOLS_GATEWAY_TOKEN", ""),
+		ServiceAudience: getEnv("SERVICE_AUDIENCE", ""),
+		ServiceName:     getEnv("SERVICE_NAME", "agent-orchestrator"),
+		ServiceInstance: getEnv("SERVICE_INSTANCE", "agent-orchestrator-1"),
 		RedisAddr:       getEnv("REDIS_ADDR", "localhost:6379"),
 		RedisPassword:   getEnv("REDIS_PASSWORD", ""),
 		RedisDB:         0,

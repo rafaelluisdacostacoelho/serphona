@@ -13,7 +13,6 @@ import (
 
 	_ "github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/analytics-query-service/internal/adapter/http/handler"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/analytics-query-service/internal/domain/repository"
@@ -21,6 +20,7 @@ import (
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/analytics-query-service/internal/infrastructure/repository/cached"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/analytics-query-service/internal/infrastructure/repository/clickhouse"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/analytics-query-service/internal/usecase"
+	"github.com/redis/go-redis/v9"
 )
 
 func main() {
@@ -125,14 +125,17 @@ func main() {
 }
 
 type Config struct {
-	HTTPAddr      string
-	ClickHouseURL string
-	RedisAddr     string
-	RedisPassword string
-	RedisDB       int
-	CacheTTL      time.Duration
-	RateLimit     int
-	RateBurst     int
+	HTTPAddr        string
+	ClickHouseURL   string
+	RedisAddr       string
+	RedisPassword   string
+	RedisDB         int
+	CacheTTL        time.Duration
+	RateLimit       int
+	RateBurst       int
+	ServiceName     string
+	ServiceInstance string
+	ServiceAudience string
 }
 
 func loadConfig() Config {
@@ -168,14 +171,17 @@ func loadConfig() Config {
 	rateBurst, _ := strconv.Atoi(getEnv("RATE_BURST", "10"))
 
 	return Config{
-		HTTPAddr:      getEnv("HTTP_ADDR", ":8084"),
-		ClickHouseURL: clickhouseURL,
-		RedisAddr:     redisAddr,
-		RedisPassword: redisPassword,
-		RedisDB:       redisDB,
-		CacheTTL:      cacheTTL,
-		RateLimit:     rateLimit,
-		RateBurst:     rateBurst,
+		HTTPAddr:        getEnv("HTTP_ADDR", ":8084"),
+		ClickHouseURL:   clickhouseURL,
+		RedisAddr:       redisAddr,
+		RedisPassword:   redisPassword,
+		RedisDB:         redisDB,
+		CacheTTL:        cacheTTL,
+		RateLimit:       rateLimit,
+		RateBurst:       rateBurst,
+		ServiceName:     getEnv("SERVICE_NAME", "analytics-query-service"),
+		ServiceInstance: getEnv("SERVICE_INSTANCE", "analytics-query-service-1"),
+		ServiceAudience: getEnv("SERVICE_AUDIENCE", ""),
 	}
 }
 

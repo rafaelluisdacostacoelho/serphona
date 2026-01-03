@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	authclient "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/client"
 	"go.uber.org/zap"
@@ -15,23 +16,62 @@ import (
 
 // Client is an HTTP client for tenant-manager service.
 type Client struct {
-	baseURL      string
-	httpClient   *http.Client
-	logger       *zap.Logger
-	serviceToken string
+	baseURL         string
+	httpClient      *http.Client
+	logger          *zap.Logger
+	serviceToken    string
+	serviceName     string
+	serviceInstance string
+	audience        string
 }
 
 // NewClient creates a new tenant manager client.
-func NewClient(baseURL, serviceToken string, logger *zap.Logger) *Client {
+func NewClient(baseURL, serviceToken, serviceName, serviceInstance, audience string, logger *zap.Logger) *Client {
 	return &Client{
 		baseURL:      baseURL,
 		serviceToken: serviceToken,
 		httpClient: &http.Client{
-			Timeout:   10 * time.Second,
-			Transport: authclient.WithDefaultTransport(nil),
+			Timeout:   30 * time.Second,
+			Transport: authclient.WithServiceTransport(nil, serviceName, serviceInstance),
 		},
-		logger: logger,
+		serviceName:     serviceName,
+		serviceInstance: serviceInstance,
+		audience:        audience,
+		logger:          logger,
 	}
+}
+
+func (c *Client) applyServiceIdentity(req *http.Request) {
+	if req == nil {
+		return
+	}
+	if c.serviceName != "" && req.Header.Get("X-Service-Name") == "" {
+		req.Header.Set("X-Service-Name", c.serviceName)
+	}
+	if c.serviceInstance != "" && req.Header.Get("X-Service-Instance") == "" {
+		req.Header.Set("X-Service-Instance", c.serviceInstance)
+	}
+}
+
+func validateAudience(token, expected string) error {
+	if expected == "" {
+		return nil
+	}
+
+	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
+	claims := &jwt.RegisteredClaims{}
+
+	if _, _, err := parser.ParseUnverified(token, claims); err != nil {
+		return err
+	}
+
+	for _, aud := range claims.Audience {
+		if aud == expected {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("service token audience mismatch")
 }
 
 // DIDInfo represents DID lookup information.
@@ -51,8 +91,12 @@ func (c *Client) LookupDID(ctx context.Context, phoneNumber string) (*DIDInfo, e
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	if c.serviceToken != "" && req.Header.Get("Authorization") == "" {
+		if err := validateAudience(c.serviceToken, c.audience); err != nil {
+			return nil, err
+		}
 		req.Header.Set("Authorization", "Bearer "+c.serviceToken)
 	}
+	c.applyServiceIdentity(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -101,8 +145,12 @@ func (c *Client) GetProviderSettings(ctx context.Context, tenantID uuid.UUID) (*
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	if c.serviceToken != "" && req.Header.Get("Authorization") == "" {
+		if err := validateAudience(c.serviceToken, c.audience); err != nil {
+			return nil, err
+		}
 		req.Header.Set("Authorization", "Bearer "+c.serviceToken)
 	}
+	c.applyServiceIdentity(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -181,6 +229,9 @@ func (c *Client) GetAgentConfig(ctx context.Context, tenantID uuid.UUID) (*Agent
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	if c.serviceToken != "" && req.Header.Get("Authorization") == "" {
+		if err := validateAudience(c.serviceToken, c.audience); err != nil {
+			return nil, err
+		}
 		req.Header.Set("Authorization", "Bearer "+c.serviceToken)
 	}
 

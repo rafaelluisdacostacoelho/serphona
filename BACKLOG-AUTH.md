@@ -29,11 +29,11 @@ Propósito: plano coordenado para adotar o platform-auth nos serviços com RLS/t
 - [x] auth-gateway: auditar chamadas outbound (se houver) para garantir transporte do platform-auth + EnsureTenantHeader; adicionar testes. (Apple OAuth não requer tenant; CreateTenant é stub sem implementação; verificado ✅)
 - [x] voice-gateway: propagar header de tenant nos clients de agente/tenant e eventos Kafka; testes ao iniciar conversa. (Agent/tenant clients já usam authclient.WithDefaultTransport; callService propaga WithTenantID antes de chamar agentes; testes de agent client adicionados ✅)
 - [x] rag-gateway: verificar que a injeção de header de tenant continua correta; adicionar testes se faltar. (Embedding client para OpenAI; authclient.WithDefaultTransport em uso; X-Tenant-Id para chamadas internas incluído; verificado ✅)
-- [ ] Cross-service: testes de integração assegurando X-Tenant-Id em chamadas outbound quando o tenant está no contexto.
+- [x] Cross-service: testes de integração assegurando X-Tenant-Id em chamadas outbound quando o tenant está no contexto. (platform-auth integração `TestTenantHeaderPropagation` cobre transporte default preservando headers existentes e injetando tenant do contexto)
 
 ### Fase 3 — Auth/resiliência no outbound
-- [ ] Garantir que todos os serviços definem env de identidade do serviço e, quando necessário, usam o helper de auth de cliente em chamadas internas (tokens com scopes, SERVICE_AUDIENCE).
-- [ ] Verificar retries/backoff + circuit breaker via client do platform-auth onde usado; cobrir mapeamento de erros.
+- [x] Garantir que todos os serviços definem env de identidade do serviço e, quando necessário, usam o helper de auth de cliente em chamadas internas (tokens com scopes, SERVICE_AUDIENCE).
+- [x] Verificar retries/backoff + circuit breaker via client do platform-auth onde usado; cobrir mapeamento de erros.
 
 ### Fase 4 — Observabilidade e segurança
 - [ ] Redação e limpeza de logs nos serviços usando helpers do platform-auth; verificar se nenhum header sensível vaza.

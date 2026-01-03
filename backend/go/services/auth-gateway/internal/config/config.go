@@ -15,6 +15,8 @@ type Config struct {
 	JWT      JWTConfig
 	OAuth    OAuthConfig
 	Redis    RedisConfig
+	Service  ServiceConfig
+	Outbound OutboundConfig
 }
 
 // ServerConfig holds server configuration
@@ -62,6 +64,19 @@ type RedisConfig struct {
 	Port     string
 	Password string
 	DB       int
+}
+
+// ServiceConfig holds identity for outbound calls.
+type ServiceConfig struct {
+	Name     string
+	Instance string
+	Audience string
+}
+
+// OutboundConfig holds URLs/tokens for external services.
+type OutboundConfig struct {
+	TenantManagerURL string
+	ServiceAuthToken string
 }
 
 // Load loads configuration from environment variables
@@ -113,6 +128,15 @@ func Load() (*Config, error) {
 			Port:     getEnv("REDIS_PORT", "6379"),
 			Password: getEnv("REDIS_PASSWORD", ""),
 			DB:       0,
+		},
+		Service: ServiceConfig{
+			Name:     getEnv("SERVICE_NAME", "auth-gateway"),
+			Instance: getEnv("SERVICE_INSTANCE", "auth-gateway-1"),
+			Audience: getEnv("SERVICE_AUDIENCE", ""),
+		},
+		Outbound: OutboundConfig{
+			TenantManagerURL: getEnv("TENANT_MANAGER_URL", "http://localhost:8081"),
+			ServiceAuthToken: getEnv("SERVICE_AUTH_TOKEN", ""),
 		},
 	}
 

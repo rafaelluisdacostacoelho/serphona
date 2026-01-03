@@ -9,10 +9,12 @@ import (
 
 // Config represents the application configuration.
 type Config struct {
-	ServiceName string `envconfig:"SERVICE_NAME" default:"voice-gateway"`
-	Version     string `envconfig:"VERSION" default:"1.0.0"`
-	Environment string `envconfig:"ENVIRONMENT" default:"development"`
-	LogLevel    string `envconfig:"LOG_LEVEL" default:"info"`
+	ServiceName     string `envconfig:"SERVICE_NAME" default:"voice-gateway"`
+	ServiceInstance string `envconfig:"SERVICE_INSTANCE" default:"voice-gateway-1"`
+	ServiceAudience string `envconfig:"SERVICE_AUDIENCE"`
+	Version         string `envconfig:"VERSION" default:"1.0.0"`
+	Environment     string `envconfig:"ENVIRONMENT" default:"development"`
+	LogLevel        string `envconfig:"LOG_LEVEL" default:"info"`
 
 	Server            ServerConfig
 	Asterisk          AsteriskConfig

@@ -7,13 +7,18 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/entity"
+	"github.com/sony/gobreaker"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 // GRPCClient handles gRPC API requests.
@@ -44,13 +49,21 @@ type GRPCClient interface {
 
 // grpcClientImpl implements GRPCClient.
 type grpcClientImpl struct {
-	connections map[string]*grpc.ClientConn // Cache connections by integration ID
+	connections     map[string]*grpc.ClientConn // Cache connections by integration ID
+	breakers        map[string]*gobreaker.CircuitBreaker
+	serviceName     string
+	serviceInstance string
+	audience        string
 }
 
 // NewGRPCClient creates a new GRPCClient.
-func NewGRPCClient() GRPCClient {
+func NewGRPCClient(serviceName, serviceInstance, audience string) GRPCClient {
 	return &grpcClientImpl{
-		connections: make(map[string]*grpc.ClientConn),
+		connections:     make(map[string]*grpc.ClientConn),
+		breakers:        make(map[string]*gobreaker.CircuitBreaker),
+		serviceName:     serviceName,
+		serviceInstance: serviceInstance,
+		audience:        audience,
 	}
 }
 
@@ -70,7 +83,25 @@ func (c *grpcClientImpl) Call(
 	// Add authorization to context
 	md := make(map[string]string)
 	if token != "" {
+		if c.audience != "" {
+			if err := validateAudience(token, c.audience); err != nil {
+				return err
+			}
+		}
 		md["authorization"] = fmt.Sprintf("Bearer %s", token)
+	}
+
+	// Tenant propagation
+	if tenantID, err := middleware.TenantIDFromContext(ctx); err == nil && tenantID != "" {
+		md[middleware.TenantIDHeader] = tenantID
+	}
+
+	// Service identity
+	if c.serviceName != "" {
+		md["x-service-name"] = c.serviceName
+	}
+	if c.serviceInstance != "" {
+		md["x-service-instance"] = c.serviceInstance
 	}
 
 	// Add default metadata
@@ -121,8 +152,11 @@ func (c *grpcClientImpl) CallWithMetadata(
 		defer cancel()
 	}
 
-	// Invoke the method
-	err = conn.Invoke(ctx, fullMethod, request, response)
+	// Invoke with circuit breaker + retry
+	breaker := c.getBreaker(integration.ID.String())
+	_, err = breaker.Execute(func() (interface{}, error) {
+		return nil, c.invokeWithRetry(ctx, conn, fullMethod, request, response)
+	})
 	if err != nil {
 		return fmt.Errorf("gRPC call failed: %w", err)
 	}
@@ -202,6 +236,12 @@ func (c *grpcClientImpl) createConnection(ctx context.Context, integration *enti
 		))
 	}
 
+	// Connection backoff parameters
+	opts = append(opts, grpc.WithConnectParams(grpc.ConnectParams{
+		Backoff:           backoff.DefaultConfig,
+		MinConnectTimeout: 5 * time.Second,
+	}))
+
 	// Create connection
 	conn, err := grpc.DialContext(ctx, integration.BaseURL, opts...)
 	if err != nil {
@@ -230,4 +270,63 @@ func (c *grpcClientImpl) CloseAllConnections() error {
 		delete(c.connections, key)
 	}
 	return nil
+}
+
+func (c *grpcClientImpl) invokeWithRetry(ctx context.Context, conn *grpc.ClientConn, method string, req interface{}, resp interface{}) error {
+	const maxRetries = 3
+	const initialBackoff = 200 * time.Millisecond
+	const maxBackoff = 2 * time.Second
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		err := conn.Invoke(ctx, method, req, resp)
+		if err == nil {
+			return nil
+		}
+
+		code := status.Code(err)
+		if !isRetryableCode(code) || attempt == maxRetries-1 {
+			return err
+		}
+
+		sleep := initialBackoff << attempt
+		if sleep > maxBackoff {
+			sleep = maxBackoff
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(sleep):
+		}
+	}
+
+	return fmt.Errorf("retry attempts exhausted")
+}
+
+func isRetryableCode(code codes.Code) bool {
+	switch code {
+	case codes.Unavailable, codes.ResourceExhausted, codes.DeadlineExceeded:
+		return true
+	default:
+		return false
+	}
+}
+
+func (c *grpcClientImpl) getBreaker(key string) *gobreaker.CircuitBreaker {
+	if breaker, ok := c.breakers[key]; ok {
+		return breaker
+	}
+
+	settings := gobreaker.Settings{
+		Name:        fmt.Sprintf("grpc-%s", key),
+		MaxRequests: 1,
+		Interval:    30 * time.Second,
+		Timeout:     15 * time.Second,
+		ReadyToTrip: func(counts gobreaker.Counts) bool {
+			return counts.ConsecutiveFailures >= 5
+		},
+	}
+
+	breaker := gobreaker.NewCircuitBreaker(settings)
+	c.breakers[key] = breaker
+	return breaker
 }

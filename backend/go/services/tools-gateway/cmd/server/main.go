@@ -16,7 +16,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/adapter/http/handler"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/adapter/http/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/service"
 	postgresrepo "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/infrastructure/repository/postgres"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/usecase"
@@ -39,10 +41,15 @@ func main() {
 	executionRepo := postgresrepo.NewToolExecutionRepository(db)
 
 	validator := service.NewSchemaValidator()
-	httpClient := service.NewHTTPClient(30 * time.Second)
+	serviceName := getEnv("SERVICE_NAME", "tools-gateway")
+	serviceInstance := getEnv("SERVICE_INSTANCE", "tools-gateway-1")
+	serviceAudience := getEnv("SERVICE_AUDIENCE", "")
+	httpClient := service.NewHTTPClient(30*time.Second, serviceName, serviceInstance, serviceAudience)
+	grpcClient := service.NewGRPCClient(serviceName, serviceInstance, serviceAudience)
+	log.Printf("Service identity: %s/%s audience=%s", serviceName, serviceInstance, serviceAudience)
 
 	toolService := usecase.NewToolService(toolRepo, validator)
-	executorService := usecase.NewToolExecutorService(toolRepo, tenantToolRepo, executionRepo, validator, httpClient)
+	executorService := usecase.NewToolExecutorService(toolRepo, tenantToolRepo, executionRepo, validator, httpClient, grpcClient)
 
 	// Initialize handlers
 	toolHandler := handler.NewToolHandler(toolService, executorService)
@@ -85,11 +92,15 @@ func initDB() (*gorm.DB, error) {
 
 func setupRouter(toolHandler *handler.ToolHandler) *gin.Engine {
 	router := gin.Default()
+	router.Use(middleware.Metrics())
 
 	// Health check
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "healthy", "service": "tools-gateway"})
 	})
+
+	// Prometheus metrics endpoint
+	router.GET("/metrics", gin.WrapH(promhttp.HandlerFor(middleware.MetricsGatherer(), promhttp.HandlerOpts{})))
 
 	// Mock auth middleware (replace with real auth later)
 	authMiddleware := func(c *gin.Context) {

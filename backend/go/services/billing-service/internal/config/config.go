@@ -22,6 +22,7 @@ type Config struct {
 	JWT           JWTConfig
 	Features      FeaturesConfig
 	Observability ObservabilityConfig
+	Service       ServiceConfig
 }
 
 type ServerConfig struct {
@@ -115,6 +116,13 @@ type ObservabilityConfig struct {
 	LogFormat      string
 }
 
+type ServiceConfig struct {
+	Name      string
+	Instance  string
+	AuthToken string
+	Audience  string
+}
+
 func Load() (*Config, error) {
 	// Try to load .env file (ignore error if not found)
 	_ = godotenv.Load()
@@ -189,6 +197,12 @@ func Load() (*Config, error) {
 			JaegerEndpoint: getEnv("JAEGER_ENDPOINT", "http://localhost:14268/api/traces"),
 			LogLevel:       getEnv("LOG_LEVEL", "info"),
 			LogFormat:      getEnv("LOG_FORMAT", "json"),
+		},
+		Service: ServiceConfig{
+			Name:      getEnv("SERVICE_NAME", "billing-service"),
+			Instance:  getEnv("SERVICE_INSTANCE", "billing-service-1"),
+			AuthToken: getEnv("SERVICE_AUTH_TOKEN", ""),
+			Audience:  getEnv("SERVICE_AUDIENCE", ""),
 		},
 	}
 

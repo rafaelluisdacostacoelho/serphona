@@ -1,0 +1,24 @@
+# Override values for tenant-manager deployment
+# Fill with real image and secrets before deploying.
+image:
+  repository: tenant-manager
+  tag: latest
+  pullPolicy: IfNotPresent
+
+env:
+  SERVICE_NAME: tenant-manager
+  SERVICE_INSTANCE: tenant-manager-1
+  SERVICE_AUDIENCE: serphona-services # TODO: set to actual audience
+  SERVICE_AUTH_TOKEN: "REPLACE_WITH_SERVICE_TOKEN"
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+service:
+  type: ClusterIP
+  port: 8080

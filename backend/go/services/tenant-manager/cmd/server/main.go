@@ -36,7 +36,6 @@ import (
 )
 
 const (
-	serviceName      = "tenant-manager"
 	serviceVersion   = "1.0.0"
 	readTenantScope  = "read:tenants"
 	writeTenantScope = "write:tenants"
@@ -68,7 +67,7 @@ func main() {
 	tenantRateLimiter = middleware.NewTenantRateLimiter(cfg.Server.TenantRateLimitRPM, tenantRateMetrics)
 
 	log.Info("Starting Tenant Manager Service",
-		zap.String("service", serviceName),
+		zap.String("service", cfg.Service.Name),
 		zap.String("version", serviceVersion),
 		zap.String("environment", cfg.Environment),
 	)

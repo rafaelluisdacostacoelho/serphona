@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -49,11 +50,47 @@ func (stubUserRepo) GetOAuthState(_ context.Context, _ string) (*user.OAuthState
 func (stubUserRepo) DeleteOAuthState(_ context.Context, _ string) error { return nil }
 func (stubUserRepo) CleanupExpiredOAuthStates(_ context.Context) error  { return nil }
 
-// stubTenantService satisfies auth.TenantService for tests.
-type stubTenantService struct{}
+// stubUserRepoNoExisting simulates no pre-existing user for registration path.
+type stubUserRepoNoExisting struct{}
 
-func (stubTenantService) CreateTenant(_ context.Context, _ string) (uuid.UUID, error) {
-	return uuid.New(), nil
+func (stubUserRepoNoExisting) Create(_ context.Context, _ *user.User) error { return nil }
+func (stubUserRepoNoExisting) GetByID(_ context.Context, _ uuid.UUID) (*user.User, error) {
+	return &user.User{}, nil
+}
+func (stubUserRepoNoExisting) GetByEmail(_ context.Context, _ string) (*user.User, error) {
+	return nil, errors.New("not found")
+}
+func (stubUserRepoNoExisting) GetByProvider(_ context.Context, _, _ string) (*user.User, error) {
+	return &user.User{}, nil
+}
+func (stubUserRepoNoExisting) Update(_ context.Context, _ *user.User) error           { return nil }
+func (stubUserRepoNoExisting) Delete(_ context.Context, _ uuid.UUID) error            { return nil }
+func (stubUserRepoNoExisting) CreateSession(_ context.Context, _ *user.Session) error { return nil }
+func (stubUserRepoNoExisting) GetSession(_ context.Context, _ string) (*user.Session, error) {
+	return &user.Session{}, nil
+}
+func (stubUserRepoNoExisting) RevokeSession(_ context.Context, _ string) error            { return nil }
+func (stubUserRepoNoExisting) RevokeAllUserSessions(_ context.Context, _ uuid.UUID) error { return nil }
+func (stubUserRepoNoExisting) CleanupExpiredSessions(_ context.Context) error             { return nil }
+func (stubUserRepoNoExisting) CreateOAuthState(_ context.Context, _ *user.OAuthState) error {
+	return nil
+}
+func (stubUserRepoNoExisting) GetOAuthState(_ context.Context, _ string) (*user.OAuthState, error) {
+	return &user.OAuthState{}, nil
+}
+func (stubUserRepoNoExisting) DeleteOAuthState(_ context.Context, _ string) error { return nil }
+func (stubUserRepoNoExisting) CleanupExpiredOAuthStates(_ context.Context) error  { return nil }
+
+// stubTenantService satisfies auth.TenantService for tests.
+type stubTenantService struct {
+	id uuid.UUID
+}
+
+func (s stubTenantService) CreateTenant(_ context.Context, _, _, _, _, _ string) (uuid.UUID, error) {
+	if s.id == uuid.Nil {
+		return uuid.New(), nil
+	}
+	return s.id, nil
 }
 
 // stubProvider implements auth.OAuthProvider for deterministic URL.
@@ -198,6 +235,57 @@ func TestLoginValidationErrorEnvelopeContract(t *testing.T) {
 	}
 	if payload.Error.Code == "" || payload.Error.Message == "" {
 		t.Fatalf("expected error code/message to be set")
+	}
+}
+
+func TestRegisterContractIncludesTenantIDAnd201(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	fixedID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	jtwSvc := &jwt.Service{}
+	uc := auth.NewUseCase(stubUserRepoNoExisting{}, jtwSvc, stubTenantService{id: fixedID}, time.Hour)
+	h := NewAuthHandler(uc, jtwSvc, zaptest.NewLogger(t))
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	body := map[string]any{
+		"email":        "user@example.com",
+		"password":     "strongpassword",
+		"name":         "Example User",
+		"tenantName":   "Example Org",
+		"plan":         "starter",
+		"billingEmail": "billing@example.com",
+		"phone":        "+15551234567",
+	}
+
+	jsonBody, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewBuffer(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+
+	ctx := authmw.WithRequestID(context.Background(), "req-register-1")
+	req = req.WithContext(ctx)
+
+	c.Request = req
+
+	h.Register(c)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d", rec.Code)
+	}
+
+	var payload struct {
+		Data auth.AuthResponse `json:"data"`
+		Meta response.Meta     `json:"meta"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if payload.Data.User.TenantID != fixedID {
+		t.Fatalf("expected tenant id %s, got %s", fixedID, payload.Data.User.TenantID)
+	}
+	if payload.Meta.RequestID != "req-register-1" {
+		t.Fatalf("expected request_id req-register-1, got %s", payload.Meta.RequestID)
 	}
 }
 

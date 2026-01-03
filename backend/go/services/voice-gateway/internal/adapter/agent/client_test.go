@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"go.uber.org/zap"
@@ -34,7 +35,7 @@ func TestAgentClientSetsTenantHeader(t *testing.T) {
 	defer logger.Sync()
 
 	// Create agent client
-	client := NewClient(server.URL, "test-token", logger)
+	client := NewClient(server.URL, mustToken(t, "internal"), "voice-gateway", "vg-1", "internal", logger)
 
 	// Create context with tenant ID
 	ctx := middleware.WithTenantID(context.Background(), "tenant-456")
@@ -49,6 +50,14 @@ func TestAgentClientSetsTenantHeader(t *testing.T) {
 	tenantHeader := capturedHeaders.Get(middleware.TenantIDHeader)
 	if tenantHeader != "tenant-456" {
 		t.Errorf("expected X-Tenant-Id header 'tenant-456', got '%s'", tenantHeader)
+	}
+
+	// Verify service identity headers were set
+	if got := capturedHeaders.Get("X-Service-Name"); got != "voice-gateway" {
+		t.Errorf("expected X-Service-Name 'voice-gateway', got '%s'", got)
+	}
+	if got := capturedHeaders.Get("X-Service-Instance"); got != "vg-1" {
+		t.Errorf("expected X-Service-Instance 'vg-1', got '%s'", got)
 	}
 }
 
@@ -75,7 +84,7 @@ func TestAgentClientNoTenantHeaderWhenMissing(t *testing.T) {
 	defer logger.Sync()
 
 	// Create agent client
-	client := NewClient(server.URL, "test-token", logger)
+	client := NewClient(server.URL, mustToken(t, "internal"), "voice-gateway", "vg-1", "internal", logger)
 
 	// Create context without tenant
 	ctx := context.Background()
@@ -91,4 +100,22 @@ func TestAgentClientNoTenantHeaderWhenMissing(t *testing.T) {
 	if tenantHeader != "" {
 		t.Errorf("expected no X-Tenant-Id header, got '%s'", tenantHeader)
 	}
+
+	// Service identity should still be present
+	if got := capturedHeaders.Get("X-Service-Name"); got != "voice-gateway" {
+		t.Errorf("expected X-Service-Name 'voice-gateway', got '%s'", got)
+	}
+	if got := capturedHeaders.Get("X-Service-Instance"); got != "vg-1" {
+		t.Errorf("expected X-Service-Instance 'vg-1', got '%s'", got)
+	}
+}
+
+func mustToken(t *testing.T, aud string) string {
+	t.Helper()
+	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{Audience: []string{aud}})
+	signed, err := tok.SignedString([]byte("secret"))
+	if err != nil {
+		t.Fatalf("sign token: %v", err)
+	}
+	return signed
 }

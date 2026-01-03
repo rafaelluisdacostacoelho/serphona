@@ -1,0 +1,25 @@
+# Override values for tools-gateway deployment
+# Fill in real images and secrets before deploying.
+image:
+  repository: tools-gateway
+  tag: latest
+  pullPolicy: IfNotPresent
+
+env:
+  SERVICE_NAME: tools-gateway
+  SERVICE_INSTANCE: tools-gateway-1
+  SERVICE_AUDIENCE: serphona-services # TODO: set to actual audience
+  TOOLS_GATEWAY_TOKEN: "REPLACE_WITH_SERVICE_TOKEN"
+  SERVICE_AUTH_TOKEN: "" # optional, if used elsewhere
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+service:
+  type: ClusterIP
+  port: 8080

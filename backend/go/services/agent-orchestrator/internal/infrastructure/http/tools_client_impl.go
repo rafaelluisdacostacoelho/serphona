@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	authclient "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/client"
 	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
@@ -20,16 +21,22 @@ type toolsClientImpl struct {
 	baseURL      string
 	httpClient   *http.Client
 	serviceToken string
+	audience     string
+	serviceName  string
+	serviceInst  string
 }
 
 // NewToolsClient creates a new Tools Gateway HTTP client
-func NewToolsClient(baseURL, serviceToken string) service.ToolsClient {
+func NewToolsClient(baseURL, serviceToken, audience, serviceName, serviceInstance string) service.ToolsClient {
 	return &toolsClientImpl{
 		baseURL:      baseURL,
 		serviceToken: serviceToken,
+		audience:     audience,
+		serviceName:  serviceName,
+		serviceInst:  serviceInstance,
 		httpClient: &http.Client{
 			Timeout:   30 * time.Second,
-			Transport: authclient.WithDefaultTransport(nil),
+			Transport: authclient.WithServiceTransport(nil, serviceName, serviceInstance),
 		},
 	}
 }
@@ -60,7 +67,11 @@ func (c *toolsClientImpl) ExecuteTool(ctx context.Context, request *service.Tool
 	if tenant := request.TenantID.String(); tenant != "" {
 		httpReq.Header = authmw.EnsureTenantHeader(httpReq.Header, tenant)
 	}
+	c.ensureServiceIdentity(httpReq)
 	if c.serviceToken != "" && httpReq.Header.Get("Authorization") == "" {
+		if err := validateAudience(c.serviceToken, c.audience); err != nil {
+			return nil, err
+		}
 		httpReq.Header.Set("Authorization", "Bearer "+c.serviceToken)
 	}
 
@@ -102,7 +113,11 @@ func (c *toolsClientImpl) GetAvailableTools(ctx context.Context, tenantID uuid.U
 
 	// Execute request
 	httpReq.Header = authmw.EnsureTenantHeader(httpReq.Header, tenantID.String())
+	c.ensureServiceIdentity(httpReq)
 	if c.serviceToken != "" && httpReq.Header.Get("Authorization") == "" {
+		if err := validateAudience(c.serviceToken, c.audience); err != nil {
+			return nil, err
+		}
 		httpReq.Header.Set("Authorization", "Bearer "+c.serviceToken)
 	}
 	resp, err := c.httpClient.Do(httpReq)
@@ -152,7 +167,11 @@ func (c *toolsClientImpl) ValidateTool(ctx context.Context, tenantID uuid.UUID, 
 
 	// Execute request
 	httpReq.Header = authmw.EnsureTenantHeader(httpReq.Header, tenantID.String())
+	c.ensureServiceIdentity(httpReq)
 	if c.serviceToken != "" && httpReq.Header.Get("Authorization") == "" {
+		if err := validateAudience(c.serviceToken, c.audience); err != nil {
+			return false, err
+		}
 		httpReq.Header.Set("Authorization", "Bearer "+c.serviceToken)
 	}
 	resp, err := c.httpClient.Do(httpReq)
@@ -171,4 +190,35 @@ func (c *toolsClientImpl) ValidateTool(ctx context.Context, tenantID uuid.UUID, 
 	// Other error
 	body, _ := io.ReadAll(resp.Body)
 	return false, fmt.Errorf("validation failed with status %d: %s", resp.StatusCode, string(body))
+}
+
+// ensureServiceIdentity injects service identity headers when available.
+func (c *toolsClientImpl) ensureServiceIdentity(req *http.Request) {
+	if c.serviceName != "" {
+		req.Header.Set("X-Service-Name", c.serviceName)
+	}
+	if c.serviceInst != "" {
+		req.Header.Set("X-Service-Instance", c.serviceInst)
+	}
+}
+
+func validateAudience(token, expected string) error {
+	if expected == "" {
+		return nil
+	}
+
+	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
+	claims := &jwt.RegisteredClaims{}
+
+	if _, _, err := parser.ParseUnverified(token, claims); err != nil {
+		return err
+	}
+
+	for _, aud := range claims.Audience {
+		if aud == expected {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("service token audience mismatch")
 }

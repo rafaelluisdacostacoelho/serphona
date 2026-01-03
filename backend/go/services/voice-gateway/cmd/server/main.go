@@ -50,8 +50,8 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	tenantClient := tenant.NewClient(cfg.TenantManager.URL, cfg.TenantManager.Token, log)
-	agentClient := agent.NewClient(cfg.AgentOrchestrator.URL, cfg.AgentOrchestrator.Token, log)
+	tenantClient := tenant.NewClient(cfg.TenantManager.URL, cfg.TenantManager.Token, cfg.ServiceName, cfg.ServiceInstance, cfg.ServiceAudience, log)
+	agentClient := agent.NewClient(cfg.AgentOrchestrator.URL, cfg.AgentOrchestrator.Token, cfg.ServiceName, cfg.ServiceInstance, cfg.ServiceAudience, log)
 
 	asteriskClient, err := asterisk.NewARIClientHTTP(asterisk.ARIConfig{
 		URL:      cfg.Asterisk.ARIURL,

@@ -18,6 +18,9 @@ type Config struct {
 	EmbeddingModel    string
 	EmbeddingAPIKey   string
 	EmbeddingBaseURL  string
+	ServiceName       string
+	ServiceInstance   string
+	ServiceAudience   string
 }
 
 // Load reads configuration from environment with defaults.
@@ -33,6 +36,9 @@ func Load() (Config, error) {
 		EmbeddingModel:    getEnv("EMBEDDING_MODEL", "text-embedding-3-small"),
 		EmbeddingAPIKey:   os.Getenv("EMBEDDING_API_KEY"),
 		EmbeddingBaseURL:  os.Getenv("EMBEDDING_BASE_URL"),
+		ServiceName:       getEnv("SERVICE_NAME", "rag-gateway"),
+		ServiceInstance:   getEnv("SERVICE_INSTANCE", "rag-gateway-1"),
+		ServiceAudience:   getEnv("SERVICE_AUDIENCE", ""),
 	}
 
 	if dimStr := os.Getenv("PGVECTOR_DIM"); dimStr != "" {

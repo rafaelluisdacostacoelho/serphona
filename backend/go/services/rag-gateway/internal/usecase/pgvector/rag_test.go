@@ -76,7 +76,7 @@ func TestQueryUsesTopKDefaultAndReturnsFields(t *testing.T) {
 			DocumentID: "doc1",
 			ChunkID:    "chunk1",
 			Content:    "answer",
-			Metadata:   map[string]string{"k": "v"},
+			Metadata:   model.ChunkMetadata{Attributes: map[string]string{"k": "v"}},
 			Score:      0.42,
 			ETag:       "etag1",
 		}},

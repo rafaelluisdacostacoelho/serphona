@@ -10,10 +10,13 @@ type LoginRequest struct {
 
 // RegisterRequest represents a registration request
 type RegisterRequest struct {
-	Email      string `json:"email" validate:"required,email"`
-	Password   string `json:"password" validate:"required,min=8"`
-	Name       string `json:"name" validate:"required"`
-	TenantName string `json:"tenantName" validate:"required"`
+	Email        string `json:"email" validate:"required,email"`
+	Password     string `json:"password" validate:"required,min=8"`
+	Name         string `json:"name" validate:"required"`
+	TenantName   string `json:"tenantName" validate:"required"`
+	Plan         string `json:"plan" validate:"required,oneof=starter professional enterprise"`
+	BillingEmail string `json:"billingEmail" validate:"omitempty,email"`
+	Phone        string `json:"phone" validate:"omitempty,e164"`
 }
 
 // RefreshTokenRequest represents a refresh token request

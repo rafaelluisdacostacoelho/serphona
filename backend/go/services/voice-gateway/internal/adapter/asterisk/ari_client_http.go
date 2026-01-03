@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"time"
 
+	authclient "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/client"
 	"go.uber.org/zap"
 )
 
@@ -35,7 +36,8 @@ func NewARIClientHTTP(config ARIConfig, logger *zap.Logger) (*ARIClientHTTP, err
 		password: config.Password,
 		appName:  config.AppName,
 		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout:   30 * time.Second,
+			Transport: authclient.WithDefaultTransport(nil),
 		},
 		logger: logger,
 	}
