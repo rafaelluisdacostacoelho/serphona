@@ -13,6 +13,7 @@ import (
 	"github.com/avast/retry-go/v4"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-mcp/invoke"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/entity"
 )
 
@@ -123,14 +124,28 @@ func (c *httpClientImpl) executeOnce(ctx context.Context, tool *entity.Tool, inp
 		return nil, err
 	}
 
-	// Add tenant header from context (platform-auth)
-	if tenantID, err := middleware.TenantIDFromContext(ctx); err == nil && tenantID != "" {
-		req.Header.Set(middleware.TenantIDHeader, tenantID)
+	// Define tenantID at the beginning of the function
+	var tenantID string
+	if id, err := middleware.TenantIDFromContext(ctx); err == nil && id != "" {
+		tenantID = id
+	} else {
+		return nil, fmt.Errorf("tenant ID extraction failed: %w", err)
 	}
 
-	// Adiciona validação do TenantID no contexto
-	if err := middleware.EnsureTenantHeader(ctx, req.Header); err != nil {
-		return nil, fmt.Errorf("tenant header validation failed: %w", err)
+	// Convert http.Header to map[string]string before calling EnsureTenantHeaders
+	headerMap := make(map[string]string)
+	for key, values := range req.Header {
+		if len(values) > 0 {
+			headerMap[key] = values[0]
+		}
+	}
+
+	// Call EnsureTenantHeaders
+	updatedHeaders := invoke.EnsureTenantHeaders(headerMap, tenantID, c.serviceName)
+
+	// Convert back to http.Header
+	for key, value := range updatedHeaders {
+		req.Header.Set(key, value)
 	}
 
 	// Add service identity headers for internal tracing/auth

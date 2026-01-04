@@ -7,6 +7,8 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	autherrors "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/errors"
+	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	domain "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/billing-service/internal/domain/wallet"
 )
 
@@ -93,4 +95,18 @@ func (r *WalletRepository) FindTransactionByReference(ctx context.Context, walle
 		return nil, err
 	}
 	return &tx, nil
+}
+
+// requireTenantMatch verifica se o tenant no contexto corresponde ao tenant fornecido.
+func requireTenantMatch(ctx context.Context, tenantID uuid.UUID) error {
+	tenantCtx, err := authmw.TenantIDFromContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	if tenantCtx != "platform" && tenantCtx != tenantID.String() {
+		return autherrors.ErrInsufficientPermissions
+	}
+
+	return nil
 }
