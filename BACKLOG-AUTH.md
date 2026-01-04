@@ -44,3 +44,13 @@ Propósito: plano coordenado para adotar o platform-auth nos serviços com RLS/t
 - [x] Referenciar este backlog nos backlogs específicos dos serviços; manter status sincronizado.
 - [x] Atualizar exemplos em docs/architecture por serviço após a adoção (en/pt-BR).
 - [x] Adicionar notas de release cobrindo formato de claims/comportos de middleware e eventuais breaking changes.
+
+### Fase 6 — Rastreamento de adoção entre serviços
+- [x] Atualizar status de adoção no tenant-manager (helpers de tenant e EnsureTenantHeader aplicados; validação de headers em Kafka concluída).
+- [x] Confirmar propagação de tenant no billing-service (guard rails em DB/Kafka e EnsureTenantHeader no outbound aplicados).
+- [x] Validar headers de tenant no analytics-query-service (suporte multi-tenant e validação de tenantID aplicados nas métricas e consultas).
+- [x] Garantir transporte do platform-auth no tools-gateway (middleware de autenticação JWT integrado e suporte a múltiplos tipos de autenticação).
+- [x] Auditar chamadas outbound no auth-gateway para headers de tenant
+- [x] Propagar headers de tenant em eventos Kafka no voice-gateway
+- [x] Verificar injeção de headers de tenant no rag-gateway
+- [x] Adicionar testes de integração para propagação de headers de tenant

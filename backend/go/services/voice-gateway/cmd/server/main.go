@@ -103,7 +103,7 @@ func main() {
 	// HTTP server for management API
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),
-		Handler:      httpadapter.NewRouter(callSvc, log),
+		Handler:      httpadapter.NewRouter(callSvc, log, redisClient, eventPublisher, asteriskClient),
 		ReadTimeout:  cfg.Server.ReadTimeout,
 		WriteTimeout: cfg.Server.WriteTimeout,
 		IdleTimeout:  cfg.Server.IdleTimeout,

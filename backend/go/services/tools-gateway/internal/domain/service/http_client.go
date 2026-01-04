@@ -128,6 +128,11 @@ func (c *httpClientImpl) executeOnce(ctx context.Context, tool *entity.Tool, inp
 		req.Header.Set(middleware.TenantIDHeader, tenantID)
 	}
 
+	// Adiciona validação do TenantID no contexto
+	if err := middleware.EnsureTenantHeader(ctx, req.Header); err != nil {
+		return nil, fmt.Errorf("tenant header validation failed: %w", err)
+	}
+
 	// Add service identity headers for internal tracing/auth
 	c.addServiceIdentity(req)
 

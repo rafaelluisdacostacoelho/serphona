@@ -555,6 +555,11 @@ func (r *TenantRepository) scanTenant(ctx context.Context, row pgx.Row) (*tenant
 		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
 	}
 
+	// Adiciona validação do TenantID no contexto
+	if err := requireTenantMatch(ctx, t.ID); err != nil {
+		return nil, fmt.Errorf("tenant ID mismatch: %w", err)
+	}
+
 	return &t, nil
 }
 

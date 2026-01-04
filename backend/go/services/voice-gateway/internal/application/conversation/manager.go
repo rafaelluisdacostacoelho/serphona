@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"voice-gateway/internal/adapter/events"
+	"voice-gateway/internal/adapter/tenant"
 )
 
 // Manager manages active conversations and their state.
@@ -184,4 +185,49 @@ func (m *Manager) ListActiveConversations() []*Conversation {
 	}
 
 	return conversations
+}
+
+// StartConversation initializes a conversation and fetches agent config from tenant-manager.
+func (m *Manager) StartConversation(ctx context.Context, callID, tenantID uuid.UUID, agentClient AgentClient, tenantClient TenantClient) (*Conversation, error) {
+	// Fetch agent configuration from tenant-manager
+	agentConfig, err := tenantClient.GetAgentConfig(ctx, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch agent config: %w", err)
+	}
+
+	// Create a new conversation
+	conv, err := m.CreateConversation(ctx, callID, tenantID, agentConfig.AgentID, agentConfig.Safety.MaxTurns)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create conversation: %w", err)
+	}
+
+	// Fetch provider settings for the tenant
+	providerSettings, err := tenantClient.GetProviderSettings(ctx, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch provider settings: %w", err)
+	}
+
+	// Store provider settings in the conversation context
+	conv.Context["provider_settings"] = providerSettings
+
+	m.logger.Info("conversation started",
+		zap.String("conversation_id", conv.ID.String()),
+		zap.String("call_id", callID.String()),
+		zap.String("tenant_id", tenantID.String()),
+	)
+
+	return conv, nil
+}
+
+// Define AgentClient and TenantClient interfaces
+
+// AgentClient defines methods for interacting with the agent orchestrator.
+type AgentClient interface {
+	// Example method: CreateConversation(ctx context.Context, tenantID uuid.UUID, agentID string) error
+}
+
+// TenantClient defines methods for interacting with the tenant manager.
+type TenantClient interface {
+	GetAgentConfig(ctx context.Context, tenantID uuid.UUID) (*tenant.AgentConfig, error)
+	GetProviderSettings(ctx context.Context, tenantID uuid.UUID) (*tenant.ProviderSettings, error)
 }

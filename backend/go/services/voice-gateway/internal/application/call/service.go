@@ -24,7 +24,7 @@ type Service struct {
 	// Infrastructure
 	asteriskClient *asterisk.ARIClientHTTP
 	callStateRepo  *redis.CallStateRepository
-	eventPublisher *events.Publisher
+	eventPublisher events.Publisher
 	logger         *zap.Logger
 	tenantClient   *tenant.Client
 	agentClient    *agent.Client
@@ -41,7 +41,7 @@ type Service struct {
 func NewService(
 	asteriskClient *asterisk.ARIClientHTTP,
 	callStateRepo *redis.CallStateRepository,
-	eventPublisher *events.Publisher,
+	eventPublisher events.Publisher,
 	tenantClient *tenant.Client,
 	agentClient *agent.Client,
 	sttProviders map[string]stt.Provider,
@@ -216,7 +216,7 @@ func (s *Service) TransferCall(ctx context.Context, callID uuid.UUID, transferTy
 	}
 
 	// Publish transfer event
-	if err := s.eventPublisher.PublishCallTransferred(ctx, callID, c.TenantID, c.ConversationID, transferType, target, reason); err != nil {
+	if err := s.eventPublisher.PublishCallTransferred(ctx, c); err != nil {
 		s.logger.Error("failed to publish transfer event", zap.Error(err))
 	}
 

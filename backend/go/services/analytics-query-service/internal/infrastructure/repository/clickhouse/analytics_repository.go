@@ -22,6 +22,10 @@ func (r *AnalyticsRepository) GetOverviewMetrics(ctx context.Context, tenantID s
 	if err := authmw.EnforceTenant(ctx, tenantID); err != nil {
 		return nil, err
 	}
+	// Adiciona validação do TenantID no contexto
+	if err := authmw.EnforceTenant(ctx, tenantID); err != nil {
+		return nil, fmt.Errorf("tenant ID mismatch: %w", err)
+	}
 	query := `
 		SELECT 
 			count() as total_calls,

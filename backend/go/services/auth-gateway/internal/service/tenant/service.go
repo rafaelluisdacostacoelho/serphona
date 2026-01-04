@@ -75,6 +75,7 @@ func (s *Service) CreateTenant(ctx context.Context, name, email, plan, billingEm
 		req.Header.Set("Authorization", "Bearer "+s.serviceToken)
 	}
 
+	// Adiciona validação do TenantID no contexto
 	if tenantID, err := authmw.TenantIDFromContext(ctx); err == nil && tenantID != "" {
 		req.Header = authmw.EnsureTenantHeader(req.Header, tenantID)
 	}

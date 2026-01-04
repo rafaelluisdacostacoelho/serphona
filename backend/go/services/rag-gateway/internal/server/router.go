@@ -18,7 +18,7 @@ func NewRouter(ragHandler handler.RAGHandler) *gin.Engine {
 	router.GET("/health", health.Get)
 
 	api := router.Group("/api/v1")
-	api.Use(middleware.InjectTenant("X-Tenant-ID", "stub-tenant"))
+	api.Use(middleware.EnsureTenantHeader("X-Tenant-ID"))
 	{
 		api.POST("/ingest", ragHandler.Ingest)
 		api.POST("/query", ragHandler.Query)

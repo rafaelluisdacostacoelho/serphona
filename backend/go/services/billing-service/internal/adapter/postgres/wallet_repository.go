@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -35,6 +36,10 @@ func (r *WalletRepository) FindByID(ctx context.Context, id uuid.UUID) (*domain.
 
 func (r *WalletRepository) FindByTenantID(ctx context.Context, tenantID uuid.UUID) (*domain.Wallet, error) {
 	var w domain.Wallet
+	// Adiciona validação do TenantID no contexto
+	if err := requireTenantMatch(ctx, tenantID); err != nil {
+		return nil, fmt.Errorf("tenant ID mismatch: %w", err)
+	}
 	if err := r.db.WithContext(ctx).First(&w, "tenant_id = ?", tenantID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
