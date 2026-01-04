@@ -89,7 +89,7 @@ func main() {
 	authMiddleware := middleware.NewAuthMiddleware(jwtService)
 
 	// Setup router
-	router := setupRouter(authHandler, authMiddleware, cfg)
+	router := setupRouter(authHandler, authMiddleware, cfg, logger)
 
 	// Start HTTP server
 	srv := &http.Server{
@@ -207,18 +207,19 @@ func registerOAuthProviders(authUC *auth.UseCase, cfg config.OAuthConfig, logger
 }
 
 // setupRouter sets up the Gin router with all routes
-func setupRouter(authHandler *handler.AuthHandler, authMiddleware *middleware.AuthMiddleware, cfg *config.Config) *gin.Engine {
+func setupRouter(authHandler *handler.AuthHandler, authMiddleware *middleware.AuthMiddleware, cfg *config.Config, logger *zap.Logger) *gin.Engine {
 	// Set Gin mode
 	if cfg.Server.Env == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
 	router := gin.Default()
-	router.Use(middleware.Metrics())
 
-	// Middleware
+	// Middleware order: correlation -> logging -> metrics -> CORS -> recovery.
 	router.Use(middleware.Correlation())
-	router.Use(middleware.CORS())
+	router.Use(middleware.RequestLogger(logger))
+	router.Use(middleware.Metrics())
+	router.Use(middleware.CORS(cfg.Server.AllowedOrigins, cfg.Server.AllowCredentials))
 	router.Use(gin.Recovery())
 
 	// Health and metrics

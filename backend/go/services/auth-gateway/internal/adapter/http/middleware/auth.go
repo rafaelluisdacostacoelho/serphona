@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/auth-gateway/internal/observability"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/auth-gateway/internal/service/jwt"
 )
 
@@ -62,6 +64,10 @@ func (m *AuthMiddleware) Authenticate() gin.HandlerFunc {
 		c.Set("tenantID", claims.TenantID)
 		c.Set("role", claims.Role)
 
+		if claims.TenantID == uuid.Nil {
+			observability.RecordTenantMissing(c.FullPath())
+		}
+
 		c.Next()
 	}
 }
@@ -95,16 +101,50 @@ func (m *AuthMiddleware) RequireRole(roles ...string) gin.HandlerFunc {
 	}
 }
 
-// CORS middleware for handling cross-origin requests
-func CORS() gin.HandlerFunc {
+// CORS middleware for handling cross-origin requests with allowlist and fail-closed defaults.
+func CORS(allowedOrigins []string, allowCredentials bool) gin.HandlerFunc {
+	originAllowed := func(origin string) bool {
+		if origin == "" {
+			return false
+		}
+		for _, o := range allowedOrigins {
+			if strings.EqualFold(o, origin) {
+				return true
+			}
+		}
+		return false
+	}
+
 	return func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+		origin := c.GetHeader("Origin")
+		allowed := originAllowed(origin)
+
+		if allowed {
+			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+			if allowCredentials {
+				c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+			}
+		} else {
+			// Fail closed: no wildcard; credentials not allowed.
+			c.Writer.Header().Set("Access-Control-Allow-Origin", "")
+			c.Writer.Header().Del("Access-Control-Allow-Credentials")
+		}
+
+		headers := "Content-Type, Content-Length, Accept-Encoding, Authorization, Accept, Origin, Cache-Control, X-Requested-With"
+		c.Writer.Header().Set("Access-Control-Allow-Headers", headers)
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
 
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
+		if c.Request.Method == http.MethodOptions {
+			if !allowed {
+				c.AbortWithStatus(http.StatusForbidden)
+				return
+			}
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+
+		if !allowed {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"message": "origin not allowed", "code": "FORBIDDEN"})
 			return
 		}
 

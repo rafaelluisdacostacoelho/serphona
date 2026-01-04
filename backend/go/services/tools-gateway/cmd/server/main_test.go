@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,8 +11,11 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	authjwt "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/jwt"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/types"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/adapter/http/handler"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/adapter/http/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/entity"
@@ -19,11 +23,13 @@ import (
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/usecase"
 )
 
+const testJWTSecret = "test-secret"
+
 func TestRouterListsToolsAndExposesMetrics(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	router := newTestRouter(t)
+	router, token := newTestRouter(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/tools?limit=5&offset=0", nil)
+	req := authedRequest(http.MethodGet, "/api/v1/tools?limit=5&offset=0", nil, token)
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 
@@ -61,9 +67,9 @@ func TestRouterListsToolsAndExposesMetrics(t *testing.T) {
 
 func TestRouterRecordsErrorMetrics(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	router := newTestRouter(t)
+	router, token := newTestRouter(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/tools/not-a-uuid", nil)
+	req := authedRequest(http.MethodGet, "/api/v1/tools/not-a-uuid", nil, token)
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 
@@ -86,7 +92,7 @@ func TestRouterRecordsErrorMetrics(t *testing.T) {
 
 func TestHealthAndServerErrorMetrics(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	router := newTestRouter(t)
+	router, token := newTestRouter(t)
 
 	// Health check
 	healthResp := httptest.NewRecorder()
@@ -101,7 +107,7 @@ func TestHealthAndServerErrorMetrics(t *testing.T) {
 	})
 
 	boomResp := httptest.NewRecorder()
-	router.ServeHTTP(boomResp, httptest.NewRequest(http.MethodGet, "/boom", nil))
+	router.ServeHTTP(boomResp, authedRequest(http.MethodGet, "/boom", nil, token))
 	if boomResp.Code != http.StatusInternalServerError {
 		t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, boomResp.Code)
 	}
@@ -120,7 +126,7 @@ func TestHealthAndServerErrorMetrics(t *testing.T) {
 
 func TestUnknownPathMetrics(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	router := newTestRouter(t)
+	router, _ := newTestRouter(t)
 
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, httptest.NewRequest(http.MethodGet, "/does-not-exist", nil))
@@ -137,6 +143,21 @@ func TestUnknownPathMetrics(t *testing.T) {
 	metricsBody := metricsResp.Body.String()
 	if !strings.Contains(metricsBody, `tools_gateway_requests_total{method="GET",path="unknown",status="4xx"}`) {
 		t.Fatalf("metrics did not record unknown path: %s", metricsBody)
+	}
+}
+
+func TestExecuteToolRequiresScope(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router, _ := newTestRouter(t)
+
+	token := newTestToken(t, "tools:read")
+	body := strings.NewReader(`{"input":{}}`)
+	path := "/api/v1/tools/" + uuid.NewString() + "/execute"
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, authedRequest(http.MethodPost, path, body, token))
+
+	if resp.Code != http.StatusForbidden {
+		t.Fatalf("expected status %d, got %d", http.StatusForbidden, resp.Code)
 	}
 }
 
@@ -214,12 +235,51 @@ func (s *stubExecutorService) GetCostBreakdown(ctx context.Context, tenantID uui
 	return nil, nil
 }
 
-func newTestRouter(t *testing.T) *gin.Engine {
+func newTestRouter(t *testing.T) (*gin.Engine, string) {
 	t.Helper()
+
+	t.Setenv("JWT_SECRET", testJWTSecret)
+	authjwt.ResetValidationConfigForTests()
+
+	token := newTestToken(t)
 
 	reg := prometheus.NewRegistry()
 	middleware.SetMetricsRegisterer(reg)
 	t.Cleanup(func() { middleware.SetMetricsRegisterer(nil) })
 
-	return setupRouter(newToolHandler())
+	return setupRouter(newToolHandler()), token
+}
+
+func newTestToken(t *testing.T, scopes ...string) string {
+	t.Helper()
+
+	if len(scopes) == 0 {
+		scopes = []string{"tools:read", "tools:write", "tools:execute"}
+	}
+
+	claims := types.Claims{
+		UserID:   uuid.NewString(),
+		Email:    "user@example.com",
+		Name:     "Test User",
+		Role:     "user",
+		TenantID: uuid.NewString(),
+		Scopes:   scopes,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signed, err := token.SignedString([]byte(testJWTSecret))
+	if err != nil {
+		t.Fatalf("failed to sign token: %v", err)
+	}
+
+	return signed
+}
+
+func authedRequest(method, path string, body io.Reader, token string) *http.Request {
+	req := httptest.NewRequest(method, path, body)
+	req.Header.Set("Authorization", "Bearer "+token)
+	return req
 }

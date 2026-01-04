@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -21,9 +22,11 @@ type Config struct {
 
 // ServerConfig holds server configuration
 type ServerConfig struct {
-	Port string
-	Host string
-	Env  string
+	Port             string
+	Host             string
+	Env              string
+	AllowedOrigins   []string
+	AllowCredentials bool
 }
 
 // DatabaseConfig holds database configuration
@@ -86,9 +89,11 @@ func Load() (*Config, error) {
 
 	config := &Config{
 		Server: ServerConfig{
-			Port: getEnv("SERVER_PORT", "8080"),
-			Host: getEnv("SERVER_HOST", "0.0.0.0"),
-			Env:  getEnv("ENV", "development"),
+			Port:             getEnv("SERVER_PORT", "8080"),
+			Host:             getEnv("SERVER_HOST", "0.0.0.0"),
+			Env:              getEnv("ENV", "development"),
+			AllowedOrigins:   parseCSV(getEnv("CORS_ALLOWED_ORIGINS", "")),
+			AllowCredentials: getEnv("CORS_ALLOW_CREDENTIALS", "false") == "true",
 		},
 		Database: DatabaseConfig{
 			Host:     getEnv("DB_HOST", "localhost"),
@@ -157,6 +162,17 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+func parseCSV(s string) []string {
+	parts := []string{}
+	for _, p := range strings.Split(s, ",") {
+		trimmed := strings.TrimSpace(p)
+		if trimmed != "" {
+			parts = append(parts, trimmed)
+		}
+	}
+	return parts
 }
 
 // parseDuration parses duration string

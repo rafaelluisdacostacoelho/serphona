@@ -7,6 +7,8 @@
 # -----------------------------------------------------------------------------
 # Global Settings
 # -----------------------------------------------------------------------------
+enabled: false
+
 global:
   # Environment: dev, staging, production
   environment: dev
@@ -59,6 +61,46 @@ service:
   port: 8080
   targetPort: 8080
   annotations: {}
+
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  scrapeTimeout: 10s
+  path: /metrics
+  labels: {}
+  annotations: {}
+  relabelings: []
+  metricRelabelings: []
+  additionalEndpoints: []
+
+prometheusRule:
+  enabled: true
+  labels:
+    service: api-gateway
+  annotations: {}
+  groups:
+    - name: api-gateway.http
+      rules:
+        - alert: ApiGatewayHighErrorRate
+          expr: |
+            sum(rate(http_requests_total{service="api-gateway",status=~"5.."}[5m])) /
+            clamp_min(sum(rate(http_requests_total{service="api-gateway"}[5m])), 1e-6) > 0.05
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High HTTP 5xx ratio in api-gateway"
+            description: "HTTP 5xx ratio > 5% over 10m for api-gateway."
+
+        - alert: ApiGatewayLatencyHighP95
+          expr: |
+            histogram_quantile(0.95, sum by(le) (rate(http_request_duration_seconds_bucket{service="api-gateway"}[5m]))) > 1
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "HTTP latency p95 > 1s in api-gateway"
+            description: "p95 HTTP latency above 1s over 10m for api-gateway."
 
 # -----------------------------------------------------------------------------
 # Ingress Configuration

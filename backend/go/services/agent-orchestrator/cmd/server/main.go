@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/adapter/http/handler"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/domain/repository"
 	toolsHTTP "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/infrastructure/http"
@@ -191,6 +192,9 @@ func setupRouter(sessionHandler *handler.SessionHandler, agentHandler *handler.A
 	// Health check
 	router.GET("/health", healthCheckHandler)
 	router.GET("/ready", readinessHandler)
+
+	// Prometheus metrics
+	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	// API v1 routes
 	v1 := router.Group("/api/v1")

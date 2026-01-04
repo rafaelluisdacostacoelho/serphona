@@ -1,0 +1,82 @@
+global:
+  environment: production
+
+image:
+  tag: prod
+
+env:
+  CORS_ALLOWED_ORIGINS: "https://app.serphona.com,https://console.serphona.com"
+
+  DB_USER:
+    valueFrom:
+      secretKeyRef:
+        name: auth-gateway-db-prod
+        key: username
+  DB_PASSWORD:
+    valueFrom:
+      secretKeyRef:
+        name: auth-gateway-db-prod
+        key: password
+
+  JWT_SECRET:
+    valueFrom:
+      secretKeyRef:
+        name: auth-gateway-auth-prod
+        key: jwtSecret
+
+  OAUTH_GOOGLE_CLIENT_SECRET:
+    valueFrom:
+      secretKeyRef:
+        name: auth-gateway-oauth-prod
+        key: googleClientSecret
+  OAUTH_MICROSOFT_CLIENT_SECRET:
+    valueFrom:
+      secretKeyRef:
+        name: auth-gateway-oauth-prod
+        key: microsoftClientSecret
+  OAUTH_APPLE_CLIENT_SECRET:
+    valueFrom:
+      secretKeyRef:
+        name: auth-gateway-oauth-prod
+        key: appleClientSecret
+
+  REDIS_PASSWORD:
+    valueFrom:
+      secretKeyRef:
+        name: auth-gateway-redis-prod
+        key: password
+
+  SERVICE_AUTH_TOKEN:
+    valueFrom:
+      secretKeyRef:
+        name: auth-gateway-auth-prod
+        key: serviceAuthToken
+
+serviceMonitor:
+  enabled: true
+
+prometheusRule:
+  enabled: true
+  labels:
+    env: prod
+  severityLabels:
+    failure: warning
+    latencyP95: warning
+    latencyP99: critical
+    tenantMissing: warning
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: auth.serphona.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: auth-gateway-prod-tls
+      hosts:
+        - auth.serphona.com

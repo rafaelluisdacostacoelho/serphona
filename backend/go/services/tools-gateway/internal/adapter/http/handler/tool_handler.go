@@ -125,24 +125,20 @@ func (h *ToolHandler) ExecuteTool(c *gin.Context) {
 		return
 	}
 
-	tenantVal, ok := c.Get("tenant_id")
-	if !ok {
-		response.WriteError(ctx, c.Writer, http.StatusUnauthorized, "UNAUTHORIZED", "tenant_id not found in context", nil)
+	claims, err := middleware.GetClaimsFromContext(c)
+	if err != nil {
+		response.WriteError(ctx, c.Writer, http.StatusUnauthorized, "UNAUTHORIZED", "claims not found in context", nil)
 		return
 	}
-	tenantID, ok := tenantVal.(uuid.UUID)
-	if !ok {
+
+	tenantID, err := uuid.Parse(claims.TenantID)
+	if err != nil {
 		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_TENANT_ID", "tenant_id has invalid format", nil)
 		return
 	}
 
-	userVal, ok := c.Get("user_id")
-	if !ok {
-		response.WriteError(ctx, c.Writer, http.StatusUnauthorized, "UNAUTHORIZED", "user_id not found in context", nil)
-		return
-	}
-	userID, ok := userVal.(uuid.UUID)
-	if !ok {
+	userID, err := uuid.Parse(claims.UserID)
+	if err != nil {
 		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_USER_ID", "user_id has invalid format", nil)
 		return
 	}

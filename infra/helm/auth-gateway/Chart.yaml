@@ -1,0 +1,7 @@
+apiVersion: v2
+name: auth-gateway
+description: Auth Gateway service chart
+kubeVersion: ">=1.23.0"
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

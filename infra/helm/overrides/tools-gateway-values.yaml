@@ -9,8 +9,31 @@ env:
   SERVICE_NAME: tools-gateway
   SERVICE_INSTANCE: tools-gateway-1
   SERVICE_AUDIENCE: serphona-services # TODO: set to actual audience
-  TOOLS_GATEWAY_TOKEN: "REPLACE_WITH_SERVICE_TOKEN"
-  SERVICE_AUTH_TOKEN: "" # optional, if used elsewhere
+  # Auth/JWKS (produção): preferir validação com chave pública
+  JWT_VALIDATION_JWKS_URL: https://auth.example.com/.well-known/jwks.json
+  JWT_VALIDATION_ISSUER: https://auth.example.com/
+  JWT_VALIDATION_AUDIENCE: serphona-services
+  JWT_ALLOWED_ALGS: RS256
+  JWT_JWKS_CACHE_TTL: 5m
+
+  # Fallback local/dev (não usar em prod):
+  JWT_SECRET:
+    valueFrom:
+      secretKeyRef:
+        name: tools-gateway-auth
+        key: jwtSecret
+
+  # Tokens de serviço (referencie Secrets em vez de literal)
+  TOOLS_GATEWAY_TOKEN:
+    valueFrom:
+      secretKeyRef:
+        name: tools-gateway-auth
+        key: toolsGatewayToken
+  SERVICE_AUTH_TOKEN:
+    valueFrom:
+      secretKeyRef:
+        name: tools-gateway-auth
+        key: serviceAuthToken
 
 resources:
   requests:

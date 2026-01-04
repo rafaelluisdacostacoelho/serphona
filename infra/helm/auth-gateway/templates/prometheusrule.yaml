@@ -1,0 +1,80 @@
+{{- if .Values.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "auth-gateway.fullname" . }}-auth
+  labels:
+    {{- include "auth-gateway.labels" . | nindent 4 }}
+    {{- with .Values.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.prometheusRule.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  groups:
+    - name: auth-gateway.auth
+      rules:
+        - alert: AuthGatewayHighFailureRate
+          expr: |
+            sum by (event) (rate(auth_gateway_auth_events_total{outcome="failure"}[5m])) /
+            clamp_min(sum by (event) (rate(auth_gateway_auth_events_total[5m])), 1e-6) > {{ .Values.prometheusRule.failureRatioWarning }}
+          for: {{ .Values.prometheusRule.failureFor }}
+          labels:
+            severity: {{ .Values.prometheusRule.severityLabels.failure | quote }}
+            service: auth-gateway
+            component: auth
+          annotations:
+            summary: "Auth failure ratio above {{ mul .Values.prometheusRule.failureRatioWarning 100 }}% (event {{`{{ $labels.event }}`}})"
+            description: |
+              Auth failures are above threshold for event {{`{{ $labels.event }}`}} in auth-gateway.
+              Investigate auth service health, upstream IDP latency, or bad credentials bursts.
+
+        - alert: AuthGatewayLatencyHighP95
+          expr: |
+            histogram_quantile(
+              0.95,
+              sum by (le, event) (rate(auth_gateway_auth_duration_seconds_bucket{outcome="success"}[5m]))
+            ) > {{ .Values.prometheusRule.latencyP95 }}
+          for: {{ .Values.prometheusRule.latencyP95For }}
+          labels:
+            severity: {{ .Values.prometheusRule.severityLabels.latencyP95 | quote }}
+            service: auth-gateway
+            component: auth
+          annotations:
+            summary: "Auth latency p95 above {{ .Values.prometheusRule.latencyP95 }}s (event {{`{{ $labels.event }}`}})"
+            description: |
+              95th percentile latency above threshold for auth event {{`{{ $labels.event }}`}}.
+              Check downstream dependencies (DB, cache, IDP) and recent deployments.
+
+        - alert: AuthGatewayLatencyHighP99
+          expr: |
+            histogram_quantile(
+              0.99,
+              sum by (le, event) (rate(auth_gateway_auth_duration_seconds_bucket{outcome="success"}[5m]))
+            ) > {{ .Values.prometheusRule.latencyP99 }}
+          for: {{ .Values.prometheusRule.latencyP99For }}
+          labels:
+            severity: {{ .Values.prometheusRule.severityLabels.latencyP99 | quote }}
+            service: auth-gateway
+            component: auth
+          annotations:
+            summary: "Auth latency p99 above {{ .Values.prometheusRule.latencyP99 }}s (event {{`{{ $labels.event }}`}})"
+            description: |
+              99th percentile latency above threshold for auth event {{`{{ $labels.event }}`}}.
+              Likely saturation or dependency failure; roll back or scale.
+
+        - alert: AuthGatewayTenantMissing
+          expr: sum(rate(auth_gateway_tenant_missing_total[5m])) > 0
+          for: {{ .Values.prometheusRule.tenantMissingFor }}
+          labels:
+            severity: {{ .Values.prometheusRule.severityLabels.tenantMissing | quote }}
+            service: auth-gateway
+            component: tenant
+          annotations:
+            summary: "Requests missing tenant_id detected"
+            description: |
+              At least one request in the last 5m arrived without tenant_id in context.
+              Inspect callers and ensure tenant propagation and RLS guards are intact.
+{{- end }}

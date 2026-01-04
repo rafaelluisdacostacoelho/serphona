@@ -1,0 +1,129 @@
+global:
+  imageRegistry: ""
+  environment: production
+
+image:
+  repository: tools-gateway
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8080
+
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  scrapeTimeout: 10s
+  path: /metrics
+  labels: {}
+  annotations: {}
+  relabelings: []
+  metricRelabelings: []
+  additionalEndpoints: []
+
+prometheusRule:
+  enabled: true
+  labels:
+    service: tools-gateway
+  annotations: {}
+  groups:
+    - name: tools-gateway.http
+      rules:
+        - alert: ToolsGatewayHighErrorRate
+          expr: |
+            sum(rate(tools_gateway_requests_total{status="5xx"}[5m])) /
+            clamp_min(sum(rate(tools_gateway_requests_total[5m])), 1e-6) > 0.05
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High HTTP 5xx ratio in tools-gateway"
+            description: "HTTP 5xx ratio > 5% over 10m for tools-gateway."
+
+        - alert: ToolsGatewayLatencyHighP95
+          expr: |
+            histogram_quantile(0.95, sum by(le) (rate(tools_gateway_request_duration_seconds_bucket[5m]))) > 1
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "HTTP latency p95 > 1s in tools-gateway"
+            description: "p95 HTTP latency above 1s over 10m for tools-gateway."
+
+replicaCount: 2
+
+env:
+  SERVICE_NAME: tools-gateway
+  SERVICE_INSTANCE: tools-gateway-1
+  SERVICE_AUDIENCE: serphona-services
+
+  # Auth/JWKS (produção)
+  JWT_VALIDATION_JWKS_URL: ""
+  JWT_VALIDATION_ISSUER: ""
+  JWT_VALIDATION_AUDIENCE: serphona-services
+  JWT_ALLOWED_ALGS: RS256
+  JWT_JWKS_CACHE_TTL: 5m
+
+  # Fallback dev (não usar em prod) - proveniente de Secret
+  JWT_SECRET:
+    valueFrom:
+      secretKeyRef:
+        name: tools-gateway-auth
+        key: jwtSecret
+
+  # Tokens de serviço (Secret)
+  TOOLS_GATEWAY_TOKEN:
+    valueFrom:
+      secretKeyRef:
+        name: tools-gateway-auth
+        key: toolsGatewayToken
+  SERVICE_AUTH_TOKEN:
+    valueFrom:
+      secretKeyRef:
+        name: tools-gateway-auth
+        key: serviceAuthToken
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+podAnnotations: {}
+podLabels: {}
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+extraEnv: []
+extraEnvFrom: []
+extraVolumeMounts: []
+extraVolumes: []

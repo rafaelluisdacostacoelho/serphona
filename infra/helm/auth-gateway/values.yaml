@@ -1,0 +1,173 @@
+global:
+  imageRegistry: ""
+  environment: production
+
+image:
+  repository: auth-gateway
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8080
+
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  scrapeTimeout: 10s
+  path: /metrics
+  labels: {}
+  annotations: {}
+  relabelings: []
+  metricRelabelings: []
+  additionalEndpoints: []
+
+prometheusRule:
+  enabled: false
+  labels: {}
+  annotations: {}
+  failureRatioWarning: 0.1
+  failureFor: 10m
+  latencyP95: 1
+  latencyP95For: 10m
+  latencyP99: 2
+  latencyP99For: 10m
+  tenantMissingFor: 5m
+  severityLabels:
+    failure: warning
+    latencyP95: warning
+    latencyP99: critical
+    tenantMissing: warning
+
+ingress:
+  enabled: false
+  className: "nginx"
+  annotations: {}
+  hosts:
+    - host: auth.serphona.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+replicaCount: 2
+
+env:
+  SERVER_PORT: "8080"
+  SERVER_HOST: "0.0.0.0"
+  ENV: "production"
+  CORS_ALLOWED_ORIGINS: "https://app.serphona.com,https://console.serphona.com"
+  CORS_ALLOW_CREDENTIALS: "true"
+
+  DB_HOST: "auth-gateway-postgres"
+  DB_PORT: "5432"
+  DB_USER:
+    valueFrom:
+      secretKeyRef:
+        name: auth-gateway-db
+        key: username
+  DB_PASSWORD:
+    valueFrom:
+      secretKeyRef:
+        name: auth-gateway-db
+        key: password
+  DB_NAME: "serphona_auth"
+  DB_SSLMODE: "disable"
+
+  JWT_SECRET:
+    valueFrom:
+      secretKeyRef:
+        name: auth-gateway-auth
+        key: jwtSecret
+  JWT_ACCESS_TOKEN_DURATION: "15m"
+  JWT_REFRESH_TOKEN_DURATION: "168h"
+
+  OAUTH_GOOGLE_CLIENT_ID: ""
+  OAUTH_GOOGLE_CLIENT_SECRET:
+    valueFrom:
+      secretKeyRef:
+        name: auth-gateway-oauth
+        key: googleClientSecret
+  OAUTH_GOOGLE_REDIRECT_URL: "https://auth.serphona.com/api/v1/auth/oauth/google/callback"
+  OAUTH_GOOGLE_ENABLED: "false"
+
+  OAUTH_MICROSOFT_CLIENT_ID: ""
+  OAUTH_MICROSOFT_CLIENT_SECRET:
+    valueFrom:
+      secretKeyRef:
+        name: auth-gateway-oauth
+        key: microsoftClientSecret
+  OAUTH_MICROSOFT_REDIRECT_URL: "https://auth.serphona.com/api/v1/auth/oauth/microsoft/callback"
+  OAUTH_MICROSOFT_ENABLED: "false"
+
+  OAUTH_APPLE_CLIENT_ID: ""
+  OAUTH_APPLE_CLIENT_SECRET:
+    valueFrom:
+      secretKeyRef:
+        name: auth-gateway-oauth
+        key: appleClientSecret
+  OAUTH_APPLE_REDIRECT_URL: "https://auth.serphona.com/api/v1/auth/oauth/apple/callback"
+  OAUTH_APPLE_ENABLED: "false"
+
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+  REDIS_PASSWORD:
+    valueFrom:
+      secretKeyRef:
+        name: auth-gateway-redis
+        key: password
+
+  SERVICE_NAME: auth-gateway
+  SERVICE_INSTANCE: auth-gateway-1
+  SERVICE_AUDIENCE: serphona-services
+
+  TENANT_MANAGER_URL: "http://tenant-manager.default.svc.cluster.local:8080"
+  SERVICE_AUTH_TOKEN:
+    valueFrom:
+      secretKeyRef:
+        name: auth-gateway-auth
+        key: serviceAuthToken
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+podAnnotations: {}
+podLabels: {}
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+extraEnv: []
+extraEnvFrom: []
+extraVolumeMounts: []
+extraVolumes: []

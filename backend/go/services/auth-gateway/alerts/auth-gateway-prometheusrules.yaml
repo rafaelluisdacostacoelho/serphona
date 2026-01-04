@@ -1,0 +1,74 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: auth-gateway-auth-metrics
+  labels:
+    app.kubernetes.io/name: auth-gateway
+    app.kubernetes.io/component: auth
+    app.kubernetes.io/part-of: platform-auth
+spec:
+  groups:
+    - name: auth-gateway.auth
+      rules:
+        - alert: AuthGatewayHighFailureRate
+          expr: |
+            sum by (event) (rate(auth_gateway_auth_events_total{outcome="failure"}[5m]))
+              /
+            clamp_min(sum by (event) (rate(auth_gateway_auth_events_total[5m])), 1e-6) > 0.1
+          for: 10m
+          labels:
+            severity: warning
+            service: auth-gateway
+            component: auth
+          annotations:
+            summary: "Auth failure ratio > 10% (event {{ $labels.event }})"
+            description: |
+              Auth failures are above 10% for event {{ $labels.event }} in auth-gateway.
+              Investigate auth service health, upstream IDP latency, or bad credentials bursts.
+
+        - alert: AuthGatewayLatencyHighP95
+          expr: |
+            histogram_quantile(
+              0.95,
+              sum by (le, event) (rate(auth_gateway_auth_duration_seconds_bucket{outcome="success"}[5m]))
+            ) > 1
+          for: 10m
+          labels:
+            severity: warning
+            service: auth-gateway
+            component: auth
+          annotations:
+            summary: "Auth latency p95 > 1s (event {{ $labels.event }})"
+            description: |
+              95th percentile latency above 1s for auth event {{ $labels.event }}.
+              Check downstream dependencies (DB, cache, IDP) and recent deployments.
+
+        - alert: AuthGatewayLatencyHighP99
+          expr: |
+            histogram_quantile(
+              0.99,
+              sum by (le, event) (rate(auth_gateway_auth_duration_seconds_bucket{outcome="success"}[5m]))
+            ) > 2
+          for: 10m
+          labels:
+            severity: critical
+            service: auth-gateway
+            component: auth
+          annotations:
+            summary: "Auth latency p99 > 2s (event {{ $labels.event }})"
+            description: |
+              99th percentile latency above 2s for auth event {{ $labels.event }}.
+              Likely saturation or dependency failure; roll back or scale.
+
+        - alert: AuthGatewayTenantMissing
+          expr: sum(rate(auth_gateway_tenant_missing_total[5m])) > 0
+          for: 5m
+          labels:
+            severity: warning
+            service: auth-gateway
+            component: tenant
+          annotations:
+            summary: "Requests missing tenant_id detected"
+            description: |
+              At least one request in the last 5m arrived without tenant_id in context.
+              Inspect callers and ensure tenant propagation and RLS guards are intact.

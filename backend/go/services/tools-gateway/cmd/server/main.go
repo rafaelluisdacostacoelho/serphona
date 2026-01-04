@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/adapter/http/handler"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/adapter/http/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/service"
@@ -92,6 +92,7 @@ func initDB() (*gorm.DB, error) {
 
 func setupRouter(toolHandler *handler.ToolHandler) *gin.Engine {
 	router := gin.Default()
+	router.Use(middleware.RequestLogger(nil))
 	router.Use(middleware.Metrics())
 
 	// Health check
@@ -102,23 +103,16 @@ func setupRouter(toolHandler *handler.ToolHandler) *gin.Engine {
 	// Prometheus metrics endpoint
 	router.GET("/metrics", gin.WrapH(promhttp.HandlerFor(middleware.MetricsGatherer(), promhttp.HandlerOpts{})))
 
-	// Mock auth middleware (replace with real auth later)
-	authMiddleware := func(c *gin.Context) {
-		// Mock tenant and user IDs for development
-		c.Set("tenant_id", uuid.New())
-		c.Set("user_id", uuid.New())
-		c.Next()
-	}
-
 	v1 := router.Group("/api/v1")
 	{
-		// Tool management
+		// Tool management (authenticated)
 		tools := v1.Group("/tools")
+		tools.Use(authmw.RequireAuth())
 		{
-			tools.GET("", toolHandler.ListTools)
-			tools.POST("", toolHandler.CreateTool)
-			tools.GET("/:id", toolHandler.GetTool)
-			tools.POST("/:id/execute", authMiddleware, toolHandler.ExecuteTool)
+			tools.GET("", authmw.RequireScopes("tools:read"), toolHandler.ListTools)
+			tools.POST("", authmw.RequireScopes("tools:write"), toolHandler.CreateTool)
+			tools.GET("/:id", authmw.RequireScopes("tools:read"), toolHandler.GetTool)
+			tools.POST("/:id/execute", authmw.RequireScopes("tools:execute"), toolHandler.ExecuteTool)
 		}
 	}
 

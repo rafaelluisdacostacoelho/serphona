@@ -7,6 +7,7 @@ require (
 	github.com/gin-gonic/gin v1.11.0
 	github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth v0.0.0-00010101000000-000000000000
 	github.com/redis/go-redis/v9 v9.17.2
+	go.opentelemetry.io/otel/sdk v1.21.0
 )
 
 require (
@@ -60,7 +61,6 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.21.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.21.0 // indirect
 	go.opentelemetry.io/otel/metric v1.24.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.21.0 // indirect
 	go.opentelemetry.io/otel/trace v1.24.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.0.0 // indirect
 	go.uber.org/mock v0.5.0 // indirect

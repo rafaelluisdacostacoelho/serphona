@@ -36,8 +36,8 @@ Propósito: plano coordenado para adotar o platform-auth nos serviços com RLS/t
 - [x] Verificar retries/backoff + circuit breaker via client do platform-auth onde usado; cobrir mapeamento de erros.
 
 ### Fase 4 — Observabilidade e segurança
-- [ ] Redação e limpeza de logs nos serviços usando helpers do platform-auth; verificar se nenhum header sensível vaza.
-- [ ] Métricas Prometheus de auth (sucesso/latência) expostas em todos os transports; dashboards/alertas para falhas de auth e tenant ausente.
+- [x] Redação e limpeza de logs nos serviços usando helpers do platform-auth; verificar se nenhum header sensível vaza.
+- [x] Métricas Prometheus de auth (sucesso/latência) expostas em todos os transports; dashboards/alertas para falhas de auth e tenant ausente (instrumentação pronta; configurar dashboards/alertas no Grafana/Alertmanager).
 - [ ] Validação de orientação CSRF para fluxos com cookie (onde aplicável); defaults fail-closed conferidos nos serviços.
 
 ### Fase 5 — Rollout e docs

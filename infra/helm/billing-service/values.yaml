@@ -1,0 +1,112 @@
+global:
+  imageRegistry: ""
+  environment: production
+
+image:
+  repository: billing-service
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8080
+
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  scrapeTimeout: 10s
+  path: /metrics
+  labels: {}
+  annotations: {}
+  relabelings: []
+  metricRelabelings: []
+  additionalEndpoints: []
+
+prometheusRule:
+  enabled: true
+  labels:
+    service: billing-service
+  annotations: {}
+  groups:
+    - name: billing-service.availability
+      rules:
+        - alert: BillingServiceDown
+          expr: up{service="billing-service"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "billing-service scrape is down"
+            description: "Prometheus target for billing-service is down for 2m. Check pod/service/ingress and metrics endpoint."
+
+replicaCount: 2
+
+env:
+  SERVICE_NAME: billing-service
+  SERVICE_INSTANCE: billing-service-1
+  SERVICE_AUDIENCE: serphona-services
+
+  # Auth/JWKS (produção)
+  JWT_VALIDATION_JWKS_URL: ""
+  JWT_VALIDATION_ISSUER: ""
+  JWT_VALIDATION_AUDIENCE: serphona-services
+  JWT_ALLOWED_ALGS: RS256
+  JWT_JWKS_CACHE_TTL: 5m
+
+  # Fallback dev (não usar em prod)
+  JWT_SECRET:
+    valueFrom:
+      secretKeyRef:
+        name: billing-service-auth
+        key: jwtSecret
+
+  # Tokens de serviço
+  SERVICE_AUTH_TOKEN:
+    valueFrom:
+      secretKeyRef:
+        name: billing-service-auth
+        key: serviceAuthToken
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+podAnnotations: {}
+podLabels: {}
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+extraEnv: []
+extraEnvFrom: []
+extraVolumeMounts: []
+extraVolumes: []

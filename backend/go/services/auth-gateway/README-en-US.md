@@ -338,15 +338,16 @@ curl http://localhost:8080/health
 ```
 
 ### Logs
-The service uses `zap` for structured logging:
-```json
-{
-  "level": "info",
-  "ts": 1234567890.123,
-  "msg": "Starting HTTP server",
-  "address": "0.0.0.0:8080"
-}
-```
+- Structured logging via `zap` with `RequestLogger` redacting sensitive headers (Authorization, Cookie, tokens) using platform-auth helpers.
+- Request/trace IDs injected by `Correlation` middleware and echoed on responses.
+
+### Metrics (Prometheus)
+- `auth_gateway_request_duration_seconds` and `auth_gateway_requests_total` labeled by method/path/status.
+- `auth_gateway_auth_events_total` labeled by event/outcome (success/failure) for login/register/refresh/logout/OAuth.
+- Scrape at `/metrics`.
+
+### Audit
+- Structured audit events emitted on auth flows with masked emails and request IDs; extend sink/exporter as needed (defaults to stdout).
 
 ## 🚨 Troubleshooting
 
