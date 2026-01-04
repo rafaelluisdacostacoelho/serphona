@@ -1,13 +1,15 @@
 package metrics
 
 import (
-	"log"
+	"fmt"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
-// Metrics interface defines methods for recording metrics
+// Metrics defines the observability surface used by the service.
 type Metrics interface {
-	RecordHTTPRequest(method, endpoint string, status int, duration time.Duration, requestSize, responseSize int64)
+	RecordHTTPRequest(method, endpoint, tenant string, status int, duration time.Duration, requestSize, responseSize int64)
 	RecordSessionCreated()
 	RecordSessionEnded()
 	RecordMessageProcessed()
@@ -16,121 +18,171 @@ type Metrics interface {
 	RecordToolExecution(toolName string, success bool)
 }
 
-// PrometheusMetrics implements Metrics using Prometheus (structure ready for integration)
+// PrometheusMetrics implements Metrics using Prometheus collectors.
 type PrometheusMetrics struct {
-	namespace string
-	// When Prometheus library is added:
-	// registry  *prometheus.Registry
-	// collectors map[string]prometheus.Collector
+	namespace  string
+	service    string
+	registerer prometheus.Registerer
+
+	httpRequests  *prometheus.CounterVec
+	httpDuration  *prometheus.HistogramVec
+	sessionsMade  prometheus.Counter
+	sessionsEnded prometheus.Counter
+	msgProcessed  prometheus.Counter
+	llmCalls      *prometheus.CounterVec
+	llmLatency    *prometheus.HistogramVec
+	tokensUsed    *prometheus.CounterVec
+	toolExec      *prometheus.CounterVec
 }
 
-// NewPrometheusMetrics creates a new Prometheus metrics collector
+// NewPrometheusMetrics creates a metrics collector backed by the default Prometheus registerer.
 func NewPrometheusMetrics(namespace string) Metrics {
-	m := &PrometheusMetrics{
-		namespace: namespace,
+	return NewPrometheusMetricsWithRegisterer(namespace, namespace, prometheus.DefaultRegisterer)
+}
+
+// NewPrometheusMetricsWithRegisterer allows overriding the registerer and service label.
+func NewPrometheusMetricsWithRegisterer(namespace, service string, reg prometheus.Registerer) Metrics {
+	if reg == nil {
+		reg = prometheus.DefaultRegisterer
 	}
 
-	// TODO: Initialize Prometheus collectors when library is added
-	// Example:
-	// m.registry = prometheus.NewRegistry()
-	// m.httpRequestsTotal = promauto.With(m.registry).NewCounterVec(...)
-	// m.httpRequestDuration = promauto.With(m.registry).NewHistogramVec(...)
-	// etc.
+	m := &PrometheusMetrics{
+		namespace:  namespace,
+		service:    service,
+		registerer: reg,
+	}
 
-	log.Printf("✅ Metrics collector initialized (namespace: %s)", namespace)
+	m.init()
 	return m
 }
 
-// RecordHTTPRequest records HTTP request metrics
-func (m *PrometheusMetrics) RecordHTTPRequest(method, endpoint string, status int, duration time.Duration, requestSize, responseSize int64) {
-	// TODO: Record to Prometheus when library is added
-	// m.httpRequestsTotal.WithLabelValues(method, endpoint, statusClass(status)).Inc()
-	// m.httpRequestDuration.WithLabelValues(method, endpoint).Observe(duration.Seconds())
+func (m *PrometheusMetrics) init() {
+	m.httpRequests = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: fmt.Sprintf("%s_http_requests_total", m.namespace),
+		Help: "Total HTTP requests received.",
+	}, []string{"method", "path", "status", "service", "tenant_id"})
 
-	log.Printf("📊 HTTP: %s %s [%d] %.3fs req=%dB res=%dB",
-		method, endpoint, status, duration.Seconds(), requestSize, responseSize)
+	m.httpDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    fmt.Sprintf("%s_http_request_duration_seconds", m.namespace),
+		Help:    "HTTP request duration in seconds.",
+		Buckets: prometheus.DefBuckets,
+	}, []string{"method", "path", "status", "service"})
+
+	m.sessionsMade = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: fmt.Sprintf("%s_sessions_created_total", m.namespace),
+		Help: "Sessions created.",
+	})
+
+	m.sessionsEnded = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: fmt.Sprintf("%s_sessions_ended_total", m.namespace),
+		Help: "Sessions ended.",
+	})
+
+	m.msgProcessed = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: fmt.Sprintf("%s_messages_processed_total", m.namespace),
+		Help: "Messages processed.",
+	})
+
+	m.llmCalls = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: fmt.Sprintf("%s_llm_calls_total", m.namespace),
+		Help: "LLM calls by model and outcome.",
+	}, []string{"model", "result", "service"})
+
+	m.llmLatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    fmt.Sprintf("%s_llm_call_duration_seconds", m.namespace),
+		Help:    "LLM call latency in seconds.",
+		Buckets: []float64{0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10},
+	}, []string{"model", "service"})
+
+	m.tokensUsed = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: fmt.Sprintf("%s_tokens_used_total", m.namespace),
+		Help: "Tokens consumed by model and type.",
+	}, []string{"model", "kind", "service"})
+
+	m.toolExec = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: fmt.Sprintf("%s_tool_executions_total", m.namespace),
+		Help: "Tool executions by tool and outcome.",
+	}, []string{"tool", "result", "service"})
+
+	m.registerer.MustRegister(
+		m.httpRequests,
+		m.httpDuration,
+		m.sessionsMade,
+		m.sessionsEnded,
+		m.msgProcessed,
+		m.llmCalls,
+		m.llmLatency,
+		m.tokensUsed,
+		m.toolExec,
+	)
 }
 
-// RecordSessionCreated records session creation
+// RecordHTTPRequest records HTTP request metrics with service and tenant labels.
+func (m *PrometheusMetrics) RecordHTTPRequest(method, endpoint, tenant string, status int, duration time.Duration, requestSize, responseSize int64) {
+	statusClass := statusBucket(status)
+	m.httpRequests.WithLabelValues(method, endpoint, statusClass, m.service, tenant).Inc()
+	m.httpDuration.WithLabelValues(method, endpoint, statusClass, m.service).Observe(duration.Seconds())
+}
+
 func (m *PrometheusMetrics) RecordSessionCreated() {
-	// TODO: Record to Prometheus
-	// m.sessionsCreated.Inc()
-	log.Println("📊 Session created")
+	m.sessionsMade.Inc()
 }
 
-// RecordSessionEnded records session end
 func (m *PrometheusMetrics) RecordSessionEnded() {
-	// TODO: Record to Prometheus
-	// m.sessionsEnded.Inc()
-	log.Println("📊 Session ended")
+	m.sessionsEnded.Inc()
 }
 
-// RecordMessageProcessed records message processing
 func (m *PrometheusMetrics) RecordMessageProcessed() {
-	// TODO: Record to Prometheus
-	// m.messagesProcessed.Inc()
-	log.Println("📊 Message processed")
+	m.msgProcessed.Inc()
 }
 
-// RecordLLMCall records LLM API call
 func (m *PrometheusMetrics) RecordLLMCall(model string, duration time.Duration, success bool) {
-	// TODO: Record to Prometheus
-	// status := "success"
-	// if !success { status = "error" }
-	// m.llmCallsTotal.WithLabelValues(model, status).Inc()
-	// m.llmCallDuration.WithLabelValues(model).Observe(duration.Seconds())
-
-	status := "success"
+	result := "success"
 	if !success {
-		status = "error"
+		result = "error"
 	}
-	log.Printf("📊 LLM call: model=%s status=%s duration=%.3fs", model, status, duration.Seconds())
+	m.llmCalls.WithLabelValues(model, result, m.service).Inc()
+	m.llmLatency.WithLabelValues(model, m.service).Observe(duration.Seconds())
 }
 
-// RecordTokens records token usage
 func (m *PrometheusMetrics) RecordTokens(model string, promptTokens, completionTokens int) {
-	// TODO: Record to Prometheus
-	// m.tokensUsed.WithLabelValues(model, "prompt").Add(float64(promptTokens))
-	// m.tokensUsed.WithLabelValues(model, "completion").Add(float64(completionTokens))
-	// m.tokensUsed.WithLabelValues(model, "total").Add(float64(promptTokens + completionTokens))
-
-	log.Printf("📊 Tokens: model=%s prompt=%d completion=%d total=%d",
-		model, promptTokens, completionTokens, promptTokens+completionTokens)
+	m.tokensUsed.WithLabelValues(model, "prompt", m.service).Add(float64(promptTokens))
+	m.tokensUsed.WithLabelValues(model, "completion", m.service).Add(float64(completionTokens))
+	m.tokensUsed.WithLabelValues(model, "total", m.service).Add(float64(promptTokens + completionTokens))
 }
 
-// RecordToolExecution records tool execution
 func (m *PrometheusMetrics) RecordToolExecution(toolName string, success bool) {
-	// TODO: Record to Prometheus
-	// status := "success"
-	// if !success { status = "error" }
-	// m.toolExecutionsTotal.WithLabelValues(toolName, status).Inc()
-
-	status := "success"
+	result := "success"
 	if !success {
-		status = "error"
+		result = "error"
 	}
-	log.Printf("📊 Tool execution: tool=%s status=%s", toolName, status)
+	m.toolExec.WithLabelValues(toolName, result, m.service).Inc()
 }
 
-// NoOpMetrics is a no-op implementation for when metrics are disabled
+// NoOpMetrics is a no-op implementation for when metrics are disabled.
 type NoOpMetrics struct{}
 
-// NewNoOpMetrics creates a no-op metrics collector
-func NewNoOpMetrics() Metrics {
-	return &NoOpMetrics{}
+// NewNoOpMetrics creates a no-op metrics collector.
+func NewNoOpMetrics() Metrics { return &NoOpMetrics{} }
+
+func (m *NoOpMetrics) RecordHTTPRequest(method, endpoint, tenant string, status int, duration time.Duration, requestSize, responseSize int64) {
 }
-
-func (m *NoOpMetrics) RecordHTTPRequest(method, endpoint string, status int, duration time.Duration, requestSize, responseSize int64) {
-}
-
-func (m *NoOpMetrics) RecordSessionCreated() {}
-
-func (m *NoOpMetrics) RecordSessionEnded() {}
-
-func (m *NoOpMetrics) RecordMessageProcessed() {}
-
+func (m *NoOpMetrics) RecordSessionCreated()                                            {}
+func (m *NoOpMetrics) RecordSessionEnded()                                              {}
+func (m *NoOpMetrics) RecordMessageProcessed()                                          {}
 func (m *NoOpMetrics) RecordLLMCall(model string, duration time.Duration, success bool) {}
+func (m *NoOpMetrics) RecordTokens(model string, promptTokens, completionTokens int)    {}
+func (m *NoOpMetrics) RecordToolExecution(toolName string, success bool)                {}
 
-func (m *NoOpMetrics) RecordTokens(model string, promptTokens, completionTokens int) {}
-
-func (m *NoOpMetrics) RecordToolExecution(toolName string, success bool) {}
+func statusBucket(code int) string {
+	switch {
+	case code >= 500:
+		return "5xx"
+	case code >= 400:
+		return "4xx"
+	case code >= 300:
+		return "3xx"
+	default:
+		return "2xx"
+	}
+}

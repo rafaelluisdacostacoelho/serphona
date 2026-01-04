@@ -42,3 +42,6 @@
 
 ## Next suggested steps
 - Wire validated config and auth/tenant middleware, then implement Stripe client + signature verification with idempotency store; add real customer/subscription flows and migrations, followed by webhook processors, quotas, observability, and test suites.
+
+## Referências
+- Este serviço depende do [BACKLOG-AUTH.md](../../../BACKLOG-AUTH.md) para alinhamento com autenticação e autorização multi-tenant.

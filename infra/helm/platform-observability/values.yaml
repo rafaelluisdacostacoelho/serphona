@@ -1,0 +1,14 @@
+prometheusRule:
+  enabled: true
+  labels: {}
+  annotations: {}
+  failureRateThreshold: 1         # req/s across service+component considered high
+  failureFor: 10m
+  tenantMissingThreshold: 0       # any missing tenant is alert-worthy
+  tenantMissingFor: 5m
+  latencyP95Threshold: 1          # seconds
+  latencyFor: 10m
+  severity:
+    failure: warning
+    tenantMissing: warning
+    latency: warning

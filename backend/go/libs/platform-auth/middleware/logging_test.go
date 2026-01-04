@@ -37,7 +37,8 @@ func TestRedactHeaders(t *testing.T) {
 		t.Fatalf("expected custom header to be preserved, got %q", got)
 	}
 
-	if _, exists := redacted["authorization"]; exists {
+	// Ensure header keys remain canonicalized
+	if _, exists := redacted[http.CanonicalHeaderKey("Authorization")]; !exists {
 		t.Fatalf("expected header keys to remain canonicalized, found lowercase key")
 	}
 }

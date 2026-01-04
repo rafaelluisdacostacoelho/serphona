@@ -24,7 +24,8 @@ func RequireAuthHTTP(next http.Handler) http.Handler {
 		if needsSecret(cfg) {
 			if err := authjwt.EnsureSecretLoaded(); err != nil {
 				mapped := mapAuthError(err)
-				recordAuthError("http", mapped, start)
+				tenant := tenantFromHeaders(r.Header)
+				recordAuthError("http", mapped, tenant, start)
 				recordSpanError(span, mapped, err)
 				writeJSONError(w, mapped)
 				return
@@ -36,7 +37,8 @@ func RequireAuthHTTP(next http.Handler) http.Handler {
 		claims, err := authjwt.ValidateTokenFromHeader(r.Header.Get("Authorization"))
 		if err != nil {
 			mapped := mapAuthError(err)
-			recordAuthError("http", mapped, start)
+			tenant := tenantFromHeaders(r.Header)
+			recordAuthError("http", mapped, tenant, start)
 			recordSpanError(span, mapped, err)
 			writeJSONError(w, mapped)
 			return
@@ -44,7 +46,7 @@ func RequireAuthHTTP(next http.Handler) http.Handler {
 
 		annotateSpanWithClaims(span, claims)
 		ctx = WithClaims(ctx, claims)
-		recordAuthSuccess("http", start)
+		recordAuthSuccess("http", claims.TenantID, start)
 		recordSpanSuccess(span)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

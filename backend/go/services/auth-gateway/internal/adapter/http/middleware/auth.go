@@ -151,3 +151,32 @@ func CORS(allowedOrigins []string, allowCredentials bool) gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// CSRFProtectionMiddleware validates CSRF tokens for cookie-based flows
+func CSRFProtectionMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Extract CSRF token from header
+		csrfToken := c.GetHeader("X-CSRF-Token")
+		if csrfToken == "" {
+			c.JSON(http.StatusForbidden, gin.H{
+				"message": "Missing CSRF token",
+				"code":    "CSRF_FORBIDDEN",
+			})
+			c.Abort()
+			return
+		}
+
+		// Validate CSRF token (example: match against a value in the session or a secure store)
+		// For now, assume a placeholder validation
+		if csrfToken != "expected-csrf-token" {
+			c.JSON(http.StatusForbidden, gin.H{
+				"message": "Invalid CSRF token",
+				"code":    "CSRF_FORBIDDEN",
+			})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}

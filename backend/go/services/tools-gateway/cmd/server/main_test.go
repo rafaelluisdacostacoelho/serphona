@@ -60,8 +60,11 @@ func TestRouterListsToolsAndExposesMetrics(t *testing.T) {
 	}
 
 	metricsBody := metricsResp.Body.String()
-	if !strings.Contains(metricsBody, `tools_gateway_requests_total{method="GET",path="/api/v1/tools",status="2xx"}`) {
+	if !strings.Contains(metricsBody, `tools_gateway_requests_total{method="GET",path="/api/v1/tools",service="tools-gateway",status="2xx"`) {
 		t.Fatalf("metrics did not record tools list handler: %s", metricsBody)
+	}
+	if !strings.Contains(metricsBody, `tools_gateway_auth_total{result="ok",service="tools-gateway",tenant_id="`) {
+		t.Fatalf("auth metrics missing success: %s", metricsBody)
 	}
 }
 
@@ -85,7 +88,7 @@ func TestRouterRecordsErrorMetrics(t *testing.T) {
 	}
 
 	metricsBody := metricsResp.Body.String()
-	if !strings.Contains(metricsBody, `tools_gateway_requests_total{method="GET",path="/api/v1/tools/:id",status="4xx"}`) {
+	if !strings.Contains(metricsBody, `tools_gateway_requests_total{method="GET",path="/api/v1/tools/:id",service="tools-gateway",status="4xx"`) {
 		t.Fatalf("metrics did not record error handler invocation: %s", metricsBody)
 	}
 }
@@ -119,7 +122,7 @@ func TestHealthAndServerErrorMetrics(t *testing.T) {
 	}
 
 	metricsBody := metricsResp.Body.String()
-	if !strings.Contains(metricsBody, `tools_gateway_requests_total{method="GET",path="/boom",status="5xx"}`) {
+	if !strings.Contains(metricsBody, `tools_gateway_requests_total{method="GET",path="/boom",service="tools-gateway",status="5xx"`) {
 		t.Fatalf("metrics did not record 5xx handler invocation: %s", metricsBody)
 	}
 }
@@ -141,7 +144,7 @@ func TestUnknownPathMetrics(t *testing.T) {
 	}
 
 	metricsBody := metricsResp.Body.String()
-	if !strings.Contains(metricsBody, `tools_gateway_requests_total{method="GET",path="unknown",status="4xx"}`) {
+	if !strings.Contains(metricsBody, `tools_gateway_requests_total{method="GET",path="unknown",service="tools-gateway",status="4xx"`) {
 		t.Fatalf("metrics did not record unknown path: %s", metricsBody)
 	}
 }
@@ -247,7 +250,7 @@ func newTestRouter(t *testing.T) (*gin.Engine, string) {
 	middleware.SetMetricsRegisterer(reg)
 	t.Cleanup(func() { middleware.SetMetricsRegisterer(nil) })
 
-	return setupRouter(newToolHandler()), token
+	return setupRouter(newToolHandler(), "tools-gateway"), token
 }
 
 func newTestToken(t *testing.T, scopes ...string) string {

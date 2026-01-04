@@ -66,3 +66,6 @@ Provide the governed tool catalog and policy control-plane for Serphona. Tools M
 
 ## Next steps
 - Ship scaffold + data model + validation; implement policy engine and secrets; expose read API + change events for gateway/mcp; add observability and contract tests; document workflows.
+
+## Referências
+- Este serviço depende do [BACKLOG-AUTH.md](../../../BACKLOG-AUTH.md) para alinhamento com autenticação e autorização multi-tenant.

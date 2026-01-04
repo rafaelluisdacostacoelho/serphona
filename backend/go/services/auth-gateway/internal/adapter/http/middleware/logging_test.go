@@ -54,3 +54,42 @@ func TestRequestLoggerRedactsSensitiveHeaders(t *testing.T) {
 		t.Fatalf("expected request_id req-123, got %v", ctx["request_id"])
 	}
 }
+
+func TestCSRFProtectionMiddleware(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	router := gin.New()
+	router.Use(CSRFProtectionMiddleware())
+	router.POST("/test", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	// Test missing CSRF token
+	req := httptest.NewRequest(http.MethodPost, "/test", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected status %d, got %d", http.StatusForbidden, w.Code)
+	}
+
+	// Test invalid CSRF token
+	req = httptest.NewRequest(http.MethodPost, "/test", nil)
+	req.Header.Set("X-CSRF-Token", "invalid-token")
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected status %d, got %d", http.StatusForbidden, w.Code)
+	}
+
+	// Test valid CSRF token
+	req = httptest.NewRequest(http.MethodPost, "/test", nil)
+	req.Header.Set("X-CSRF-Token", "expected-csrf-token")
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+}

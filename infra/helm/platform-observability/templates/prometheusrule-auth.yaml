@@ -1,0 +1,43 @@
+{{- if .Values.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "platform-observability.fullname" . }}-auth
+  labels:
+    {{- include "platform-observability.labels" . | nindent 4 }}
+    {{- with .Values.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.prometheusRule.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  groups:
+    - name: cross-service-auth
+      rules:
+        - alert: AuthFailuresByServiceHigh
+          expr: sum by (service, component) (rate(auth_requests_total{result!="ok"}[5m])) > {{ .Values.prometheusRule.failureRateThreshold }}
+          for: {{ .Values.prometheusRule.failureFor }}
+          labels:
+            severity: {{ .Values.prometheusRule.severity.failure | quote }}
+          annotations:
+            summary: "High auth failures for {{`{{`}} $labels.service {{`}}`}}/{{`{{`}} $labels.component {{`}}`}}"
+            description: "Auth failure rate over 5m: {{`{{`}} $value {{`}}`}} req/s"
+        - alert: AuthTenantMissingHigh
+          expr: sum by (service, component) (rate(auth_requests_total{tenant_id="unknown"}[5m])) > {{ .Values.prometheusRule.tenantMissingThreshold }}
+          for: {{ .Values.prometheusRule.tenantMissingFor }}
+          labels:
+            severity: {{ .Values.prometheusRule.severity.tenantMissing | quote }}
+          annotations:
+            summary: "Missing tenant IDs in auth for {{`{{`}} $labels.service {{`}}`}}/{{`{{`}} $labels.component {{`}}`}}"
+            description: "Requests missing tenant_id over 5m: {{`{{`}} $value {{`}}`}} req/s"
+        - alert: AuthLatencyP95High
+          expr: histogram_quantile(0.95, sum by (le, service, component) (rate(auth_request_duration_seconds_bucket[5m]))) > {{ .Values.prometheusRule.latencyP95Threshold }}
+          for: {{ .Values.prometheusRule.latencyFor }}
+          labels:
+            severity: {{ .Values.prometheusRule.severity.latency | quote }}
+          annotations:
+            summary: "Auth latency p95 high for {{`{{`}} $labels.service {{`}}`}}/{{`{{`}} $labels.component {{`}}`}}"
+            description: "Auth p95 latency over 5m: {{`{{`}} $value {{`}}`}} seconds"
+{{- end }}

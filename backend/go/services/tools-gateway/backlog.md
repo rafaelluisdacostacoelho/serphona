@@ -45,3 +45,6 @@
 
 ## Next suggested steps
 - Replace mock auth with platform-auth middleware and tenant scoping; add validated config (limits, allowlists) and migrations. Then implement retries/backoff, metrics/tracing, quotas/billing events, and secure OAuth/integration handling before MCP integration.
+
+## Referências
+- Este serviço depende do [BACKLOG-AUTH.md](../../../BACKLOG-AUTH.md) para alinhamento com autenticação e autorização multi-tenant.

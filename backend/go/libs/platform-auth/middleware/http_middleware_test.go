@@ -19,6 +19,7 @@ func TestRequireAuthHTTPSuccess(t *testing.T) {
 	authjwt.SetSecret(middlewareTestSecret)
 	authjwt.ResetSecretOnceForTests()
 	middleware.SetMetricsRegisterer(prometheus.NewRegistry())
+	middleware.SetAuthMetricsService("test-service")
 	t.Cleanup(func() { middleware.SetMetricsRegisterer(nil) })
 
 	var capturedCtx context.Context
@@ -58,13 +59,20 @@ func TestRequireAuthHTTPSuccess(t *testing.T) {
 		t.Fatalf("expected authorization to be redacted")
 	}
 
-	assertMetricCounter(t, middleware.MetricAuthRequestsTotal, map[string]string{"transport": "http", "result": "ok"}, 1)
+	assertMetricCounter(t, middleware.MetricAuthRequestsTotal, map[string]string{
+		"transport": "http",
+		"result":    "ok",
+		"service":   "test-service",
+		"tenant_id": "22222222-2222-2222-2222-222222222222",
+		"component": "http",
+	}, 1)
 }
 
 func TestRequireAuthHTTPMissingToken(t *testing.T) {
 	authjwt.SetSecret(middlewareTestSecret)
 	authjwt.ResetSecretOnceForTests()
 	middleware.SetMetricsRegisterer(prometheus.NewRegistry())
+	middleware.SetAuthMetricsService("test-service")
 	t.Cleanup(func() { middleware.SetMetricsRegisterer(nil) })
 
 	handler := middleware.RequireAuthHTTP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -86,7 +94,13 @@ func TestRequireAuthHTTPMissingToken(t *testing.T) {
 		t.Fatalf("expected code %s, got %v", autherrors.CodeMissingToken, body["code"])
 	}
 
-	assertMetricCounter(t, middleware.MetricAuthRequestsTotal, map[string]string{"transport": "http", "result": "unauthorized"}, 1)
+	assertMetricCounter(t, middleware.MetricAuthRequestsTotal, map[string]string{
+		"transport": "http",
+		"result":    "unauthorized",
+		"service":   "test-service",
+		"tenant_id": "unknown",
+		"component": "http",
+	}, 1)
 }
 
 func TestRequireScopesHTTPDenied(t *testing.T) {

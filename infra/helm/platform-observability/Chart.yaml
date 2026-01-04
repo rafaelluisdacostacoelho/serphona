@@ -1,0 +1,6 @@
+apiVersion: v2
+name: platform-observability
+description: Cross-service observability helpers (auth metrics/alerts)
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

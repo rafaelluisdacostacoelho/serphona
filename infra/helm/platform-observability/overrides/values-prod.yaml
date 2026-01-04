@@ -1,0 +1,12 @@
+# Example values for the production environment
+replicaCount: 3
+resources:
+  limits:
+    cpu: 2
+    memory: 2Gi
+  requests:
+    cpu: 1
+    memory: 1Gi
+alerting:
+  enabled: true
+  severity: critical

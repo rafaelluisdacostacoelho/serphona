@@ -44,3 +44,6 @@
 
 ## Next steps
 - Add config/auth middleware and tenant enforcement first; then wire observability + rate limits; implement tool/LLM orchestration with retries/timeout/circuit and billing events; finish with docs/runbooks and integration/load tests.
+
+## Referências
+- Este serviço depende do [BACKLOG-AUTH.md](../../../BACKLOG-AUTH.md) para alinhamento com autenticação e autorização multi-tenant.

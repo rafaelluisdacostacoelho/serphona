@@ -1,11 +1,13 @@
 package middleware
 
 import (
+	"net/http"
 	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus"
+	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 )
 
 var (
@@ -19,11 +21,6 @@ var (
 	authTotal       *prometheus.CounterVec
 )
 
-// MetricsRegisterer exposes the current registerer so other middleware (e.g., platform-auth) can share it.
-func MetricsRegisterer() prometheus.Registerer {
-	return metricsRegisterer
-}
-
 // SetMetricsRegisterer allows overriding the Prometheus registerer (useful for tests).
 func SetMetricsRegisterer(r prometheus.Registerer) {
 	metricsRegistererMu.Lock()
@@ -33,7 +30,6 @@ func SetMetricsRegisterer(r prometheus.Registerer) {
 		r = prometheus.DefaultRegisterer
 	}
 
-	// Unregister existing collectors from the current registerer to avoid duplicate registration when swapping.
 	if requestDuration != nil {
 		metricsRegisterer.Unregister(requestDuration)
 	}
@@ -55,6 +51,11 @@ func SetMetricsRegisterer(r prometheus.Registerer) {
 	authTotal = nil
 }
 
+// MetricsRegisterer exposes the current registerer so other middleware can share it.
+func MetricsRegisterer() prometheus.Registerer {
+	return metricsRegisterer
+}
+
 // MetricsGatherer returns the gatherer associated with the current registerer (useful for tests).
 func MetricsGatherer() prometheus.Gatherer {
 	if g, ok := metricsRegisterer.(prometheus.Gatherer); ok {
@@ -63,11 +64,11 @@ func MetricsGatherer() prometheus.Gatherer {
 	return prometheus.DefaultGatherer
 }
 
-func initMetrics() {
+func initMetrics(service string) {
 	metricsOnce.Do(func() {
 		requestDuration = prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
-				Name:    "tools_gateway_request_duration_seconds",
+				Name:    "billing_service_request_duration_seconds",
 				Help:    "Latency of HTTP requests",
 				Buckets: prometheus.DefBuckets,
 			},
@@ -75,14 +76,14 @@ func initMetrics() {
 		)
 		requestTotal = prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Name: "tools_gateway_requests_total",
+				Name: "billing_service_requests_total",
 				Help: "Total HTTP requests",
 			},
 			[]string{"method", "path", "status", "service", "tenant_id"},
 		)
 		authDuration = prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
-				Name:    "tools_gateway_auth_duration_seconds",
+				Name:    "billing_service_auth_duration_seconds",
 				Help:    "Latency of authentication decisions",
 				Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5},
 			},
@@ -90,7 +91,7 @@ func initMetrics() {
 		)
 		authTotal = prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Name: "tools_gateway_auth_total",
+				Name: "billing_service_auth_total",
 				Help: "Total authentication attempts",
 			},
 			[]string{"result", "service", "tenant_id"},
@@ -103,7 +104,7 @@ func initMetrics() {
 // Metrics records request counts and latencies with path/method/status labels.
 func Metrics(service string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		initMetrics()
+		initMetrics(service)
 
 		start := time.Now()
 		c.Next()
@@ -111,22 +112,23 @@ func Metrics(service string) gin.HandlerFunc {
 
 		path := c.FullPath()
 		if path == "" {
-			// Normalize unknown paths (e.g., 404s) to avoid high cardinality.
 			path = "unknown"
 		}
 
-		labels := prometheus.Labels{
+		tenant := tenantLabel(c)
+		statusLabel := httpStatusLabel(status)
+
+		requestTotal.With(prometheus.Labels{
 			"method":    c.Request.Method,
 			"path":      path,
-			"status":    httpStatusLabel(status),
+			"status":    statusLabel,
 			"service":   service,
-			"tenant_id": tenantLabel(c),
-		}
-		requestTotal.With(labels).Inc()
+			"tenant_id": tenant,
+		}).Inc()
 		requestDuration.With(prometheus.Labels{
 			"method":  c.Request.Method,
 			"path":    path,
-			"status":  httpStatusLabel(status),
+			"status":  statusLabel,
 			"service": service,
 		}).Observe(time.Since(start).Seconds())
 	}
@@ -135,7 +137,7 @@ func Metrics(service string) gin.HandlerFunc {
 // AuthMetrics records auth outcomes/latency for routes that run platform-auth.
 func AuthMetrics(service string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		initMetrics()
+		initMetrics(service)
 		start := time.Now()
 		c.Next()
 
@@ -169,9 +171,9 @@ func httpStatusLabel(code int) string {
 
 func authResultLabel(code int) string {
 	switch {
-	case code == 401:
+	case code == http.StatusUnauthorized:
 		return "unauthorized"
-	case code == 403:
+	case code == http.StatusForbidden:
 		return "forbidden"
 	case code >= 500:
 		return "error"
@@ -181,7 +183,7 @@ func authResultLabel(code int) string {
 }
 
 func tenantLabel(c *gin.Context) string {
-	if t := c.GetString("tenantID"); t != "" {
+	if t, err := authmw.GetTenantIDFromContext(c); err == nil && t != "" {
 		return t
 	}
 	if h := c.GetHeader("X-Tenant-Id"); h != "" {

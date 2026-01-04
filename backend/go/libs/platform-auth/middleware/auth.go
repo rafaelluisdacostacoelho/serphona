@@ -26,7 +26,8 @@ func RequireAuth() gin.HandlerFunc {
 		if needsSecret(cfg) {
 			if err := authjwt.EnsureSecretLoaded(); err != nil {
 				mapped := mapAuthError(err)
-				recordAuthError("gin", mapped, start)
+				tenant := tenantFromHeaders(c.Request.Header)
+				recordAuthError("gin", mapped, tenant, start)
 				recordSpanError(span, mapped, err)
 				c.JSON(mapped.status, errorPayload(mapped))
 				c.Abort()
@@ -40,7 +41,8 @@ func RequireAuth() gin.HandlerFunc {
 		claims, err := authjwt.ValidateTokenFromHeader(authHeader)
 		if err != nil {
 			mapped := mapAuthError(err)
-			recordAuthError("gin", mapped, start)
+			tenant := tenantFromHeaders(c.Request.Header)
+			recordAuthError("gin", mapped, tenant, start)
 			recordSpanError(span, mapped, err)
 			c.JSON(mapped.status, errorPayload(mapped))
 			c.Abort()
@@ -59,7 +61,7 @@ func RequireAuth() gin.HandlerFunc {
 		c.Set("sessionID", claims.SessionID)
 		c.Set("requestID", reqID)
 
-		recordAuthSuccess("gin", start)
+		recordAuthSuccess("gin", claims.TenantID, start)
 		recordSpanSuccess(span)
 
 		c.Next()

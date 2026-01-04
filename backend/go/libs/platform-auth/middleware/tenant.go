@@ -9,6 +9,17 @@ import (
 
 const TenantIDHeader = "X-Tenant-Id"
 const tenantContextKey contextKey = "platform-auth-tenant-id"
+const unknownTenantLabel = "unknown"
+
+func tenantFromHeaders(headers http.Header) string {
+	if headers == nil {
+		return unknownTenantLabel
+	}
+	if tenant := headers.Get(TenantIDHeader); tenant != "" {
+		return tenant
+	}
+	return unknownTenantLabel
+}
 
 // WithTenantID attaches a tenant id to context for downstream DB/Kafka helpers.
 func WithTenantID(ctx context.Context, tenantID string) context.Context {
@@ -21,15 +32,17 @@ func WithTenantID(ctx context.Context, tenantID string) context.Context {
 // TenantIDFromContext resolves tenant id from claims or explicit tenant context.
 func TenantIDFromContext(ctx context.Context) (string, error) {
 	if ctx == nil {
-		return "", autherrors.ErrUnauthorized
+		ctx = context.Background()
 	}
 
-	if claims, err := ClaimsFromContext(ctx); err == nil && claims.TenantID != "" {
-		return claims.TenantID, nil
-	}
-
+	// Prioridade: tenant explícito no contexto
 	if tenant, ok := ctx.Value(tenantContextKey).(string); ok && tenant != "" {
 		return tenant, nil
+	}
+
+	// Verifica as claims
+	if claims, err := ClaimsFromContext(ctx); err == nil && claims.TenantID != "" {
+		return claims.TenantID, nil
 	}
 
 	return "", autherrors.ErrUnauthorized

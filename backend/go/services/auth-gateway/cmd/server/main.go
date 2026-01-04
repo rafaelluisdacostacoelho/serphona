@@ -244,6 +244,9 @@ func setupRouter(authHandler *handler.AuthHandler, authMiddleware *middleware.Au
 			// OAuth routes
 			authGroup.GET("/oauth/:provider", authHandler.GetOAuthURL)
 			authGroup.GET("/oauth/:provider/callback", authHandler.HandleOAuthCallback)
+
+			// Add CSRF protection middleware to public auth routes
+			authGroup.Use(middleware.CSRFProtectionMiddleware())
 		}
 
 		// Protected auth routes

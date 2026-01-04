@@ -1,0 +1,12 @@
+# Example values for the development environment
+replicaCount: 1
+resources:
+  limits:
+    cpu: 500m
+    memory: 256Mi
+  requests:
+    cpu: 250m
+    memory: 128Mi
+alerting:
+  enabled: true
+  severity: low

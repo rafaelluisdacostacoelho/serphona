@@ -14,9 +14,11 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/adapter/http/handler"
+	httpmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/adapter/http/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/domain/repository"
 	toolsHTTP "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/infrastructure/http"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/infrastructure/llm"
+	metricsobs "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/infrastructure/metrics"
 	postgresRepo "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/infrastructure/repository/postgres"
 	redisRepo "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/infrastructure/repository/redis"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/usecase"
@@ -96,8 +98,10 @@ func main() {
 	agentHandler := handler.NewAgentHandler(agentService)
 	log.Println("✅ Handlers initialized")
 
+	metricsCollector := metricsobs.NewPrometheusMetricsWithRegisterer("agent_orchestrator", config.ServiceName, nil)
+
 	// Setup HTTP router
-	router := setupRouter(sessionHandler, agentHandler)
+	router := setupRouter(sessionHandler, agentHandler, metricsCollector)
 
 	// Server configuration
 	srv := &http.Server{
@@ -177,7 +181,7 @@ func loadConfig() Config {
 }
 
 // setupRouter configures HTTP routes
-func setupRouter(sessionHandler *handler.SessionHandler, agentHandler *handler.AgentHandler) *gin.Engine {
+func setupRouter(sessionHandler *handler.SessionHandler, agentHandler *handler.AgentHandler, metricsCollector metricsobs.Metrics) *gin.Engine {
 	// Set Gin mode
 	if getEnv("GIN_MODE", "debug") == "release" {
 		gin.SetMode(gin.ReleaseMode)
@@ -186,6 +190,7 @@ func setupRouter(sessionHandler *handler.SessionHandler, agentHandler *handler.A
 	router := gin.Default()
 
 	// Middleware
+	router.Use(httpmw.Metrics(metricsCollector))
 	router.Use(corsMiddleware())
 	router.Use(requestIDMiddleware())
 

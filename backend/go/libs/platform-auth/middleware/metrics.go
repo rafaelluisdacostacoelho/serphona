@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"os"
 	"sync"
 	"time"
 
@@ -14,6 +15,7 @@ var (
 
 	authRequests *prometheus.CounterVec
 	authLatency  *prometheus.HistogramVec
+	authService  = defaultServiceName()
 )
 
 const (
@@ -44,6 +46,15 @@ func SetMetricsRegisterer(r prometheus.Registerer) {
 	authLatency = nil
 }
 
+// SetAuthMetricsService overrides the service label used in auth metrics.
+func SetAuthMetricsService(service string) {
+	if service == "" {
+		authService = "unknown"
+		return
+	}
+	authService = service
+}
+
 // MetricsGatherer returns the gatherer associated with the current registerer (useful for tests).
 func MetricsGatherer() prometheus.Gatherer {
 	if g, ok := metricsRegisterer.(prometheus.Gatherer); ok {
@@ -57,23 +68,23 @@ func initMetrics() {
 		authRequests = prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: MetricAuthRequestsTotal,
 			Help: "Count of authentication middleware decisions.",
-		}, []string{"transport", "result"})
+		}, []string{"transport", "result", "service", "tenant_id", "component"})
 
 		authLatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    MetricAuthRequestDurationSeconds,
 			Help:    "Latency of authentication middleware decisions.",
 			Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5},
-		}, []string{"transport", "result"})
+		}, []string{"transport", "result", "service", "component"})
 
 		metricsRegisterer.MustRegister(authRequests, authLatency)
 	})
 }
 
-func recordAuthSuccess(transport string, start time.Time) {
-	observeAuth(transport, "ok", start)
+func recordAuthSuccess(transport, tenant string, start time.Time) {
+	observeAuth(transport, "ok", tenant, start)
 }
 
-func recordAuthError(transport string, mapped authMappedError, start time.Time) {
+func recordAuthError(transport string, mapped authMappedError, tenant string, start time.Time) {
 	result := "unauthorized"
 	switch mapped.status {
 	case 403:
@@ -83,12 +94,20 @@ func recordAuthError(transport string, mapped authMappedError, start time.Time) 
 			result = "error"
 		}
 	}
-	observeAuth(transport, result, start)
+	observeAuth(transport, result, tenant, start)
 }
 
-func observeAuth(transport, result string, start time.Time) {
+func observeAuth(transport, result, tenant string, start time.Time) {
 	initMetrics()
 	elapsed := time.Since(start).Seconds()
-	authRequests.WithLabelValues(transport, result).Inc()
-	authLatency.WithLabelValues(transport, result).Observe(elapsed)
+	component := transport
+	authRequests.WithLabelValues(transport, result, authService, tenant, component).Inc()
+	authLatency.WithLabelValues(transport, result, authService, component).Observe(elapsed)
+}
+
+func defaultServiceName() string {
+	if v := os.Getenv("SERVICE_NAME"); v != "" {
+		return v
+	}
+	return "unknown"
 }

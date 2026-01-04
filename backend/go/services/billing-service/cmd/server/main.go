@@ -21,8 +21,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
+	httpmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/billing-service/internal/adapter/http/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/billing-service/internal/adapter/kafka"
 	pgrepo "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/billing-service/internal/adapter/postgres"
 	walletapp "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/billing-service/internal/application/wallet"
@@ -39,6 +41,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
+	authmw.SetAuthMetricsService(cfg.Service.Name)
 
 	// Initialize database
 	db, err := initDatabase(cfg)
@@ -122,12 +125,21 @@ func setupRouter(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	router.Use(cors(cfg.Server))
 	router.Use(gin.Logger())
 
+	if cfg.Observability.EnableMetrics {
+		httpmw.SetMetricsRegisterer(prometheus.DefaultRegisterer)
+		authmw.SetMetricsRegisterer(httpmw.MetricsRegisterer())
+		router.Use(httpmw.Metrics(cfg.Service.Name))
+		router.Use(httpmw.AuthMetrics(cfg.Service.Name))
+	}
+
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "healthy", "service": "billing-service"})
 	})
 
-	// Prometheus metrics endpoint
-	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+	if cfg.Observability.EnableMetrics {
+		// Prometheus metrics endpoint
+		router.GET("/metrics", gin.WrapH(promhttp.HandlerFor(httpmw.MetricsGatherer(), promhttp.HandlerOpts{})))
+	}
 
 	// Stripe webhook (raw body needed)
 	router.POST("/webhooks/stripe", handleStripeWebhook)

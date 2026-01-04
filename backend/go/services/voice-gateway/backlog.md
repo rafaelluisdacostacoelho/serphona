@@ -34,3 +34,6 @@
 - Add webhook validation/idempotency and ARI channel→call lookup; implement retry/backoff + DLQ for Kafka publishes.
 - Instrument metrics/tracing for ARI/STT/TTS/call state; add readiness checks for Redis/Kafka/Asterisk.
 - Create fakes/mocks for Asterisk/Redis/Kafka/providers and cover the above flows with unit/contract tests; add load profiles for concurrent calls.
+
+## Referências
+- Este serviço depende do [BACKLOG-AUTH.md](../../../BACKLOG-AUTH.md) para alinhamento com autenticação e autorização multi-tenant.

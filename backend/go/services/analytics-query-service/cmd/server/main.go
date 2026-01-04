@@ -28,6 +28,7 @@ func main() {
 
 	// Load configuration
 	config := loadConfig()
+	authmw.SetAuthMetricsService(config.ServiceName)
 
 	// Initialize Redis (optional, for caching)
 	var analyticsRepo repository.AnalyticsRepository

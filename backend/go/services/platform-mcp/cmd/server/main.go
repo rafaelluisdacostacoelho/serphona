@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"platform-mcp/internal/config"
 
@@ -43,6 +42,7 @@ func main() {
 	log.Info("Starting service", zap.String("service", serviceName), zap.String("version", serviceVersion), zap.String("env", cfg.Environment))
 
 	configureAuth(cfg)
+	authmw.SetAuthMetricsService(serviceName)
 
 	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)

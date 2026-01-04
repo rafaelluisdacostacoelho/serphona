@@ -44,6 +44,7 @@ func main() {
 	serviceName := getEnv("SERVICE_NAME", "tools-gateway")
 	serviceInstance := getEnv("SERVICE_INSTANCE", "tools-gateway-1")
 	serviceAudience := getEnv("SERVICE_AUDIENCE", "")
+	authmw.SetAuthMetricsService(serviceName)
 	httpClient := service.NewHTTPClient(30*time.Second, serviceName, serviceInstance, serviceAudience)
 	grpcClient := service.NewGRPCClient(serviceName, serviceInstance, serviceAudience)
 	log.Printf("Service identity: %s/%s audience=%s", serviceName, serviceInstance, serviceAudience)
@@ -54,7 +55,7 @@ func main() {
 	// Initialize handlers
 	toolHandler := handler.NewToolHandler(toolService, executorService)
 
-	router := setupRouter(toolHandler)
+	router := setupRouter(toolHandler, serviceName)
 
 	srv := &http.Server{
 		Addr:         getEnv("HTTP_ADDR", ":8085"),
@@ -90,10 +91,12 @@ func initDB() (*gorm.DB, error) {
 	return gorm.Open(postgres.Open(dsn), &gorm.Config{})
 }
 
-func setupRouter(toolHandler *handler.ToolHandler) *gin.Engine {
+func setupRouter(toolHandler *handler.ToolHandler, serviceName string) *gin.Engine {
 	router := gin.Default()
+	authmw.SetMetricsRegisterer(middleware.MetricsRegisterer())
 	router.Use(middleware.RequestLogger(nil))
-	router.Use(middleware.Metrics())
+	router.Use(middleware.Metrics(serviceName))
+	router.Use(middleware.AuthMetrics(serviceName))
 
 	// Health check
 	router.GET("/health", func(c *gin.Context) {

@@ -30,7 +30,8 @@ func UnaryAuthInterceptor(requiredScopes ...string) grpc.UnaryServerInterceptor 
 		if needsSecret(cfg) {
 			if err := authjwt.EnsureSecretLoaded(); err != nil {
 				mapped := mapAuthError(err)
-				recordAuthError("grpc", mapped, start)
+				tenant := tenantFromMetadata(ctx)
+				recordAuthError("grpc", mapped, tenant, start)
 				recordSpanError(span, mapped, err)
 				return nil, grpcError(mapped)
 			}
@@ -42,21 +43,22 @@ func UnaryAuthInterceptor(requiredScopes ...string) grpc.UnaryServerInterceptor 
 		claims, err := authjwt.ValidateTokenFromHeader(authHeader)
 		if err != nil {
 			mapped := mapAuthError(err)
-			recordAuthError("grpc", mapped, start)
+			tenant := tenantFromMetadata(ctx)
+			recordAuthError("grpc", mapped, tenant, start)
 			recordSpanError(span, mapped, err)
 			return nil, grpcError(mapped)
 		}
 
 		if len(requiredScopes) > 0 && !claims.HasAllScopes(requiredScopes...) {
 			mapped := mapAuthError(autherrors.ErrInsufficientPermissions)
-			recordAuthError("grpc", mapped, start)
+			recordAuthError("grpc", mapped, claims.TenantID, start)
 			recordSpanError(span, mapped, nil)
 			return nil, grpcError(mapped)
 		}
 
 		annotateSpanWithClaims(span, claims)
 		ctxWithClaims := WithClaims(ctx, claims)
-		recordAuthSuccess("grpc", start)
+		recordAuthSuccess("grpc", claims.TenantID, start)
 		recordSpanSuccess(span)
 		return handler(ctxWithClaims, req)
 	}
@@ -76,7 +78,8 @@ func UnaryAnyScopeInterceptor(scopes ...string) grpc.UnaryServerInterceptor {
 		if needsSecret(cfg) {
 			if err := authjwt.EnsureSecretLoaded(); err != nil {
 				mapped := mapAuthError(err)
-				recordAuthError("grpc", mapped, start)
+				tenant := tenantFromMetadata(ctx)
+				recordAuthError("grpc", mapped, tenant, start)
 				recordSpanError(span, mapped, err)
 				return nil, grpcError(mapped)
 			}
@@ -88,21 +91,22 @@ func UnaryAnyScopeInterceptor(scopes ...string) grpc.UnaryServerInterceptor {
 		claims, err := authjwt.ValidateTokenFromHeader(authHeader)
 		if err != nil {
 			mapped := mapAuthError(err)
-			recordAuthError("grpc", mapped, start)
+			tenant := tenantFromMetadata(ctx)
+			recordAuthError("grpc", mapped, tenant, start)
 			recordSpanError(span, mapped, err)
 			return nil, grpcError(mapped)
 		}
 
 		if len(scopes) > 0 && !claims.HasAnyScope(scopes...) {
 			mapped := mapAuthError(autherrors.ErrInsufficientPermissions)
-			recordAuthError("grpc", mapped, start)
+			recordAuthError("grpc", mapped, claims.TenantID, start)
 			recordSpanError(span, mapped, nil)
 			return nil, grpcError(mapped)
 		}
 
 		annotateSpanWithClaims(span, claims)
 		ctxWithClaims := WithClaims(ctx, claims)
-		recordAuthSuccess("grpc", start)
+		recordAuthSuccess("grpc", claims.TenantID, start)
 		recordSpanSuccess(span)
 		return handler(ctxWithClaims, req)
 	}
@@ -123,7 +127,8 @@ func StreamAuthInterceptor(requiredScopes ...string) grpc.StreamServerIntercepto
 		if needsSecret(cfg) {
 			if err := authjwt.EnsureSecretLoaded(); err != nil {
 				mapped := mapAuthError(err)
-				recordAuthError("grpc", mapped, start)
+				tenant := tenantFromMetadata(ctx)
+				recordAuthError("grpc", mapped, tenant, start)
 				recordSpanError(span, mapped, err)
 				return grpcError(mapped)
 			}
@@ -135,21 +140,22 @@ func StreamAuthInterceptor(requiredScopes ...string) grpc.StreamServerIntercepto
 		claims, err := authjwt.ValidateTokenFromHeader(authHeader)
 		if err != nil {
 			mapped := mapAuthError(err)
-			recordAuthError("grpc", mapped, start)
+			tenant := tenantFromMetadata(ctx)
+			recordAuthError("grpc", mapped, tenant, start)
 			recordSpanError(span, mapped, err)
 			return grpcError(mapped)
 		}
 
 		if len(requiredScopes) > 0 && !claims.HasAllScopes(requiredScopes...) {
 			mapped := mapAuthError(autherrors.ErrInsufficientPermissions)
-			recordAuthError("grpc", mapped, start)
+			recordAuthError("grpc", mapped, claims.TenantID, start)
 			recordSpanError(span, mapped, nil)
 			return grpcError(mapped)
 		}
 
 		annotateSpanWithClaims(span, claims)
 		ctx = WithClaims(ctx, claims)
-		recordAuthSuccess("grpc", start)
+		recordAuthSuccess("grpc", claims.TenantID, start)
 		recordSpanSuccess(span)
 		return handler(srv, &wrappedServerStream{ServerStream: ss, ctx: ctx})
 	}
@@ -170,7 +176,8 @@ func StreamAnyScopeInterceptor(scopes ...string) grpc.StreamServerInterceptor {
 		if needsSecret(cfg) {
 			if err := authjwt.EnsureSecretLoaded(); err != nil {
 				mapped := mapAuthError(err)
-				recordAuthError("grpc", mapped, start)
+				tenant := tenantFromMetadata(ctx)
+				recordAuthError("grpc", mapped, tenant, start)
 				recordSpanError(span, mapped, err)
 				return grpcError(mapped)
 			}
@@ -182,21 +189,22 @@ func StreamAnyScopeInterceptor(scopes ...string) grpc.StreamServerInterceptor {
 		claims, err := authjwt.ValidateTokenFromHeader(authHeader)
 		if err != nil {
 			mapped := mapAuthError(err)
-			recordAuthError("grpc", mapped, start)
+			tenant := tenantFromMetadata(ctx)
+			recordAuthError("grpc", mapped, tenant, start)
 			recordSpanError(span, mapped, err)
 			return grpcError(mapped)
 		}
 
 		if len(scopes) > 0 && !claims.HasAnyScope(scopes...) {
 			mapped := mapAuthError(autherrors.ErrInsufficientPermissions)
-			recordAuthError("grpc", mapped, start)
+			recordAuthError("grpc", mapped, claims.TenantID, start)
 			recordSpanError(span, mapped, nil)
 			return grpcError(mapped)
 		}
 
 		annotateSpanWithClaims(span, claims)
 		ctx = WithClaims(ctx, claims)
-		recordAuthSuccess("grpc", start)
+		recordAuthSuccess("grpc", claims.TenantID, start)
 		recordSpanSuccess(span)
 		return handler(srv, &wrappedServerStream{ServerStream: ss, ctx: ctx})
 	}
@@ -209,6 +217,15 @@ func extractAuthorization(ctx context.Context) string {
 		}
 	}
 	return ""
+}
+
+func tenantFromMetadata(ctx context.Context) string {
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		if values := md.Get(strings.ToLower(TenantIDHeader)); len(values) > 0 {
+			return values[0]
+		}
+	}
+	return unknownTenantLabel
 }
 
 func extractRequestID(ctx context.Context) string {
