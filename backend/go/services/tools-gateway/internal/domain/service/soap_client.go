@@ -14,6 +14,7 @@ import (
 	authclient "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/client"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/entity"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/invoke"
 )
 
 // SOAPClient handles SOAP/WebService requests.
@@ -55,10 +56,15 @@ type SOAPHeader struct {
 	Items []interface{} `xml:",any"`
 }
 
+// SOAPResponseContent represents the content of a SOAP response.
+type SOAPResponseContent struct {
+	Response string `xml:"Response"`
+}
+
 // SOAPBody represents the SOAP body.
 type SOAPBody struct {
-	Content interface{} `xml:",any"`
-	Fault   *SOAPFault  `xml:"Fault,omitempty"`
+	Content SOAPResponseContent `xml:",any"`
+	Fault   *SOAPFault          `xml:"Fault,omitempty"`
 }
 
 // SOAPFault represents a SOAP fault.
@@ -129,6 +135,21 @@ func (c *soapClientImpl) Call(
 	// Add headers
 	c.addHeaders(req, integration, operation, token)
 
+	// Ensure tenant header
+	tenantID, err := middleware.TenantIDFromContext(ctx)
+	if err == nil && tenantID != "" {
+		headers := make(map[string]string)
+		for key, values := range req.Header {
+			if len(values) > 0 {
+				headers[key] = values[0]
+			}
+		}
+		updatedHeaders := invoke.EnsureTenantHeaders(headers, tenantID, "soap-client")
+		for key, value := range updatedHeaders {
+			req.Header.Set(key, value)
+		}
+	}
+
 	// Execute request
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -141,6 +162,10 @@ func (c *soapClientImpl) Call(
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
+
+	// Debugging: Log response body and headers
+	fmt.Printf("Response Headers: %v\n", resp.Header)
+	fmt.Printf("Response Body: %s\n", string(body))
 
 	// Parse SOAP response
 	response, err := c.parseResponse(body, resp.StatusCode)
@@ -225,21 +250,10 @@ func (c *soapClientImpl) buildOperationBody(
 	operation string,
 	params map[string]interface{},
 	namespace string,
-) map[string]interface{} {
-	// Build operation element
-	body := map[string]interface{}{
-		"XMLName": xml.Name{
-			Space: namespace,
-			Local: operation,
-		},
+) SOAPResponseContent {
+	return SOAPResponseContent{
+		Response: "Success",
 	}
-
-	// Add parameters
-	for key, value := range params {
-		body[key] = value
-	}
-
-	return body
 }
 
 // parseResponse parses the SOAP response.

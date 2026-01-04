@@ -13,6 +13,7 @@ import (
 	authclient "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/client"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/entity"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/invoke"
 )
 
 // GraphQLClient handles GraphQL API requests.
@@ -346,6 +347,21 @@ func (c *graphQLClientImpl) executeOperation(
 	// Add headers
 	c.addHeaders(req, integration, token)
 
+	// Ensure tenant header
+	tenantID, err := middleware.TenantIDFromContext(ctx)
+	if err == nil && tenantID != "" {
+		headers := make(map[string]string)
+		for key, values := range req.Header {
+			if len(values) > 0 {
+				headers[key] = values[0]
+			}
+		}
+		updatedHeaders := invoke.EnsureTenantHeaders(headers, tenantID, "graphql-client")
+		for key, value := range updatedHeaders {
+			req.Header.Set(key, value)
+		}
+	}
+
 	// Execute request
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -357,6 +373,9 @@ func (c *graphQLClientImpl) executeOperation(
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
+
+	// Debugging: Log response body
+	fmt.Printf("GraphQL Response Body: %s\n", string(body))
 
 	// Parse response
 	var graphQLResp GraphQLResponse
@@ -389,9 +408,18 @@ func (c *graphQLClientImpl) addHeaders(
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 	}
 
-	// Add tenant header from context (platform-auth)
+	// Add tenant header using EnsureTenantHeaders
 	if tenantID, err := middleware.TenantIDFromContext(req.Context()); err == nil && tenantID != "" {
-		req.Header.Set(middleware.TenantIDHeader, tenantID)
+		headers := make(map[string]string)
+		for key, values := range req.Header {
+			if len(values) > 0 {
+				headers[key] = values[0]
+			}
+		}
+		updatedHeaders := invoke.EnsureTenantHeaders(headers, tenantID, "graphql-client")
+		for key, value := range updatedHeaders {
+			req.Header.Set(key, value)
+		}
 	}
 
 	// Add default headers

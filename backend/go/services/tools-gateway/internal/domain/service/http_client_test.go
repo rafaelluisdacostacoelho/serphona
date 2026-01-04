@@ -204,3 +204,48 @@ func TestHTTPClientSetsServiceIdentity(t *testing.T) {
 		t.Errorf("expected X-Service-Instance 'tools-gateway-1', got '%s'", got)
 	}
 }
+
+// TestHTTPClientHandlesUnauthorizedError simulates a 401 Unauthorized response and verifies error handling
+func TestHTTPClientHandlesUnauthorizedError(t *testing.T) {
+	// Create a test server that returns 401 Unauthorized
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"error": "unauthorized"}`))
+	}))
+	defer server.Close()
+
+	// Create HTTP client
+	client := NewHTTPClient(10*time.Second, "tools-gateway", "tools-gateway-1", "")
+
+	// Create tool configuration
+	tool := &entity.Tool{
+		ID:                uuid.New(),
+		Name:              "Test Tool",
+		BaseURL:           server.URL,
+		EndpointPath:      "/api/test",
+		Method:            entity.HTTPMethodGET,
+		InputSchema:       json.RawMessage(`{}`),
+		OutputSchema:      json.RawMessage(`{}`),
+		AuthType:          entity.AuthTypeNone.String(),
+		IsActive:          true,
+		MaxRetries:        1,
+		RetryDelaySeconds: 0,
+	}
+
+	// Execute request
+	resp, err := client.Execute(context.Background(), tool, map[string]interface{}{}, nil)
+
+	// Verify error
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+	if resp != nil {
+		t.Errorf("expected nil response, got %v", resp)
+	}
+
+	// Verifica a mensagem de erro completa retornada pelo cliente HTTP
+	if err.Error() != "failed after 1 retries: HTTP 401: {\"error\": \"unauthorized\"}" {
+		t.Errorf("expected error message 'failed after 1 retries: HTTP 401: {\\\"error\\\": \\\"unauthorized\\\"}', got '%s'", err.Error())
+	}
+}

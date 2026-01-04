@@ -129,7 +129,10 @@ func (c *httpClientImpl) executeOnce(ctx context.Context, tool *entity.Tool, inp
 	if id, err := middleware.TenantIDFromContext(ctx); err == nil && id != "" {
 		tenantID = id
 	} else {
-		return nil, fmt.Errorf("tenant ID extraction failed: %w", err)
+		// Allow requests without tenant ID if the tool's AuthType is none
+		if tool.AuthType != entity.AuthTypeNone.String() {
+			return nil, fmt.Errorf("tenant ID extraction failed: %w", err)
+		}
 	}
 
 	// Convert http.Header to map[string]string before calling EnsureTenantHeaders
