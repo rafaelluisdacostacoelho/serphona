@@ -7,18 +7,20 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/response"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/auth-gateway/internal/domain/user"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/auth-gateway/internal/service/jwt"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/auth-gateway/internal/usecase/auth"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.uber.org/zap/zaptest"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // stubUserRepo satisfies user.Repository for contract tests.
@@ -28,8 +30,18 @@ func (stubUserRepo) Create(_ context.Context, _ *user.User) error { return nil }
 func (stubUserRepo) GetByID(_ context.Context, _ uuid.UUID) (*user.User, error) {
 	return &user.User{}, nil
 }
-func (stubUserRepo) GetByEmail(_ context.Context, _ string) (*user.User, error) {
-	return &user.User{}, nil
+func (stubUserRepo) GetByEmail(_ context.Context, email string) (*user.User, error) {
+	if email == "test@example.com" {
+		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
+		return &user.User{
+			ID:       uuid.New(),
+			Email:    email,
+			Password: string(hashedPassword),
+			TenantID: uuid.MustParse("e92bf6bd-b53c-4759-8d64-9b3d27e5afec"),
+			Active:   true,
+		}, nil
+	}
+	return nil, errors.New("invalid_credentials")
 }
 func (stubUserRepo) GetByProvider(_ context.Context, _, _ string) (*user.User, error) {
 	return &user.User{}, nil
@@ -116,7 +128,7 @@ func TestGetOAuthURLEnvelopeContract(t *testing.T) {
 
 	tracer := sdktrace.NewTracerProvider()
 	ctx, span := tracer.Tracer("test").Start(req.Context(), "oauth-url")
-	ctx = authmw.WithRequestID(ctx, "req-auth-1")
+	ctx = middleware.WithRequestID(ctx, "req-auth-1")
 	req = req.WithContext(ctx)
 	span.End()
 
@@ -162,7 +174,7 @@ func TestGetOAuthURLErrorEnvelopeContract(t *testing.T) {
 
 	tracer := sdktrace.NewTracerProvider()
 	ctx, span := tracer.Tracer("test").Start(req.Context(), "oauth-url-error")
-	ctx = authmw.WithRequestID(ctx, "req-auth-err")
+	ctx = middleware.WithRequestID(ctx, "req-auth-err")
 	req = req.WithContext(ctx)
 	span.End()
 
@@ -207,7 +219,7 @@ func TestLoginValidationErrorEnvelopeContract(t *testing.T) {
 
 	tracer := sdktrace.NewTracerProvider()
 	ctx, span := tracer.Tracer("test").Start(req.Context(), "login-error")
-	ctx = authmw.WithRequestID(ctx, "req-auth-login-err")
+	ctx = middleware.WithRequestID(ctx, "req-auth-login-err")
 	req = req.WithContext(ctx)
 	span.End()
 
@@ -262,7 +274,7 @@ func TestRegisterContractIncludesTenantIDAnd201(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 
-	ctx := authmw.WithRequestID(context.Background(), "req-register-1")
+	ctx := middleware.WithRequestID(context.Background(), "req-register-1")
 	req = req.WithContext(ctx)
 
 	c.Request = req
@@ -302,7 +314,7 @@ func TestRegisterValidationErrorEnvelopeContract(t *testing.T) {
 
 	tracer := sdktrace.NewTracerProvider()
 	ctx, span := tracer.Tracer("test").Start(req.Context(), "register-error")
-	ctx = authmw.WithRequestID(ctx, "req-auth-register-err")
+	ctx = middleware.WithRequestID(ctx, "req-auth-register-err")
 	req = req.WithContext(ctx)
 	span.End()
 
@@ -346,7 +358,7 @@ func TestRefreshValidationErrorEnvelopeContract(t *testing.T) {
 
 	tracer := sdktrace.NewTracerProvider()
 	ctx, span := tracer.Tracer("test").Start(req.Context(), "refresh-error")
-	ctx = authmw.WithRequestID(ctx, "req-auth-refresh-err")
+	ctx = middleware.WithRequestID(ctx, "req-auth-refresh-err")
 	req = req.WithContext(ctx)
 	span.End()
 
@@ -390,7 +402,7 @@ func TestLogoutUnauthorizedEnvelopeContract(t *testing.T) {
 
 	tracer := sdktrace.NewTracerProvider()
 	ctx, span := tracer.Tracer("test").Start(req.Context(), "logout-error")
-	ctx = authmw.WithRequestID(ctx, "req-auth-logout-err")
+	ctx = middleware.WithRequestID(ctx, "req-auth-logout-err")
 	req = req.WithContext(ctx)
 	span.End()
 
@@ -418,5 +430,42 @@ func TestLogoutUnauthorizedEnvelopeContract(t *testing.T) {
 	}
 	if payload.Error.Code == "" || payload.Error.Message == "" {
 		t.Fatalf("expected error code/message to be set")
+	}
+}
+
+func TestLogin_PropagatesTenantID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	fixedTenantID := uuid.MustParse("e92bf6bd-b53c-4759-8d64-9b3d27e5afec")
+	jwtSvc := &jwt.Service{}
+	uc := auth.NewUseCase(stubUserRepo{}, jwtSvc, stubTenantService{id: fixedTenantID}, time.Hour)
+	h := NewAuthHandler(uc, jwtSvc, zaptest.NewLogger(t))
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(`{
+		"email": "test@example.com",
+		"password": "password123"
+	}`))
+	req.Header.Set("Content-Type", "application/json")
+	c.Request = req
+
+	h.Login(c)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+
+	var payload struct {
+		Data auth.AuthResponse `json:"data"`
+		Meta response.Meta     `json:"meta"`
+	}
+
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if payload.Data.User.TenantID != fixedTenantID {
+		t.Fatalf("expected tenant_id %s, got %s", fixedTenantID, payload.Data.User.TenantID)
 	}
 }

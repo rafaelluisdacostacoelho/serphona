@@ -12,11 +12,11 @@ import (
 
 // AuthMiddleware validates JWT tokens
 type AuthMiddleware struct {
-	jwtService *jwt.Service
+	jwtService jwt.JWTService
 }
 
 // NewAuthMiddleware creates a new auth middleware
-func NewAuthMiddleware(jwtService *jwt.Service) *AuthMiddleware {
+func NewAuthMiddleware(jwtService jwt.JWTService) *AuthMiddleware {
 	return &AuthMiddleware{
 		jwtService: jwtService,
 	}

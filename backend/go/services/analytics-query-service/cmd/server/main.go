@@ -23,6 +23,14 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// TenantEnforcerAdapter encapsula a função EnforceTenant
+// para que ela implemente a interface TenantEnforcer.
+type TenantEnforcerAdapter struct{}
+
+func (a *TenantEnforcerAdapter) EnforceTenant(ctx context.Context, tenantID string) error {
+	return authmw.EnforceTenant(ctx, tenantID)
+}
+
 func main() {
 	log.Println("🚀 Starting Analytics Query Service...")
 
@@ -64,7 +72,8 @@ func main() {
 	log.Println("✅ Connected to ClickHouse")
 
 	// Initialize repository (with or without cache)
-	clickhouseRepo := clickhouse.NewAnalyticsRepository(db)
+	tenantEnforcer := &TenantEnforcerAdapter{}
+	clickhouseRepo := clickhouse.NewAnalyticsRepository(db, tenantEnforcer)
 
 	if redisClient != nil {
 		// Wrap with cache layer

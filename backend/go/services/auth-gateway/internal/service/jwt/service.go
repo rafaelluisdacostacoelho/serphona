@@ -122,3 +122,15 @@ func (s *Service) ValidateRefreshToken(tokenString string) (uuid.UUID, error) {
 
 	return userID, nil
 }
+
+// JWTService defines the interface for JWT operations
+// This allows for easier mocking and testing.
+type JWTService interface {
+	ValidateAccessToken(tokenString string) (*Claims, error)
+	ValidateRefreshToken(tokenString string) (uuid.UUID, error)
+	GenerateAccessToken(userID, tenantID uuid.UUID, email, role string) (string, error)
+	GenerateRefreshToken(userID uuid.UUID) (string, error)
+}
+
+// Ensure Service implements JWTService
+var _ JWTService = (*Service)(nil)
