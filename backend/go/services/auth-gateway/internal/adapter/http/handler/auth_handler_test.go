@@ -250,6 +250,55 @@ func TestLoginValidationErrorEnvelopeContract(t *testing.T) {
 	}
 }
 
+func TestLoginSuccessEnvelopeContract(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	jtwSvc := &jwt.Service{}
+	uc := auth.NewUseCase(stubUserRepo{}, jtwSvc, stubTenantService{}, time.Hour)
+	h := NewAuthHandler(uc, jtwSvc, zaptest.NewLogger(t))
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(`{
+		"email": "test@example.com",
+		"password": "password123"
+	}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	tracer := sdktrace.NewTracerProvider()
+	ctx, span := tracer.Tracer("test").Start(req.Context(), "login-success")
+	ctx = middleware.WithRequestID(ctx, "req-auth-login-success")
+	req = req.WithContext(ctx)
+	span.End()
+
+	c.Request = req
+
+	h.Login(c)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+
+	var payload struct {
+		Data auth.AuthResponse `json:"data"`
+		Meta response.Meta     `json:"meta"`
+	}
+
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if payload.Meta.RequestID != "req-auth-login-success" {
+		t.Fatalf("expected request_id req-auth-login-success, got %s", payload.Meta.RequestID)
+	}
+	if payload.Meta.TraceID == "" {
+		t.Fatalf("expected trace_id to be populated")
+	}
+	if payload.Data.Tokens.AccessToken == "" || payload.Data.Tokens.RefreshToken == "" {
+		t.Fatalf("expected tokens to be populated")
+	}
+}
+
 func TestRegisterContractIncludesTenantIDAnd201(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

@@ -428,13 +428,6 @@ func createCheckoutSession(c *gin.Context) {
 	})
 }
 
-func getEnv(key, fallback string) string {
-	if value, ok := os.LookupEnv(key); ok {
-		return value
-	}
-	return fallback
-}
-
 func tenantFromContext(c *gin.Context) (string, bool) {
 	tenantID, err := authmw.GetTenantIDFromContext(c)
 	if err != nil || tenantID == "" {

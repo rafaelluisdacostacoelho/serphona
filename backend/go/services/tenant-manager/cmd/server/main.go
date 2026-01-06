@@ -60,7 +60,9 @@ func main() {
 		fmt.Printf("Failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
-	defer log.Sync()
+	defer func() {
+		_ = log.Sync()
+	}()
 
 	configureAuth(cfg)
 	tenantRateMetrics = middleware.NewTenantRateMetrics()

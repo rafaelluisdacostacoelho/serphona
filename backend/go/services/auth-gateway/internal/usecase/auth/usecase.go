@@ -239,8 +239,10 @@ func (uc *UseCase) HandleOAuthCallback(ctx context.Context, req OAuthCallbackReq
 		return nil, ErrStateExpired
 	}
 
-	// Delete used state
-	defer uc.userRepo.DeleteOAuthState(ctx, req.State)
+	// Delete used state and ignore cleanup errors to avoid masking the primary flow
+	defer func() {
+		_ = uc.userRepo.DeleteOAuthState(ctx, req.State)
+	}()
 
 	// Get provider
 	oauthProvider, ok := uc.oauthProviders[oauthState.Provider]

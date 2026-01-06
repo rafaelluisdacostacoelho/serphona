@@ -317,6 +317,51 @@ func TestGinTenantHandlerListEnvelopeContract(t *testing.T) {
 	}
 }
 
+func TestGinTenantHandlerCreateEnvelopeContract(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := newTenantRepoStub()
+	svc := tenant.NewService(repo, nil, noopCache{}, noopPublisher{}, zaptest.NewLogger(t))
+	h := NewGinTenantHandler(svc, zaptest.NewLogger(t))
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/tenants", bytes.NewBufferString(`{"name":"Acme","email":"acme@example.com","plan":"starter"}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	tracer := sdktrace.NewTracerProvider()
+	ctx, span := tracer.Tracer("test").Start(ctxWithClaims("platform", "write:tenants"), "create-tenant-envelope")
+	ctx = authmw.WithRequestID(ctx, "req-tenant-create")
+	req = req.WithContext(ctx)
+	span.End()
+
+	c.Request = req
+
+	h.Create(c)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d", rec.Code)
+	}
+
+	var payload struct {
+		Data TenantResponse `json:"data"`
+		Meta response.Meta  `json:"meta"`
+	}
+
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if payload.Meta.RequestID != "req-tenant-create" {
+		t.Fatalf("expected request_id req-tenant-create, got %s", payload.Meta.RequestID)
+	}
+	if payload.Meta.TraceID == "" {
+		t.Fatalf("expected trace_id to be populated")
+	}
+	if payload.Data.Email != "acme@example.com" || payload.Data.ID == "" {
+		t.Fatalf("expected tenant payload to be populated, got %+v", payload.Data)
+	}
+}
+
 func TestGinTenantHandlerListWithTenantContext(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	repo := newTenantRepoStub()

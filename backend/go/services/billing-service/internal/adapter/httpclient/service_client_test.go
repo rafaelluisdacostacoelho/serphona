@@ -1,6 +1,8 @@
 package httpclient
 
 import (
+	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"strings"
@@ -9,8 +11,54 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	authclient "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/client"
+	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/billing-service/internal/config"
 )
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return f(r)
+}
+
+func TestServiceTokenRoundTripperSetsTenantHeader(t *testing.T) {
+	var captured http.Header
+	stub := roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		captured = r.Header.Clone()
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewBufferString("{}")), Header: http.Header{}}, nil
+	})
+
+	rt := &serviceTokenRoundTripper{next: stub, token: "", audience: ""}
+	ctx := authmw.WithTenantID(context.Background(), "tenant-abc")
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://example.com", nil)
+
+	if _, err := rt.RoundTrip(req); err != nil {
+		t.Fatalf("RoundTrip returned error: %v", err)
+	}
+
+	if got := captured.Get(authmw.TenantIDHeader); got != "tenant-abc" {
+		t.Fatalf("expected X-Tenant-Id header 'tenant-abc', got '%s'", got)
+	}
+}
+
+func TestServiceTokenRoundTripperSkipsTenantWhenMissing(t *testing.T) {
+	var captured http.Header
+	stub := roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		captured = r.Header.Clone()
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewBufferString("{}")), Header: http.Header{}}, nil
+	})
+
+	rt := &serviceTokenRoundTripper{next: stub, token: "", audience: ""}
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com", nil)
+
+	if _, err := rt.RoundTrip(req); err != nil {
+		t.Fatalf("RoundTrip returned error: %v", err)
+	}
+
+	if got := captured.Get(authmw.TenantIDHeader); got != "" {
+		t.Fatalf("expected no X-Tenant-Id header, got '%s'", got)
+	}
+}
 
 func TestServiceClientInjectsIdentityAndToken(t *testing.T) {
 	cfg := config.ServiceConfig{Name: "billing-service", Instance: "billing-1", AuthToken: mustSignedToken(t, "internal"), Audience: "internal"}
@@ -29,6 +77,7 @@ func TestServiceClientInjectsIdentityAndToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build request: %v", err)
 	}
+	req = req.WithContext(authmw.WithTenantID(req.Context(), "tenant-abc"))
 
 	if _, err := client.Do(req); err != nil {
 		t.Fatalf("do request: %v", err)
@@ -45,6 +94,9 @@ func TestServiceClientInjectsIdentityAndToken(t *testing.T) {
 	}
 	if got := capture.req.Header.Get("X-Request-Id"); got == "" {
 		t.Fatalf("expected request id to be injected")
+	}
+	if got := capture.req.Header.Get(authmw.TenantIDHeader); got != "tenant-abc" {
+		t.Fatalf("expected tenant header, got %q", got)
 	}
 }
 

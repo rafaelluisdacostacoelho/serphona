@@ -12,6 +12,7 @@ import (
 	"tenant-manager/internal/config"
 
 	"github.com/golang-jwt/jwt/v5"
+	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 )
 
 func TestServiceClientInjectsHeadersAndToken(t *testing.T) {
@@ -75,7 +76,7 @@ func TestServiceClientInjectsTenantHeader(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to build request: %v", err)
 	}
-	req = req.WithContext(context.WithValue(req.Context(), "tenant_id", "test-tenant"))
+	req = req.WithContext(authmw.WithTenantID(req.Context(), "test-tenant"))
 
 	if _, err := client.Do(req); err != nil {
 		t.Fatalf("client do failed: %v", err)
@@ -114,11 +115,11 @@ func TestServiceClient_TableDriven(t *testing.T) {
 	}{
 		{
 			name:          "with tenant in context",
-			ctx:           context.WithValue(context.Background(), "tenant_id", "tenant-123"),
+			ctx:           authmw.WithTenantID(context.Background(), "tenant-123"),
 			existingToken: mustSignedToken(t, "expected-audience"),
 			expectHeaders: map[string]string{
-				"Authorization": "Bearer " + mustSignedToken(t, "expected-audience"),
-				"X-Tenant-ID":   "tenant-123",
+				"Authorization":       "Bearer " + mustSignedToken(t, "expected-audience"),
+				authmw.TenantIDHeader: "tenant-123",
 			},
 			expectError: false,
 		},
@@ -133,31 +134,31 @@ func TestServiceClient_TableDriven(t *testing.T) {
 		},
 		{
 			name:          "invalid token",
-			ctx:           context.WithValue(context.Background(), "tenant_id", "tenant-123"),
+			ctx:           authmw.WithTenantID(context.Background(), "tenant-123"),
 			existingToken: "",
 			expectHeaders: map[string]string{
-				"X-Tenant-ID": "tenant-123",
+				authmw.TenantIDHeader: "tenant-123",
 			},
 			expectError: true,
 		},
 		{
 			name:          "expired token",
-			ctx:           context.WithValue(context.Background(), "tenant_id", "tenant-456"),
+			ctx:           authmw.WithTenantID(context.Background(), "tenant-456"),
 			existingToken: mustSignedToken(t, "expired-audience"),
 			expectHeaders: map[string]string{
-				"Authorization": "Bearer " + mustSignedToken(t, "expired-audience"),
-				"X-Tenant-ID":   "tenant-456",
+				"Authorization":       "Bearer " + mustSignedToken(t, "expired-audience"),
+				authmw.TenantIDHeader: "tenant-456",
 			},
 			expectError: true,
 		},
 		{
 			name:          "custom headers present",
-			ctx:           context.WithValue(context.Background(), "tenant_id", "tenant-789"),
+			ctx:           authmw.WithTenantID(context.Background(), "tenant-789"),
 			existingToken: mustSignedToken(t, "expected-audience"),
 			expectHeaders: map[string]string{
-				"Authorization":   "Bearer " + mustSignedToken(t, "expected-audience"),
-				"X-Tenant-ID":     "tenant-789",
-				"X-Custom-Header": "custom-value",
+				"Authorization":       "Bearer " + mustSignedToken(t, "expected-audience"),
+				authmw.TenantIDHeader: "tenant-789",
+				"X-Custom-Header":     "custom-value",
 			},
 			expectError: false,
 		},

@@ -16,6 +16,7 @@ func CorrelationID(next http.Handler) http.Handler {
 		if id == "" {
 			id = uuid.New().String()
 		}
+		//nolint:staticcheck // string context key kept for backward compatibility with existing consumers
 		ctx := context.WithValue(r.Context(), "request_id", id)
 		w.Header().Set("X-Request-ID", id)
 		next.ServeHTTP(w, r.WithContext(ctx))

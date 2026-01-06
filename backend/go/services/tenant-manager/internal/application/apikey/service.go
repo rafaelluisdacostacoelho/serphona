@@ -89,8 +89,8 @@ func (s *Service) CreateAPIKey(ctx context.Context, tenantID uuid.UUID, name str
 		)
 
 		if err := s.publishEvent(ctx, event); err != nil {
-			// Log error but don't fail the operation
-			// In production, you might want to implement a retry mechanism
+			// Best-effort publish; ignore errors to avoid failing key creation flow
+			_ = err
 		}
 	}
 
@@ -98,7 +98,8 @@ func (s *Service) CreateAPIKey(ctx context.Context, tenantID uuid.UUID, name str
 	if s.cache != nil {
 		cacheKey := fmt.Sprintf("apikey:%s", key.KeyPrefix)
 		if err := s.cache.Set(ctx, cacheKey, key.ID.String(), 24*time.Hour); err != nil {
-			// Log error but don't fail
+			// Best-effort cache write; ignore errors
+			_ = err
 		}
 	}
 
@@ -139,7 +140,8 @@ func (s *Service) RevokeAPIKey(ctx context.Context, id uuid.UUID, revokedBy uuid
 		)
 
 		if err := s.publishEvent(ctx, event); err != nil {
-			// Log error but don't fail
+			// Best-effort publish; ignore errors during revoke
+			_ = err
 		}
 	}
 
@@ -215,7 +217,8 @@ func (s *Service) AuthenticateAPIKey(ctx context.Context, rawKey string, ipAddre
 
 	// Record successful usage
 	if err := s.domainService.RecordUsage(ctx, key.ID, ipAddress, "", true); err != nil {
-		// Log error but don't fail authentication
+		// Best-effort usage recording; ignore errors to avoid auth failures
+		_ = err
 	}
 
 	// Publish usage event

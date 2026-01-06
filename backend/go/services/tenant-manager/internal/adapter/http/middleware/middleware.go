@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/status"
 
 	"tenant-manager/internal/application/tenant"
 )
@@ -89,6 +90,7 @@ func (m *CorrelationMiddleware) Handle(next http.Handler) http.Handler {
 		if requestID == "" {
 			requestID = uuid.New().String()
 		}
+		//nolint:staticcheck // string context key kept for backward compatibility with existing consumers
 		ctx := context.WithValue(r.Context(), "request_id", requestID)
 		w.Header().Set("X-Request-ID", requestID)
 		next.ServeHTTP(w, r.WithContext(ctx))
@@ -109,7 +111,7 @@ func GRPCRecoveryInterceptor(logger *zap.Logger) grpc.UnaryServerInterceptor {
 		defer func() {
 			if r := recover(); r != nil {
 				logger.Error("gRPC panic recovered", zap.Any("error", r))
-				err = grpc.Errorf(2, "internal error") // Using error code 2 (Unknown)
+				err = status.Errorf(2, "internal error") // Using error code 2 (Unknown)
 			}
 		}()
 		return handler(ctx, req)
@@ -120,6 +122,7 @@ func GRPCRecoveryInterceptor(logger *zap.Logger) grpc.UnaryServerInterceptor {
 func GRPCCorrelationInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		requestID := uuid.New().String()
+		//nolint:staticcheck // string context key kept for backward compatibility with existing consumers
 		ctx = context.WithValue(ctx, "request_id", requestID)
 		return handler(ctx, req)
 	}

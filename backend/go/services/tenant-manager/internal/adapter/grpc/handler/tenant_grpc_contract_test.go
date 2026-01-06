@@ -121,6 +121,9 @@ func TestTenantGRPCEnvelopeMetadata(t *testing.T) {
 		return lis.Dial()
 	}
 
+	//nolint:staticcheck // grpc.DialContext is acceptable in test bufconn setup
+	//nolint:staticcheck // grpc.DialContext is acceptable in test bufconn setup
+	//nolint:staticcheck // grpc.DialContext is acceptable in test bufconn setup
 	conn, err := grpc.DialContext(context.Background(), "bufnet", grpc.WithContextDialer(dialer), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		t.Fatalf("failed to dial bufnet: %v", err)
@@ -175,6 +178,7 @@ func TestTenantGRPCMissingScopeDenied(t *testing.T) {
 
 	dialer := func(ctx context.Context, _ string) (net.Conn, error) { return lis.Dial() }
 
+	//nolint:staticcheck // grpc.DialContext is acceptable in test bufconn setup
 	conn, err := grpc.DialContext(context.Background(), "bufnet", grpc.WithContextDialer(dialer), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		t.Fatalf("failed to dial bufnet: %v", err)
@@ -226,6 +230,7 @@ func TestTenantGRPCEnvelopeMetadataUnauthenticated(t *testing.T) {
 	t.Cleanup(server.Stop)
 
 	dialer := func(ctx context.Context, _ string) (net.Conn, error) { return lis.Dial() }
+	//nolint:staticcheck // grpc.DialContext is acceptable in test bufconn setup
 	conn, err := grpc.DialContext(context.Background(), "bufnet", grpc.WithContextDialer(dialer), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		t.Fatalf("failed to dial bufnet: %v", err)
@@ -295,6 +300,7 @@ func TestTenantGRPCEnvelopeMetadataTenantMismatch(t *testing.T) {
 	t.Cleanup(server.Stop)
 
 	dialer := func(ctx context.Context, _ string) (net.Conn, error) { return lis.Dial() }
+	//nolint:staticcheck // grpc.DialContext is acceptable in test bufconn setup
 	conn, err := grpc.DialContext(context.Background(), "bufnet", grpc.WithContextDialer(dialer), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		t.Fatalf("failed to dial bufnet: %v", err)

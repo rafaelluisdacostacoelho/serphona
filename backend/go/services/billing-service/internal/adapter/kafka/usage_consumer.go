@@ -34,7 +34,7 @@ type walletDebitService interface {
 // NewUsageConsumer creates a consumer group client.
 func NewUsageConsumer(cfg config.KafkaConfig, walletSvc walletDebitService, logger *log.Logger) (*UsageConsumer, error) {
 	scfg := sarama.NewConfig()
-	scfg.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRoundRobin
+	scfg.Consumer.Group.Rebalance.GroupStrategies = []sarama.BalanceStrategy{sarama.NewBalanceStrategyRoundRobin()}
 	scfg.Consumer.Offsets.Initial = sarama.OffsetNewest
 
 	group, err := sarama.NewConsumerGroup(cfg.Brokers, cfg.GroupID, scfg)
@@ -183,7 +183,7 @@ func (h *usageHandler) retryWithBackoff(ctx context.Context, msg *sarama.Consume
 		return origErr
 	}
 
-	status := "error"
+	var status string
 	err := origErr
 	for i := 0; i < h.retryAttempts; i++ {
 		time.Sleep(h.retryBackoff)

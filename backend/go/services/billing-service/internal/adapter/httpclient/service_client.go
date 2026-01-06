@@ -7,6 +7,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	authclient "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/client"
+	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/billing-service/internal/config"
 )
 
@@ -42,6 +43,14 @@ func (rt *serviceTokenRoundTripper) RoundTrip(req *http.Request) (*http.Response
 			return nil, err
 		}
 		clone.Header.Set("Authorization", "Bearer "+rt.token)
+	}
+
+	// Propagate tenant header when present in context
+	if tenantID, err := authmw.TenantIDFromContext(req.Context()); err == nil && tenantID != "" {
+		if clone == req {
+			clone = req.Clone(req.Context())
+		}
+		clone.Header = authmw.EnsureTenantHeader(clone.Header, tenantID)
 	}
 
 	return rt.next.RoundTrip(clone)

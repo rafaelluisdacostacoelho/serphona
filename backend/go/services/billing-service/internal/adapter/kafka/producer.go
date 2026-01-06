@@ -50,19 +50,33 @@ func (p *Producer) SendMessage(ctx context.Context, topic string, key, value []b
 
 // ensureTenantHeaders clones provided headers and injects the tenant header when available.
 func ensureTenantHeaders(ctx context.Context, headers []sarama.RecordHeader) []sarama.RecordHeader {
-	if tenantID, err := authmw.TenantIDFromContext(ctx); err == nil && tenantID != "" {
-		for i := range headers {
-			if string(headers[i].Key) == authmw.TenantIDHeader {
-				if len(headers[i].Value) == 0 {
-					headers[i].Value = []byte(tenantID)
-				}
-				return headers
-			}
-		}
-		return append(headers, sarama.RecordHeader{Key: []byte(authmw.TenantIDHeader), Value: []byte(tenantID)})
+	cloned := cloneHeaders(headers)
+
+	tenantID, err := authmw.TenantIDFromContext(ctx)
+	if err != nil || tenantID == "" {
+		return cloned
 	}
 
-	return headers
+	for i := range cloned {
+		if string(cloned[i].Key) == authmw.TenantIDHeader {
+			if len(cloned[i].Value) == 0 {
+				cloned[i].Value = []byte(tenantID)
+			}
+			return cloned
+		}
+	}
+
+	return append(cloned, sarama.RecordHeader{Key: []byte(authmw.TenantIDHeader), Value: []byte(tenantID)})
+}
+
+// cloneHeaders returns a shallow copy to avoid mutating the caller's slice.
+func cloneHeaders(headers []sarama.RecordHeader) []sarama.RecordHeader {
+	if len(headers) == 0 {
+		return nil
+	}
+	cloned := make([]sarama.RecordHeader, len(headers))
+	copy(cloned, headers)
+	return cloned
 }
 
 // Close closes the Kafka producer.

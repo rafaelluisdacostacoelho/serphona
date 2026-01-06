@@ -4,7 +4,6 @@ package tenant
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -481,11 +480,6 @@ func toDTO(t *tenant.Tenant) *TenantDTO {
 		UpdatedAt:    t.UpdatedAt,
 		BillingEmail: t.BillingEmail,
 	}
-}
-
-// Helper to normalize strings
-func normalizeString(s string) string {
-	return strings.TrimSpace(strings.ToLower(s))
 }
 
 // cache helpers tolerate nil cache to keep the service operational without Redis.

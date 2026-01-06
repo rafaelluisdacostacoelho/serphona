@@ -7,6 +7,9 @@ Esta release introduz melhorias significativas na autenticação e autorização
 - **Métricas Cross-Service**: Adicionadas métricas padronizadas para autenticação, incluindo `auth_requests_total` e `auth_request_duration_seconds_bucket`.
 - **Proteção CSRF**: Middleware implementado para proteger fluxos baseados em cookies.
 - **Integração com Platform-Auth**: Serviços agora utilizam `EnsureTenantHeader` e validação de escopos para autenticação consistente.
+- **Contratos de envelope**: Exemplos de uso para Gin/chi/gRPC adicionados em `docs/architecture/RESPONSE-ENVELOPE-CONTRACT-*`, alinhando `request_id`/`trace_id` e `ErrorInfo.reason` no gRPC.
+- **Propagação de tenant**: Testes adicionais de X-Tenant-Id em rag-gateway (cliente OpenAI) e billing-service (HTTP client com service identity) garantem cabeçalhos em outbound.
+- **Higienização de dependências/format**: `go mod tidy` + `go fmt` nos serviços auth-gateway, tenant-manager, billing-service e rag-gateway para consistência após os novos testes.
 
 ## Breaking Changes
 - **Formato de Claims**: Tokens JWT agora incluem `tenant_id` e `service` como claims obrigatórios.

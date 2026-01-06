@@ -16,7 +16,7 @@
 
 ## Action items
 1) Token validation: ✅ added issuer/audience/clock-skew enforcement, alg allow-list, max token length, scopes/permissions support with RequiredScopes config and Claims.Scopes field, JWKS fetch/cache with kid allow-list and rotation handling. Still needed: refresh-token guidance and service-to-service tokens (client credentials) with separate audience.
-2) Middleware/interceptors: ✅ added RequireScopes/RequireAnyScope/RequireAllScopes for Gin plus net/http + chi middleware and gRPC unary/stream interceptors. Still needed: tenant enforcement, panic recovery, optional CORS/body-size limits, and consistent error payloads/shape across transports.
+2) Middleware/interceptors: ✅ added RequireScopes/RequireAnyScope/RequireAllScopes for Gin plus net/http + chi middleware and gRPC unary/stream interceptors. Still needed: tenant enforcement, panic recovery, optional CORS/body-size limits; envelope helpers now covered by service contract tests.
 3) Client: ✅ context-aware methods, retries/backoff + circuit breaker, TLS/mTLS, service identity headers, structured errors. Next: ensure services set service identity/TLS env and add authz helper for internal calls if needed.
 4) Tenant/RLS helpers: ✅ helpers to inject tenant_id into DB contexts/queries and Kafka headers; guard rails for cross-tenant enforcement; guidance for pgvector/ClickHouse still pending. Next: adopt helpers in services (tenant-manager, billing, analytics) and verify RLS paths.
 5) Observability: ✅ Prometheus counters/histograms for auth outcomes/latency across Gin/HTTP/chi/gRPC, OTEL spans tagging request/user/tenant/scope/session, and logging redaction helpers. Outbound HTTP client now propagates request IDs + trace context; still need service-side adoption and handler log scrubbing.
@@ -44,12 +44,11 @@
 	- [x] Migrate handlers to the helper (auth-gateway, tenant-manager, agent-orchestrator, tools-gateway, voice-gateway, analytics-query-service)
 	- [x] Add contract tests for envelope shape and trace_id propagation across transports
 		- [x] analytics-query-service SearchEvents (Gin) envelope shape with trace_id/request_id + pagination
-		- [x] Remaining Gin/chi handlers (auth-gateway GetOAuthURL, tenant-manager List)
+		- [x] Gin/chi handlers (auth-gateway OAuth + login success; tenant-manager List + Create)
 		- [x] gRPC surface (map error codes + metadata)
 **Next priority**: Tenant helper adoption in services, outbound authz helper if needed.
 
 ### In progress (current cycle)
-- Add envelope contract tests on services (started: analytics-query-service SearchEvents; next: auth-gateway/tenant-manager + gRPC surface).
 - Add Gin/chi/gRPC usage snippets to response envelope docs (examples section added).
 - Begin tenant propagation adoption (reuse tenant_id from context/envelope; next: wire tenant helpers in billing/analytics repositories and outbound headers).
 - [x] Tenant/RLS guidance for pgvector/ClickHouse and DB helper examples
@@ -78,24 +77,39 @@
 - [x] Metrics/tracing emitted without leaking secrets
 - [x] Benchmarks for middleware overhead
 
-## Service adoption (MVP blockers)
-- [ ] tenant-manager: apply tenant helpers in repositories and ensure outbound HTTP/Kafka include EnsureTenantHeader; add table-driven tests for header injection.
-- [ ] billing-service: enforce tenant helpers in DB/Kafka layers; ensure outbound HTTP clients use platform-auth transport + EnsureTenantHeader; add tests.
-- [ ] analytics-query-service: wire tenant helpers in query path (ClickHouse/Postgres) and validate tenant header on outbound (if/when added); add tests.
-- [ ] tools-gateway: audit all outbound HTTP clients to use platform-auth transport + EnsureTenantHeader and add tests.
-- [ ] auth-gateway: audit outbound calls (if any) to ensure platform-auth transport + EnsureTenantHeader; add tests.
-- [ ] voice-gateway: propagate tenant header on agent/tenant clients and Kafka events; add tests around conversation start ensuring tenant header set.
-- [ ] rag-gateway: verify tenant header injection on outbound remains correct; add tests if missing.
-- [ ] Cross-service tests: add integration-level assertions that outbound calls include X-Tenant-Id when tenant is present in context.
+## Service adoption (MVP blockers — scope locked)
+- tenant-manager
+	- [x] Repositories use tenant context helpers (DB/Kafka).
+	- [x] Outbound HTTP/Kafka inject EnsureTenantHeader (platform-auth transport where applicable).
+	- [x] Table-driven tests for tenant guard + header injection.
+- billing-service
+	- [x] DB layers use tenant helpers.
+	- [x] Kafka producer injects tenant header via helpers.
+	- [x] Outbound HTTP uses platform-auth transport + EnsureTenantHeader.
+	- [ ] Integration tests for tenant guard + header injection.
+- analytics-query-service
+	- [x] Apply tenant helpers on ClickHouse/Postgres query path.
+	- [x] Enforce EnsureTenantHeader on outbound (if any) via platform-auth transport. (N/A — no outbound clients)
+	- [x] Integration test for tenant guard on queries.
+- tools-gateway
+	- [x] HTTP client uses platform-auth transport + EnsureTenantHeader.
+	- [x] GraphQL client uses platform-auth transport + EnsureTenantHeader.
+	- [x] SOAP client uses platform-auth transport + EnsureTenantHeader.
+	- [x] Integration tests for each client verifying X-Tenant-Id propagation.
+- auth-gateway
+	- [x] Outbound HTTP (if any) uses platform-auth transport + EnsureTenantHeader.
+	- [x] Test propagation of tenant header.
+- voice-gateway
+	- [x] Agent/tenant clients and Kafka events propagate tenant header. (Kafka N/A)
+	- [x] Test conversation start enforces X-Tenant-Id. (agent/tenant client header tests)
+- rag-gateway
+	- [x] Verify outbound tenant header injection via platform-auth transport; add test if missing.
+- Cross-service
+	- [ ] One integration assertion per service that outbound calls include X-Tenant-Id when tenant is in context.
 
-## Next steps
-- ✅ Validation hardening (Phase 1): issuer/audience/clock-skew, alg allow-list, max token length
-- ✅ Scopes/permissions (Phase 2): ValidationConfig.RequiredScopes, Claims.Scopes field with helpers, RequireScopes/RequireAnyScope middleware
-- ✅ JWKS support with rotation + kid allow-list for key management
-- ✅ Middleware/interceptors — added net/http + chi middleware and gRPC unary/stream interceptors with scope enforcement and consistent error mapping
-- ✅ Observability (metrics phase): Prometheus counters/histograms for auth outcomes/latency across Gin/HTTP/chi/gRPC
-- **Next priority**: Logging hardening and client propagation — keep secrets out of logs, and ensure outbound clients forward request/trace IDs.
-- Client: retries/backoff/circuit breaker + TLS/mTLS; structured errors; service identity headers; context-aware methods and request ID/trace propagation are in place.
-- Tenant/RLS helpers for DB/Kafka (helpers added: context/header enforcement; service adoption pending).
-- Docs: config matrix (issuer/audience/jwks/scopes/tenant/skew/max token bytes), examples multi-framework, breaking changes.
-- Tests: golden tokens (valid/expired/nbf/issuer/audience/alg/kid/scope/tenant), JWKS rotation, middleware scope/role, client retries/TLS, outbound propagation, fuzz header parsing, benchmarks middleware overhead.
+## Next steps (execution order)
+1) Ship service-to-service token pattern (SERVICE_AUDIENCE + client credentials) with docs and validation tests.
+2) Close "Service adoption" checklist above (tenant helpers + EnsureTenantHeader + tests per service).
+3) Enforce response envelope helpers across Gin/chi/gRPC; keep contract tests current with new handlers and transports.
+4) Logging/observability: ensure outbound transports in all services and redaction defaults; add propagation tests.
+5) Docs/examples: add Gin/chi/gRPC snippets and breaking-change notes; confirm CSRF/fail-closed defaults in guidance.

@@ -6,7 +6,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -362,11 +361,6 @@ func getEnvAsBool(key string, defaultValue bool) bool {
 		return value
 	}
 	return defaultValue
-}
-
-func getEnvAsDurationMs(key string, defaultValue int) time.Duration {
-	value := getEnvAsInt(key, defaultValue)
-	return time.Duration(value) * time.Millisecond
 }
 
 func getEnvAsSlice(key string, defaultValue []string) []string {

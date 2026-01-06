@@ -3,8 +3,6 @@ package postgres
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
@@ -356,10 +354,4 @@ func scanAPIKey(scanner interface {
 	}
 
 	return &key, nil
-}
-
-// hashKey utility (SHA-256 hex).
-func hashKey(key string) string {
-	sum := sha256.Sum256([]byte(key))
-	return hex.EncodeToString(sum[:])
 }

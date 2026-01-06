@@ -64,6 +64,11 @@ func TestEnsureTenantHeadersPreservesExisting(t *testing.T) {
 	if string(got[0].Value) != "existing" {
 		t.Fatalf("expected to preserve existing header value, got %s", string(got[0].Value))
 	}
+
+	// Ensure input was not mutated
+	if string(headers[0].Value) != "existing" {
+		t.Fatalf("input headers mutated, got %s", string(headers[0].Value))
+	}
 }
 
 func TestEnsureTenantHeadersFillsEmptyValue(t *testing.T) {
@@ -74,5 +79,9 @@ func TestEnsureTenantHeadersFillsEmptyValue(t *testing.T) {
 
 	if string(got[0].Value) != "tenant-123" {
 		t.Fatalf("expected header value to be filled, got %s", string(got[0].Value))
+	}
+
+	if len(headers[0].Value) != 0 {
+		t.Fatalf("input header mutated, got %s", string(headers[0].Value))
 	}
 }

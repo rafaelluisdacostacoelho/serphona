@@ -29,12 +29,8 @@ func NewAnalyticsRepository(db DB, enforcer TenantEnforcer) *AnalyticsRepository
 }
 
 func (r *AnalyticsRepository) GetOverviewMetrics(ctx context.Context, tenantID string, startTime, endTime time.Time) (*model.OverviewMetrics, error) {
-	if err := r.enforcer.EnforceTenant(ctx, tenantID); err != nil {
+	if err := r.enforceTenant(ctx, tenantID); err != nil {
 		return nil, err
-	}
-	// Adiciona validação do TenantID no contexto
-	if err := authmw.EnforceTenant(ctx, tenantID); err != nil {
-		return nil, fmt.Errorf("tenant ID mismatch: %w", err)
 	}
 	query := `
 		SELECT 
@@ -65,7 +61,7 @@ func (r *AnalyticsRepository) GetOverviewMetrics(ctx context.Context, tenantID s
 }
 
 func (r *AnalyticsRepository) GetCallMetrics(ctx context.Context, tenantID string, startTime, endTime time.Time) (*model.CallMetrics, error) {
-	if err := r.enforcer.EnforceTenant(ctx, tenantID); err != nil {
+	if err := r.enforceTenant(ctx, tenantID); err != nil {
 		return nil, err
 	}
 	query := `
@@ -93,7 +89,7 @@ func (r *AnalyticsRepository) GetCallMetrics(ctx context.Context, tenantID strin
 }
 
 func (r *AnalyticsRepository) GetSentimentMetrics(ctx context.Context, tenantID string, startTime, endTime time.Time) (*model.SentimentMetrics, error) {
-	if err := r.enforcer.EnforceTenant(ctx, tenantID); err != nil {
+	if err := r.enforceTenant(ctx, tenantID); err != nil {
 		return nil, err
 	}
 	query := `
@@ -120,7 +116,7 @@ func (r *AnalyticsRepository) GetSentimentMetrics(ctx context.Context, tenantID 
 }
 
 func (r *AnalyticsRepository) GetTopicMetrics(ctx context.Context, tenantID string, startTime, endTime time.Time, limit int) ([]model.TopicMetric, error) {
-	if err := r.enforcer.EnforceTenant(ctx, tenantID); err != nil {
+	if err := r.enforceTenant(ctx, tenantID); err != nil {
 		return nil, err
 	}
 	query := `
@@ -156,7 +152,7 @@ func (r *AnalyticsRepository) GetTopicMetrics(ctx context.Context, tenantID stri
 }
 
 func (r *AnalyticsRepository) GetAgentMetrics(ctx context.Context, tenantID string, startTime, endTime time.Time) ([]model.AgentMetric, error) {
-	if err := r.enforcer.EnforceTenant(ctx, tenantID); err != nil {
+	if err := r.enforceTenant(ctx, tenantID); err != nil {
 		return nil, err
 	}
 	query := `
@@ -195,7 +191,7 @@ func (r *AnalyticsRepository) GetAgentMetrics(ctx context.Context, tenantID stri
 }
 
 func (r *AnalyticsRepository) GetCallTimeSeries(ctx context.Context, tenantID string, startTime, endTime time.Time, granularity string) (*model.TimeSeriesData, error) {
-	if err := r.enforcer.EnforceTenant(ctx, tenantID); err != nil {
+	if err := r.enforceTenant(ctx, tenantID); err != nil {
 		return nil, err
 	}
 	interval := getIntervalFromGranularity(granularity)
@@ -235,7 +231,7 @@ func (r *AnalyticsRepository) GetCallTimeSeries(ctx context.Context, tenantID st
 }
 
 func (r *AnalyticsRepository) GetSentimentTimeSeries(ctx context.Context, tenantID string, startTime, endTime time.Time, granularity string) (*model.TimeSeriesData, error) {
-	if err := r.enforcer.EnforceTenant(ctx, tenantID); err != nil {
+	if err := r.enforceTenant(ctx, tenantID); err != nil {
 		return nil, err
 	}
 	interval := getIntervalFromGranularity(granularity)
@@ -274,7 +270,7 @@ func (r *AnalyticsRepository) GetSentimentTimeSeries(ctx context.Context, tenant
 }
 
 func (r *AnalyticsRepository) GetAggregations(ctx context.Context, tenantID string, startTime, endTime time.Time, granularity string) ([]model.AggregationResult, error) {
-	if err := r.enforcer.EnforceTenant(ctx, tenantID); err != nil {
+	if err := r.enforceTenant(ctx, tenantID); err != nil {
 		return nil, err
 	}
 	interval := getIntervalFromGranularity(granularity)
@@ -309,7 +305,7 @@ func (r *AnalyticsRepository) GetAggregations(ctx context.Context, tenantID stri
 }
 
 func (r *AnalyticsRepository) SearchEvents(ctx context.Context, filters model.QueryFilters) ([]model.AnalyticsEvent, int64, error) {
-	if err := r.enforcer.EnforceTenant(ctx, filters.TenantID); err != nil {
+	if err := r.enforceTenant(ctx, filters.TenantID); err != nil {
 		return nil, 0, err
 	}
 	// Build query dynamically based on filters
@@ -372,4 +368,14 @@ func getIntervalFromGranularity(granularity string) string {
 	default:
 		return "1 HOUR"
 	}
+}
+
+func (r *AnalyticsRepository) enforceTenant(ctx context.Context, tenantID string) error {
+	if err := authmw.EnforceTenant(ctx, tenantID); err != nil {
+		return fmt.Errorf("tenant context mismatch: %w", err)
+	}
+	if r.enforcer != nil {
+		return r.enforcer.EnforceTenant(ctx, tenantID)
+	}
+	return nil
 }

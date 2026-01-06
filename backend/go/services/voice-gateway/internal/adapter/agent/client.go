@@ -12,6 +12,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	authclient "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/client"
+	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"go.uber.org/zap"
 )
 
@@ -89,6 +90,7 @@ func (c *Client) CreateConversation(ctx context.Context, tenantID uuid.UUID, age
 		httpReq.Header.Set("Authorization", "Bearer "+c.serviceToken)
 	}
 	c.applyServiceIdentity(httpReq)
+	httpReq.Header = ensureTenantHeader(ctx, httpReq.Header)
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
@@ -146,6 +148,13 @@ func validateAudience(token, expected string) error {
 	return fmt.Errorf("service token audience mismatch")
 }
 
+func ensureTenantHeader(ctx context.Context, headers http.Header) http.Header {
+	if tenantID, err := authmw.TenantIDFromContext(ctx); err == nil && tenantID != "" {
+		return authmw.EnsureTenantHeader(headers, tenantID)
+	}
+	return headers
+}
+
 // SubmitTurnRequest represents a conversation turn submission.
 type SubmitTurnRequest struct {
 	UserMessage string         `json:"user_message"`
@@ -189,6 +198,7 @@ func (c *Client) SubmitTurn(ctx context.Context, conversationID uuid.UUID, userM
 		}
 		httpReq.Header.Set("Authorization", "Bearer "+c.serviceToken)
 	}
+	httpReq.Header = ensureTenantHeader(ctx, httpReq.Header)
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
@@ -227,6 +237,7 @@ func (c *Client) GetAgentResponse(ctx context.Context, conversationID uuid.UUID)
 		req.Header.Set("Authorization", "Bearer "+c.serviceToken)
 	}
 	c.applyServiceIdentity(req)
+	req.Header = ensureTenantHeader(ctx, req.Header)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -273,6 +284,7 @@ func (c *Client) EndConversation(ctx context.Context, conversationID uuid.UUID, 
 		httpReq.Header.Set("Authorization", "Bearer "+c.serviceToken)
 	}
 	c.applyServiceIdentity(httpReq)
+	httpReq.Header = ensureTenantHeader(ctx, httpReq.Header)
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
@@ -319,6 +331,7 @@ func (c *Client) UpdateContext(ctx context.Context, conversationID uuid.UUID, co
 		httpReq.Header.Set("Authorization", "Bearer "+c.serviceToken)
 	}
 	c.applyServiceIdentity(httpReq)
+	httpReq.Header = ensureTenantHeader(ctx, httpReq.Header)
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {

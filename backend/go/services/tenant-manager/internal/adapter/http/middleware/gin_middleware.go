@@ -290,6 +290,7 @@ func RequestID() gin.HandlerFunc {
 		c.Header("X-Request-ID", requestID)
 
 		// Inject into both legacy and platform-auth contexts so envelopes can emit IDs.
+		//nolint:staticcheck // string context key kept for backward compatibility with existing consumers
 		ctx := context.WithValue(c.Request.Context(), "request_id", requestID)
 		ctx = authmw.WithRequestID(ctx, requestID)
 		c.Request = c.Request.WithContext(ctx)

@@ -12,6 +12,7 @@ import (
 
 	"github.com/avast/retry-go/v4"
 	"github.com/golang-jwt/jwt/v5"
+	authclient "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/client"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/entity"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/middleware"
 )
@@ -43,7 +44,8 @@ type httpClientImpl struct {
 func NewHTTPClient(timeout time.Duration, serviceName, serviceInstance, audience string) HTTPClient {
 	return &httpClientImpl{
 		client: &http.Client{
-			Timeout: timeout,
+			Timeout:   timeout,
+			Transport: authclient.WithDefaultTransport(nil),
 		},
 		audience:        audience,
 		serviceName:     serviceName,

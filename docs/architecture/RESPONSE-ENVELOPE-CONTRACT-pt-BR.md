@@ -59,9 +59,45 @@ Observações:
 - gRPC: validar metadata com `traceparent`/`x-request-id`; checar `ErrorInfo.reason` batendo com o código esperado.
 
 ## Exemplos de uso
-- **Gin**: `response.WriteSuccess(c.Request.Context(), c.Writer, http.StatusOK, data, response.WithPagination(p))` e `response.WriteError(c.Request.Context(), c.Writer, http.StatusBadRequest, "VALIDATION_ERROR", "invalid input", details)`.
-- **chi/net/http**: no handler `response.WriteSuccess(r.Context(), w, http.StatusCreated, payload)`; para erros `response.WriteError(r.Context(), w, http.StatusUnauthorized, "UNAUTHORIZED", "token missing", nil)`.
-- **gRPC/metadata**: garanta interceptors inbound setando `x-request-id` e `traceparent`; clientes outbound devem propagar ambos via transporte instrumentado para que envelopes HTTP incluam os mesmos IDs.
+- **Gin**
+```go
+func (h *Handler) Criar(c *gin.Context) {
+  var req createRequest
+  if err := c.ShouldBindJSON(&req); err != nil {
+    response.WriteError(c.Request.Context(), c.Writer, http.StatusBadRequest, "INVALID_REQUEST", "json inválido", nil)
+    return
+  }
+  data := h.svc.Create(c.Request.Context(), req)
+  response.WriteSuccess(c.Request.Context(), c.Writer, http.StatusCreated, data, response.WithPagination(response.Pagination{Page: 1, PageSize: 1, Total: 1, TotalPages: 1}))
+}
+```
+- **chi / net/http**
+```go
+func (h *Handler) Obter(w http.ResponseWriter, r *http.Request) {
+  id := chi.URLParam(r, "id")
+  data, err := h.svc.Get(r.Context(), id)
+  if err != nil {
+    response.WriteError(r.Context(), w, http.StatusNotFound, "NOT_FOUND", "recurso não encontrado", nil)
+    return
+  }
+  response.WriteSuccess(r.Context(), w, http.StatusOK, data)
+}
+```
+- **gRPC unary** (ErrorInfo.reason espelha o código HTTP; request/trace IDs vêm dos interceptors)
+```go
+func (s *Server) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse, error) {
+  data, err := s.svc.Get(ctx, req.Id)
+  if err != nil {
+    st := status.New(codes.NotFound, "recurso não encontrado")
+    st, _ = st.WithDetails(&errdetails.ErrorInfo{Reason: "NOT_FOUND"})
+    return nil, st.Err()
+  }
+  return &pb.GetResponse{Data: data}, nil
+}
+```
+- **Propagação outbound**
+  - Clientes HTTP: use os helpers de transporte do platform-auth para propagar `x-request-id` e `traceparent`, e chame `EnsureTenantHeader` quando houver tenant no contexto.
+  - Clientes gRPC: inclua metadata `x-request-id`/`traceparent` (ou use o interceptor fornecido) antes de chamar serviços downstream.
 
 ## Checklist de migração
 - Introduzir helpers compartilhados para Gin/chi/net/http para escrever sucesso/erro e injetar IDs.

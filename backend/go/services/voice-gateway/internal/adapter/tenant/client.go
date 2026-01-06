@@ -11,6 +11,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	authclient "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/client"
+	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"go.uber.org/zap"
 )
 
@@ -74,6 +75,13 @@ func validateAudience(token, expected string) error {
 	return fmt.Errorf("service token audience mismatch")
 }
 
+func ensureTenantHeader(ctx context.Context, headers http.Header) http.Header {
+	if tenantID, err := authmw.TenantIDFromContext(ctx); err == nil && tenantID != "" {
+		return authmw.EnsureTenantHeader(headers, tenantID)
+	}
+	return headers
+}
+
 // DIDInfo represents DID lookup information.
 type DIDInfo struct {
 	DID      string    `json:"did"`
@@ -96,7 +104,10 @@ func (c *Client) LookupDID(ctx context.Context, phoneNumber string) (*DIDInfo, e
 		}
 		req.Header.Set("Authorization", "Bearer "+c.serviceToken)
 	}
+	req.Header = ensureTenantHeader(ctx, req.Header)
 	c.applyServiceIdentity(req)
+	req.Header = ensureTenantHeader(ctx, req.Header)
+	req.Header = ensureTenantHeader(ctx, req.Header)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -271,6 +282,7 @@ func (c *Client) GetTenantInfo(ctx context.Context, tenantID uuid.UUID) (map[str
 	if c.serviceToken != "" && req.Header.Get("Authorization") == "" {
 		req.Header.Set("Authorization", "Bearer "+c.serviceToken)
 	}
+	req.Header = ensureTenantHeader(ctx, req.Header)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
