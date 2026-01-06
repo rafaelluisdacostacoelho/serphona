@@ -110,6 +110,8 @@ require (
 
 replace github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth => ../../libs/platform-auth
 
-replace github.com/serphona/backend/go/libs/platform-observability => ../../libs/platform-observability
+replace github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-observability => ../../libs/platform-observability
 
 replace github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events => ../../libs/platform-events
+
+replace github.com/serphona/backend/go/libs/platform-observability => ../../libs/platform-observability

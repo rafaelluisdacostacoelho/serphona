@@ -17,7 +17,6 @@ import (
 	"github.com/google/uuid"
 	authclient "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/client"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/entity"
-	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/invoke"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/middleware"
 )
 
@@ -305,16 +304,7 @@ func (s *oauth2ServiceImpl) executeTokenRequest(
 	// Ensure tenant header
 	tenantID, err := middleware.TenantIDFromContext(ctx)
 	if err == nil && tenantID != "" {
-		headers := make(map[string]string)
-		for key, values := range req.Header {
-			if len(values) > 0 {
-				headers[key] = values[0]
-			}
-		}
-		updatedHeaders := invoke.EnsureTenantHeaders(headers, tenantID, "oauth2-service")
-		for key, value := range updatedHeaders {
-			req.Header.Set(key, value)
-		}
+		req.Header.Set(middleware.TenantIDHeader, tenantID)
 	}
 
 	// Handle authentication method

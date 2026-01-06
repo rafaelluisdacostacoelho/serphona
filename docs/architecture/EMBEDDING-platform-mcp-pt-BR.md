@@ -39,7 +39,7 @@ exec := invoke.BuildExecutor(
 - Sempre valide com `protocol.ValidateInvocation` ou deixe a pilha falhar rápido.
 
 4) **Headers e identidade**
-- Use `invoke.EnsureTenantHeaders(reqHeaders, tenantID, requestID, serviceID)` em chamadas para tools.
+- Use `middleware.EnsureTenantHeader(reqHeaders, tenantID, requestID, serviceID)` em chamadas para tools.
 - Propague `traceparent` e `x-request-id`; o tracing observer já adiciona tenant/tool/request/session.
 
 5) **Envelopes de resposta**

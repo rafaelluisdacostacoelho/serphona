@@ -154,3 +154,71 @@ func TestEnsureTenantHeaders(t *testing.T) {
 		})
 	}
 }
+
+func TestEnsureTenantHeaders_TableDriven(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		ctx            context.Context
+		headers        []sarama.RecordHeader
+		expectHeaders  []sarama.RecordHeader
+		expectAppended bool
+	}{
+		{
+			name: "with tenant in context",
+			ctx:  authmw.WithTenantID(context.Background(), "tenant-123"),
+			headers: []sarama.RecordHeader{
+				{Key: []byte("existing-header"), Value: []byte("value")},
+			},
+			expectHeaders: []sarama.RecordHeader{
+				{Key: []byte("existing-header"), Value: []byte("value")},
+				{Key: []byte(authmw.TenantIDHeader), Value: []byte("tenant-123")},
+			},
+			expectAppended: true,
+		},
+		{
+			name: "without tenant in context",
+			ctx:  context.Background(),
+			headers: []sarama.RecordHeader{
+				{Key: []byte("existing-header"), Value: []byte("value")},
+			},
+			expectHeaders: []sarama.RecordHeader{
+				{Key: []byte("existing-header"), Value: []byte("value")},
+			},
+			expectAppended: false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := ensureTenantHeaders(tt.ctx, tt.headers)
+
+			if len(got) != len(tt.expectHeaders) {
+				t.Fatalf("expected %d headers, got %d", len(tt.expectHeaders), len(got))
+			}
+
+			for i, header := range got {
+				if string(header.Key) != string(tt.expectHeaders[i].Key) || string(header.Value) != string(tt.expectHeaders[i].Value) {
+					t.Errorf("header mismatch at index %d: expected %+v, got %+v", i, tt.expectHeaders[i], header)
+				}
+			}
+
+			if tt.expectAppended {
+				found := false
+				for _, header := range got {
+					if string(header.Key) == authmw.TenantIDHeader {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Error("expected tenant header to be appended, but it was not")
+				}
+			}
+		})
+	}
+}

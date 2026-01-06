@@ -3,6 +3,7 @@ module github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-rag
 go 1.24.0
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/lib/pq v1.10.9
 	github.com/pgvector/pgvector-go v0.2.0
 	github.com/prometheus/client_golang v1.19.1
@@ -10,7 +11,6 @@ require (
 )
 
 require (
-	github.com/DATA-DOG/go-sqlmock v1.5.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect

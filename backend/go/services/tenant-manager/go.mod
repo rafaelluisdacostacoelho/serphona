@@ -17,6 +17,7 @@ require (
 	github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth v0.0.0-00010101000000-000000000000
 	github.com/redis/go-redis/v9 v9.17.2
 	github.com/serphona/backend/go/libs/platform-observability v0.0.0-00010101000000-000000000000
+	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/otel v1.24.0
 	go.opentelemetry.io/otel/sdk v1.21.0
 	go.uber.org/zap v1.26.0
@@ -69,6 +70,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_golang v1.20.5 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.55.0 // indirect
@@ -76,6 +78,7 @@ require (
 	github.com/quic-go/qpack v0.5.1 // indirect
 	github.com/quic-go/quic-go v0.54.0 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20250401214520-65e299d6c5c9 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.49.0 // indirect
@@ -95,6 +98,7 @@ require (
 	golang.org/x/text v0.30.0 // indirect
 	golang.org/x/tools v0.37.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240903143218-8af14fe29dc1 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 replace github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events => ../../libs/platform-events
@@ -102,3 +106,5 @@ replace github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-eve
 replace github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth => ../../libs/platform-auth
 
 replace github.com/serphona/backend/go/libs/platform-observability => ../../libs/platform-observability
+
+replace github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-rag => ../../libs/platform-rag

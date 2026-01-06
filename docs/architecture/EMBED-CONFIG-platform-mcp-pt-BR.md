@@ -7,7 +7,7 @@ Escopo: como embutir a biblioteca platform-mcp no serviço platform-mcp, no agen
 - Policy: aplique allow/deny + rate limits por tenant/tool; default-deny quando não houver política. Publique decisões via `WithPolicyDecision` para rótulos de métricas/audit.
 - Runtime de invocação: Guard → Resilient → Cancelable → OutputLimit → Observed → Base (Static/Streaming). Mantenha retries/circuit apenas para ferramentas idempotentes.
 - Observabilidade: conecte métricas (`MetricsObserver`), audit (`AuditObserver`), tracing (propague `traceparent`) e enrichers de cache/policy. Exponha `/healthz` e endpoint Prometheus conforme convenção do serviço.
-- Headers de saída: use `invoke.EnsureTenantHeaders` para adicionar `x-tenant-id`, `x-request-id`, `traceparent`, `x-service-id` nas chamadas downstream.
+- Headers de saída: use `middleware.EnsureTenantHeader` para adicionar `x-tenant-id`, `x-request-id`, `traceparent`, `x-service-id` nas chamadas downstream.
 - Envelope de resposta: use `response.Success` / `response.Error`; inclua request_id/trace_id conforme o contrato RESPONSE-ENVELOPE.
 
 ```go

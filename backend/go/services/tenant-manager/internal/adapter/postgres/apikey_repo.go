@@ -11,8 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	autherrors "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/errors"
-	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 
 	"tenant-manager/internal/domain/apikey"
 )
@@ -24,16 +23,7 @@ type APIKeyRepository struct {
 }
 
 func requireTenantMatch(ctx context.Context, tenantID uuid.UUID) error {
-	tenantCtx, err := authmw.TenantIDFromContext(ctx)
-	if err != nil {
-		return err
-	}
-
-	if tenantCtx != "platform" && tenantCtx != tenantID.String() {
-		return autherrors.ErrInsufficientPermissions
-	}
-
-	return nil
+	return middleware.EnforceTenant(ctx, tenantID.String())
 }
 
 // NewAPIKeyRepository creates a new APIKeyRepository.

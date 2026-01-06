@@ -12,9 +12,8 @@ import (
 
 	"github.com/avast/retry-go/v4"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
-	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-mcp/invoke"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/entity"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/middleware"
 )
 
 // HTTPClient defines the interface for making HTTP requests
@@ -135,20 +134,10 @@ func (c *httpClientImpl) executeOnce(ctx context.Context, tool *entity.Tool, inp
 		}
 	}
 
-	// Convert http.Header to map[string]string before calling EnsureTenantHeaders
-	headerMap := make(map[string]string)
-	for key, values := range req.Header {
-		if len(values) > 0 {
-			headerMap[key] = values[0]
-		}
-	}
-
-	// Call EnsureTenantHeaders
-	updatedHeaders := invoke.EnsureTenantHeaders(headerMap, tenantID, c.serviceName)
-
-	// Convert back to http.Header
-	for key, value := range updatedHeaders {
-		req.Header.Set(key, value)
+	if tenantID != "" {
+		req.Header.Set(middleware.TenantIDHeader, tenantID)
+	} else {
+		req.Header = middleware.EnsureTenantHeader(req.Header, tenantID)
 	}
 
 	// Add service identity headers for internal tracing/auth

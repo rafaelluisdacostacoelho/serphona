@@ -55,6 +55,11 @@ func EnforceTenant(ctx context.Context, tenantID string) error {
 		return err
 	}
 
+	// Ensure platform tenant bypasses all validation checks
+	if ctxTenant == "platform" {
+		return nil
+	}
+
 	if tenantID != "" && tenantID != ctxTenant {
 		return autherrors.ErrInsufficientPermissions
 	}

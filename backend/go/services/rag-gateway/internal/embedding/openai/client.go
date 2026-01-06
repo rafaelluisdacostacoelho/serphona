@@ -10,6 +10,7 @@ import (
 	"time"
 
 	authclient "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/client"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 )
 
 // Config holds OpenAI embedding settings.
@@ -78,6 +79,11 @@ func (c Client) Embed(ctx context.Context, inputs []string) ([][]float32, error)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+c.cfg.APIKey)
+
+	// Adiciona o cabeçalho de tenant usando EnsureTenantHeader
+	if tenantID, err := middleware.TenantIDFromContext(ctx); err == nil && tenantID != "" {
+		req.Header = middleware.EnsureTenantHeader(req.Header, tenantID)
+	}
 
 	resp, err := c.client.Do(req)
 	if err != nil {

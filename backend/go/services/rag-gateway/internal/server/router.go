@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/rag-gateway/internal/server/handler"
-	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/rag-gateway/internal/server/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/rag-gateway/internal/server/view"
 )
 
@@ -18,7 +18,11 @@ func NewRouter(ragHandler handler.RAGHandler) *gin.Engine {
 	router.GET("/health", health.Get)
 
 	api := router.Group("/api/v1")
-	api.Use(middleware.EnsureTenantHeader("X-Tenant-ID"))
+	api.Use(func(c *gin.Context) {
+		tenantID := c.GetHeader("X-Tenant-ID")
+		c.Request.Header = middleware.EnsureTenantHeader(c.Request.Header, tenantID)
+		c.Next()
+	})
 	{
 		api.POST("/ingest", ragHandler.Ingest)
 		api.POST("/query", ragHandler.Query)

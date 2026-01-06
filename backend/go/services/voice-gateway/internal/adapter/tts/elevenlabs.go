@@ -11,12 +11,21 @@ import (
 	"time"
 
 	authclient "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/client"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"go.uber.org/zap"
 )
 
 const (
 	elevenLabsBaseURL = "https://api.elevenlabs.io/v1"
 )
+
+func ensureTenantHeader(ctx context.Context, headers http.Header) http.Header {
+	if tenantID, err := middleware.TenantIDFromContext(ctx); err == nil && tenantID != "" {
+		return middleware.EnsureTenantHeader(headers, tenantID)
+	}
+
+	return headers
+}
 
 // ElevenLabsProviderV2 implements TTS using ElevenLabs API v2.
 type ElevenLabsProviderV2 struct {
@@ -80,6 +89,9 @@ func (p *ElevenLabsProviderV2) Synthesize(ctx context.Context, text string, conf
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("xi-api-key", p.apiKey)
 	req.Header.Set("Accept", "audio/mpeg")
+
+	// Ensure tenant header is present when context carries tenant id
+	req.Header = ensureTenantHeader(ctx, req.Header)
 
 	// Execute request
 	resp, err := p.httpClient.Do(req)
@@ -146,6 +158,9 @@ func (p *ElevenLabsProviderV2) StreamSynthesize(ctx context.Context, text string
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("xi-api-key", p.apiKey)
 	req.Header.Set("Accept", "audio/mpeg")
+
+	// Ensure tenant header is present when context carries tenant id
+	req.Header = ensureTenantHeader(ctx, req.Header)
 
 	// Execute request
 	resp, err := p.httpClient.Do(req)

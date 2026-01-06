@@ -12,8 +12,17 @@ import (
 	"time"
 
 	authclient "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/client"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"go.uber.org/zap"
 )
+
+func applyTenantHeader(ctx context.Context, headers http.Header) http.Header {
+	if tenantID, err := middleware.TenantIDFromContext(ctx); err == nil && tenantID != "" {
+		return middleware.EnsureTenantHeader(headers, tenantID)
+	}
+
+	return headers
+}
 
 // ARIClientHTTP manages connection to Asterisk REST Interface using HTTP and WebSocket.
 type ARIClientHTTP struct {
@@ -81,6 +90,9 @@ func (c *ARIClientHTTP) AnswerChannel(ctx context.Context, channelID string) err
 
 	req.SetBasicAuth(c.username, c.password)
 
+	// Ensure tenant header is present when context carries tenant id
+	req.Header = applyTenantHeader(ctx, req.Header)
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to answer channel: %w", err)
@@ -106,6 +118,9 @@ func (c *ARIClientHTTP) HangupChannel(ctx context.Context, channelID, reason str
 	}
 
 	req.SetBasicAuth(c.username, c.password)
+
+	// Ensure tenant header is present when context carries tenant id
+	req.Header = applyTenantHeader(ctx, req.Header)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -135,6 +150,9 @@ func (c *ARIClientHTTP) PlaybackStart(ctx context.Context, channelID, mediaURI s
 	}
 
 	req.SetBasicAuth(c.username, c.password)
+
+	// Ensure tenant header is present when context carries tenant id
+	req.Header = applyTenantHeader(ctx, req.Header)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -174,6 +192,9 @@ func (c *ARIClientHTTP) StopPlayback(ctx context.Context, playbackID string) err
 
 	req.SetBasicAuth(c.username, c.password)
 
+	// Ensure tenant header is present when context carries tenant id
+	req.Header = applyTenantHeader(ctx, req.Header)
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to stop playback: %w", err)
@@ -199,6 +220,9 @@ func (c *ARIClientHTTP) CreateBridge(ctx context.Context, bridgeType string) (st
 	}
 
 	req.SetBasicAuth(c.username, c.password)
+
+	// Ensure tenant header is present when context carries tenant id
+	req.Header = applyTenantHeader(ctx, req.Header)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -237,6 +261,9 @@ func (c *ARIClientHTTP) DestroyBridge(ctx context.Context, bridgeID string) erro
 
 	req.SetBasicAuth(c.username, c.password)
 
+	// Ensure tenant header is present when context carries tenant id
+	req.Header = applyTenantHeader(ctx, req.Header)
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to destroy bridge: %w", err)
@@ -262,6 +289,9 @@ func (c *ARIClientHTTP) AddChannelToBridge(ctx context.Context, bridgeID, channe
 	}
 
 	req.SetBasicAuth(c.username, c.password)
+
+	// Ensure tenant header is present when context carries tenant id
+	req.Header = applyTenantHeader(ctx, req.Header)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -291,6 +321,9 @@ func (c *ARIClientHTTP) RemoveChannelFromBridge(ctx context.Context, bridgeID, c
 	}
 
 	req.SetBasicAuth(c.username, c.password)
+
+	// Ensure tenant header is present when context carries tenant id
+	req.Header = applyTenantHeader(ctx, req.Header)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -326,6 +359,9 @@ func (c *ARIClientHTTP) StartRecording(ctx context.Context, channelID, name stri
 
 	req.SetBasicAuth(c.username, c.password)
 
+	// Ensure tenant header is present when context carries tenant id
+	req.Header = applyTenantHeader(ctx, req.Header)
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to start recording: %w", err)
@@ -355,6 +391,9 @@ func (c *ARIClientHTTP) StopRecording(ctx context.Context, recordingName string)
 
 	req.SetBasicAuth(c.username, c.password)
 
+	// Ensure tenant header is present when context carries tenant id
+	req.Header = applyTenantHeader(ctx, req.Header)
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to stop recording: %w", err)
@@ -380,6 +419,9 @@ func (c *ARIClientHTTP) GetChannelInfo(ctx context.Context, channelID string) (*
 	}
 
 	req.SetBasicAuth(c.username, c.password)
+
+	// Ensure tenant header is present when context carries tenant id
+	req.Header = applyTenantHeader(ctx, req.Header)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -440,6 +482,9 @@ func (c *ARIClientHTTP) MuteChannel(ctx context.Context, channelID, direction st
 
 	req.SetBasicAuth(c.username, c.password)
 
+	// Ensure tenant header is present when context carries tenant id
+	req.Header = applyTenantHeader(ctx, req.Header)
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to mute channel: %w", err)
@@ -468,6 +513,9 @@ func (c *ARIClientHTTP) UnmuteChannel(ctx context.Context, channelID, direction 
 	}
 
 	req.SetBasicAuth(c.username, c.password)
+
+	// Ensure tenant header is present when context carries tenant id
+	req.Header = applyTenantHeader(ctx, req.Header)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -499,6 +547,9 @@ func (c *ARIClientHTTP) SendDTMF(ctx context.Context, channelID, dtmf string, op
 
 	req.SetBasicAuth(c.username, c.password)
 
+	// Ensure tenant header is present when context carries tenant id
+	req.Header = applyTenantHeader(ctx, req.Header)
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send DTMF: %w", err)
@@ -527,6 +578,9 @@ func (c *ARIClientHTTP) GetChannelVariable(ctx context.Context, channelID, varia
 	}
 
 	req.SetBasicAuth(c.username, c.password)
+
+	// Ensure tenant header is present when context carries tenant id
+	req.Header = applyTenantHeader(ctx, req.Header)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -560,6 +614,9 @@ func (c *ARIClientHTTP) SetChannelVariable(ctx context.Context, channelID, varia
 	}
 
 	req.SetBasicAuth(c.username, c.password)
+
+	// Ensure tenant header is present when context carries tenant id
+	req.Header = applyTenantHeader(ctx, req.Header)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

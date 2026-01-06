@@ -2,22 +2,24 @@ package middleware
 
 import (
 	"context"
-	"errors"
+	"net/http"
+
+	platformmiddleware "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 )
 
-const TenantIDHeader = "X-Tenant-ID"
+const TenantIDHeader = platformmiddleware.TenantIDHeader
 
-type tenantKey struct{}
-
-// WithTenantID adds the tenant ID to the context
+// WithTenantID adds the tenant ID to the context using the shared platform helper.
 func WithTenantID(ctx context.Context, tenantID string) context.Context {
-	return context.WithValue(ctx, tenantKey{}, tenantID)
+	return platformmiddleware.WithTenantID(ctx, tenantID)
 }
 
-// TenantIDFromContext retrieves the tenant ID from the context
+// TenantIDFromContext retrieves the tenant ID from the context.
 func TenantIDFromContext(ctx context.Context) (string, error) {
-	if tenantID, ok := ctx.Value(tenantKey{}).(string); ok {
-		return tenantID, nil
-	}
-	return "", errors.New("tenant ID not found in context")
+	return platformmiddleware.TenantIDFromContext(ctx)
+}
+
+// EnsureTenantHeader clones headers and sets X-Tenant-Id when missing.
+func EnsureTenantHeader(headers http.Header, tenantID string) http.Header {
+	return platformmiddleware.EnsureTenantHeader(headers, tenantID)
 }

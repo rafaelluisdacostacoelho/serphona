@@ -39,7 +39,7 @@ exec := invoke.BuildExecutor(
 - Always validate requests via `protocol.ValidateInvocation` or let the stack fail fast.
 
 4) **Headers and identity**
-- Use `invoke.EnsureTenantHeaders(reqHeaders, tenantID, requestID, serviceID)` for outbound calls to tools.
+- Use `middleware.EnsureTenantHeader(reqHeaders, tenantID, requestID, serviceID)` for outbound calls to tools.
 - Carry `traceparent` and `x-request-id` across hops; tracing observer already tags tenant/tool/request/session IDs.
 
 5) **Response envelopes**

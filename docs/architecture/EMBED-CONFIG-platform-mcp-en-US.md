@@ -7,7 +7,7 @@ Scope: how to embed the platform-mcp library into platform-mcp (service), agent-
 - Policy: enforce allow/deny + rate limits per tenant/tool; default-deny when policy is missing. Surface decisions via `WithPolicyDecision` for metrics/audit labels.
 - Invocation stack: Guard → Resilient → Cancelable → OutputLimit → Observed → Base (Static/Streaming). Keep retries/circuit only for idempotent tools.
 - Observability: wire metrics (`MetricsObserver`), audit (`AuditObserver`), tracing (propagate `traceparent`), and cache/policy enrichers. Expose `/healthz` and Prometheus scrape endpoints per service convention.
-- Outbound headers: use `invoke.EnsureTenantHeaders` to add `x-tenant-id`, `x-request-id`, `traceparent`, `x-service-id` to downstream tool calls.
+- Outbound headers: use `middleware.EnsureTenantHeader` to add `x-tenant-id`, `x-request-id`, `traceparent`, `x-service-id` to downstream tool calls.
 - Response envelope: use `response.Success` / `response.Error` helpers; include request_id/trace_id per RESPONSE-ENVELOPE contract.
 
 ```go

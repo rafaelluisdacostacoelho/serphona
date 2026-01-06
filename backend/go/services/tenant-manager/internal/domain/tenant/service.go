@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 )
 
 var (
@@ -66,6 +67,11 @@ func (s *Service) Create(ctx context.Context, name, email string, plan Plan) (*T
 	// Create tenant
 	tenant := NewTenant(name, email, plan)
 	tenant.Slug = slug
+
+	// Validate tenant context
+	if err := middleware.EnforceTenant(ctx, tenant.ID.String()); err != nil {
+		return nil, fmt.Errorf("tenant validation failed: %w", err)
+	}
 
 	// Save to repository
 	if err := s.repo.Create(ctx, tenant); err != nil {
