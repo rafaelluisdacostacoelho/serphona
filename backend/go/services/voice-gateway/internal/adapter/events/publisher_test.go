@@ -2,6 +2,7 @@ package events
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/IBM/sarama/mocks"
@@ -54,4 +55,25 @@ func TestPublishCallEnded(t *testing.T) {
 
 	err := publisher.PublishCallEnded(ctx, c)
 	assert.NoError(t, err)
+}
+
+func TestPublishEventSuccess(t *testing.T) {
+	producer := mocks.NewSyncProducer(t, nil)
+	producer.ExpectSendMessageAndSucceed()
+
+	publisher := &kafkaPublisher{producer: producer, topicPrefix: "test", logger: zap.NewNop()}
+
+	err := publisher.publishEvent(context.Background(), "custom.event", "key", map[string]string{"k": "v"})
+	assert.NoError(t, err)
+}
+
+func TestPublishEventFailureWithDLQ(t *testing.T) {
+	producer := mocks.NewSyncProducer(t, nil)
+	producer.ExpectSendMessageAndFail(fmt.Errorf("primary send failed"))
+	producer.ExpectSendMessageAndSucceed()
+
+	publisher := &kafkaPublisher{producer: producer, topicPrefix: "test", logger: zap.NewNop()}
+
+	err := publisher.publishEvent(context.Background(), "custom.event", "key", map[string]string{"k": "v"})
+	assert.Error(t, err)
 }
