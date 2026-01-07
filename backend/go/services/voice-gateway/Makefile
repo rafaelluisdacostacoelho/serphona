@@ -18,6 +18,11 @@ GOGET=$(GOCMD) get
 GOMOD=$(GOCMD) mod
 GOFMT=$(GOCMD) fmt
 GOVET=$(GOCMD) vet
+GO_COVER=$(GOCMD) tool cover
+PKG ?= ./...
+COBERTURA_DIR ?= coverage
+GOCOV ?= $(shell command -v gocov 2>/dev/null)
+GOCOV_HTML ?= $(shell command -v gocov-html 2>/dev/null)
 
 ## help: Display this help message
 help:
@@ -32,6 +37,7 @@ help:
 	@echo "Testing:"
 	@echo "  make test               Run tests"
 	@echo "  make test-coverage      Run tests with coverage"
+	@echo "  make test-coverage-html Run tests with gocov + gocov-html (coverage.out + coverage.json + coverage.html)"
 	@echo "  make test-race          Run tests with race detector"
 	@echo "  make test-verbose       Run tests with verbose output"
 	@echo ""
@@ -95,14 +101,37 @@ watch:
 ## test: Run all tests
 test:
 	@echo "Running tests..."
-	$(GOTEST) -v ./...
+	$(GOTEST) -v $(PKG)
 
 ## test-coverage: Run tests with coverage
 test-coverage:
 	@echo "Running tests with coverage..."
-	$(GOTEST) -coverprofile=coverage.out ./...
-	$(GOCMD) tool cover -html=coverage.out -o coverage.html
-	@echo "Coverage report generated: coverage.html"
+	@mkdir -p $(COBERTURA_DIR)
+	$(GOTEST) -coverprofile=$(COBERTURA_DIR)/coverage.out $(PKG)
+	$(GO_COVER) -func=$(COBERTURA_DIR)/coverage.out
+	$(GO_COVER) -html=$(COBERTURA_DIR)/coverage.out -o $(COBERTURA_DIR)/coverage.html
+	@echo "Coverage report generated: $(COBERTURA_DIR)/coverage.html"
+
+coverage-tools-check:
+	@command -v gocov >/dev/null || { \
+		echo "gocov not found; install (Go >=1.22 recommended):"; \
+		echo "  go install github.com/axw/gocov/gocov@v1.2.1"; \
+		echo "  (se Go mais antigo, tente @v1.1.0)"; \
+		exit 1; \
+	}
+	@command -v gocov-html >/dev/null || { \
+		echo "gocov-html not found; install:"; \
+		echo "  go install github.com/matm/gocov-html/cmd/gocov-html@v1.4.0"; \
+		exit 1; \
+	}
+
+## test-coverage-html: Run tests with gocov + gocov-html
+test-coverage-html: coverage-tools-check
+	@mkdir -p $(COBERTURA_DIR)
+	$(GOTEST) -coverprofile=$(COBERTURA_DIR)/coverage.out $(PKG)
+	gocov convert $(COBERTURA_DIR)/coverage.out > $(COBERTURA_DIR)/coverage.json
+	gocov-html $(COBERTURA_DIR)/coverage.json > $(COBERTURA_DIR)/coverage.html
+	@echo "Coverage report generated: $(COBERTURA_DIR)/coverage.html"
 
 ## test-race: Run tests with race detector
 test-race:
@@ -112,7 +141,8 @@ test-race:
 ## test-verbose: Run tests with verbose output
 test-verbose:
 	@echo "Running tests with verbose output..."
-	$(GOTEST) -v -race -coverprofile=coverage.out ./...
+	@mkdir -p $(COBERTURA_DIR)
+	$(GOTEST) -v -race -coverprofile=$(COBERTURA_DIR)/coverage.out $(PKG)
 
 ## test-integration: Run integration tests
 test-integration:
@@ -129,7 +159,7 @@ clean:
 	@echo "Cleaning..."
 	$(GOCLEAN)
 	rm -rf $(BUILD_DIR)
-	rm -f coverage.out coverage.html
+	rm -rf $(COBERTURA_DIR)
 	@echo "Clean complete"
 
 ## fmt: Format all Go files

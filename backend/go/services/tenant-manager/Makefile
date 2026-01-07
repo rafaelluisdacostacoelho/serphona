@@ -12,6 +12,11 @@ GO_VERSION := $(shell go version | cut -d' ' -f3)
 GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
 CGO_ENABLED ?= 0
+PKG ?= ./...
+GO_COVER ?= go tool cover
+COBERTURA_DIR ?= coverage
+GOCOV ?= $(shell command -v gocov 2>/dev/null)
+GOCOV_HTML ?= $(shell command -v gocov-html 2>/dev/null)
 
 # Docker settings
 DOCKER_REGISTRY ?= ghcr.io/voicecustomer
@@ -53,6 +58,7 @@ clean:
 	@echo "Cleaning..."
 	rm -rf bin/
 	go clean -cache -testcache
+	rm -rf $(COBERTURA_DIR)
 
 # =============================================================================
 # Development targets
@@ -102,24 +108,48 @@ deps:
 ## test: Run all tests
 test:
 	@echo "Running tests..."
-	go test -v -race -cover ./...
+	go test -v -race -cover $(PKG)
 
 ## test-short: Run tests without integration tests
 test-short:
 	@echo "Running short tests..."
-	go test -v -short ./...
+	go test -v -short $(PKG)
 
 ## test-coverage: Run tests with coverage report
 test-coverage:
 	@echo "Running tests with coverage..."
-	go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
-	go tool cover -html=coverage.out -o coverage.html
-	@echo "Coverage report: coverage.html"
+	@mkdir -p $(COBERTURA_DIR)
+	go test -v -race -coverprofile=$(COBERTURA_DIR)/coverage.out -covermode=atomic $(PKG)
+	$(GO_COVER) -func=$(COBERTURA_DIR)/coverage.out
+	$(GO_COVER) -html=$(COBERTURA_DIR)/coverage.out -o $(COBERTURA_DIR)/coverage.html
+	@echo "Coverage report: $(COBERTURA_DIR)/coverage.html"
+
+## coverage-tools-check: Ensure optional gocov tooling is installed
+coverage-tools-check:
+	@command -v gocov >/dev/null || { \
+		echo "gocov not found; install (Go >=1.22 recommended):"; \
+		echo "  go install github.com/axw/gocov/gocov@v1.2.1"; \
+		echo "  (se Go mais antigo, tente @v1.1.0)"; \
+		exit 1; \
+	}
+	@command -v gocov-html >/dev/null || { \
+		echo "gocov-html not found; install:"; \
+		echo "  go install github.com/matm/gocov-html/cmd/gocov-html@v1.4.0"; \
+		exit 1; \
+	}
+
+## test-coverage-html: Run tests and generate rich HTML coverage report (requires gocov)
+test-coverage-html: coverage-tools-check
+	@mkdir -p $(COBERTURA_DIR)
+	go test -v -coverprofile=$(COBERTURA_DIR)/coverage.out $(PKG)
+	gocov convert $(COBERTURA_DIR)/coverage.out > $(COBERTURA_DIR)/coverage.json
+	gocov-html $(COBERTURA_DIR)/coverage.json > $(COBERTURA_DIR)/coverage.html
+	@echo "Coverage report: $(COBERTURA_DIR)/coverage.html"
 
 ## test-integration: Run integration tests
 test-integration:
 	@echo "Running integration tests..."
-	go test -v -tags=integration ./...
+	go test -v -tags=integration $(PKG)
 
 ## benchmark: Run benchmarks
 benchmark:

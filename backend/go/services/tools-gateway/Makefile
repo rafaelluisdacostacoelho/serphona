@@ -5,6 +5,11 @@ APP_NAME=tools-gateway
 DOCKER_IMAGE=serphona/$(APP_NAME)
 VERSION?=latest
 PORT?=8085
+PKG ?= ./...
+GO_COVER ?= go tool cover
+COBERTURA_DIR ?= coverage
+GOCOV ?= $(shell command -v gocov 2>/dev/null)
+GOCOV_HTML ?= $(shell command -v gocov-html 2>/dev/null)
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -26,13 +31,35 @@ dev: ## Run in development mode with hot reload (requires air)
 
 test: ## Run tests
 	@echo "Running tests..."
-	@go test -v ./...
+	@go test -v $(PKG)
 
 test-coverage: ## Run tests with coverage
 	@echo "Running tests with coverage..."
-	@go test -v -coverprofile=coverage.out ./...
-	@go tool cover -html=coverage.out -o coverage.html
-	@echo "Coverage report generated: coverage.html"
+	@mkdir -p $(COBERTURA_DIR)
+	@go test -v -coverprofile=$(COBERTURA_DIR)/coverage.out $(PKG)
+	@$(GO_COVER) -func=$(COBERTURA_DIR)/coverage.out
+	@$(GO_COVER) -html=$(COBERTURA_DIR)/coverage.out -o $(COBERTURA_DIR)/coverage.html
+	@echo "Coverage report generated: $(COBERTURA_DIR)/coverage.html"
+
+coverage-tools-check:
+	@command -v gocov >/dev/null || { \
+		echo "gocov not found; install (Go >=1.22 recommended):"; \
+		echo "  go install github.com/axw/gocov/gocov@v1.2.1"; \
+		echo "  (se Go mais antigo, tente @v1.1.0)"; \
+		exit 1; \
+	}
+	@command -v gocov-html >/dev/null || { \
+		echo "gocov-html not found; install:"; \
+		echo "  go install github.com/matm/gocov-html/cmd/gocov-html@v1.4.0"; \
+		exit 1; \
+	}
+
+test-coverage-html: coverage-tools-check ## Run tests with gocov + gocov-html
+	@mkdir -p $(COBERTURA_DIR)
+	@go test -v -coverprofile=$(COBERTURA_DIR)/coverage.out $(PKG)
+	@gocov convert $(COBERTURA_DIR)/coverage.out > $(COBERTURA_DIR)/coverage.json
+	@gocov-html $(COBERTURA_DIR)/coverage.json > $(COBERTURA_DIR)/coverage.html
+	@echo "Coverage report generated: $(COBERTURA_DIR)/coverage.html"
 
 lint: ## Run linter
 	@echo "Running linter..."
@@ -45,7 +72,7 @@ tidy: ## Tidy go modules
 clean: ## Clean build artifacts
 	@echo "Cleaning..."
 	@rm -rf bin/
-	@rm -f coverage.out coverage.html
+	@rm -rf $(COBERTURA_DIR)
 	@echo "Clean complete"
 
 docker-build: ## Build Docker image
