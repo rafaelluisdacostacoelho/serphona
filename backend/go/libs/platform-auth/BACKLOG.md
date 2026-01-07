@@ -105,9 +105,14 @@
 - rag-gateway
 	- [x] Verify outbound tenant header injection via platform-auth transport; add test if missing.
 - Cross-service
-	- [ ] One integration assertion per service that outbound calls include X-Tenant-Id when tenant is in context.
+	- [x] One integration assertion per service that outbound calls include X-Tenant-Id when tenant is in context.
 		- [x] billing-service (service client tenant header integration test)
-		- [ ] remaining services (auth-gateway, tenant-manager, tools-gateway, voice-gateway, rag-gateway, agent-orchestrator) — add one outbound integration assertion each.
+		- [x] auth-gateway (tenant client propagation integration test)
+		- [x] rag-gateway (OpenAI embedding client tenant header test)
+		- [x] agent-orchestrator (tools client tenant header tests)
+		- [x] tools-gateway (HTTP/GraphQL/SOAP client tenant header integration tests)
+		- [x] voice-gateway (tenant client header propagation integration test)
+		- [x] tenant-manager (no outbound HTTP; documented N/A, add coverage if outbound appears)
 
 ## Next steps (execution order)
 1) Ship service-to-service token pattern (SERVICE_AUDIENCE + client credentials) with docs and validation tests. ✅
