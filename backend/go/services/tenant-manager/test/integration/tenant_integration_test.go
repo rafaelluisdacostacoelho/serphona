@@ -13,6 +13,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/types"
 	"go.uber.org/zap"
 
 	httpHandler "tenant-manager/internal/adapter/http/handler"
@@ -75,6 +77,7 @@ func TestTenantCreateIntegration(t *testing.T) {
 			body, _ := json.Marshal(tt.payload)
 			req := httptest.NewRequest(http.MethodPost, "/api/v1/tenants", bytes.NewReader(body))
 			req.Header.Set("Content-Type", "application/json")
+			req = req.WithContext(ctxWithClaims("platform", "write:tenants"))
 
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
@@ -84,14 +87,16 @@ func TestTenantCreateIntegration(t *testing.T) {
 			}
 
 			if w.Code == http.StatusCreated {
-				var resp httpHandler.TenantResponse
+				var resp struct {
+					Data httpHandler.TenantResponse `json:"data"`
+				}
 				if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 					t.Fatalf("failed to decode response: %v", err)
 				}
-				if resp.Email != tt.payload["email"] {
-					t.Fatalf("email mismatch: got %s", resp.Email)
+				if resp.Data.Email != tt.payload["email"] {
+					t.Fatalf("email mismatch: got %s", resp.Data.Email)
 				}
-				if resp.Slug == "" {
+				if resp.Data.Slug == "" {
 					t.Fatalf("expected non-empty slug")
 				}
 			}
@@ -255,6 +260,16 @@ func (c *fakeTenantCache) SetSettings(_ context.Context, _ uuid.UUID, _ *tenant.
 }
 func (c *fakeTenantCache) Invalidate(_ context.Context, _ uuid.UUID) error { return nil }
 
+func ctxWithClaims(tenantID string, scopes ...string) context.Context {
+	claims := &types.Claims{
+		TenantID: tenantID,
+		UserID:   "user-123",
+		Scopes:   scopes,
+	}
+	ctx := authmw.WithClaims(context.Background(), claims)
+	return authmw.WithTenantID(ctx, tenantID)
+}
+
 // noopTenantPublisher publishes nothing; used in integration tests.
 type noopTenantPublisher struct{}
 
@@ -270,6 +285,9 @@ func (n *noopTenantPublisher) PublishActivated(_ context.Context, _ *tenant.Tena
 }
 func (n *noopTenantPublisher) PublishSuspended(_ context.Context, _ *tenant.Tenant) error { return nil }
 func (n *noopTenantPublisher) PublishSettingsUpdated(_ context.Context, _ uuid.UUID, _ *tenant.Settings) error {
+	return nil
+}
+func (n *noopTenantPublisher) PublishUsageReported(_ context.Context, _ tenant.UsageReportedEvent) error {
 	return nil
 }
 
