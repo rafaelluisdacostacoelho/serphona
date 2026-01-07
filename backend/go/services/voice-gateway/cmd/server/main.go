@@ -13,16 +13,16 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"voice-gateway/internal/adapter/agent"
-	"voice-gateway/internal/adapter/asterisk"
-	"voice-gateway/internal/adapter/events"
-	httpadapter "voice-gateway/internal/adapter/http"
-	redisadapter "voice-gateway/internal/adapter/redis"
-	"voice-gateway/internal/adapter/stt"
-	"voice-gateway/internal/adapter/tenant"
-	"voice-gateway/internal/adapter/tts"
-	callservice "voice-gateway/internal/application/call"
-	"voice-gateway/internal/config"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/voice-gateway/internal/adapter/agent"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/voice-gateway/internal/adapter/asterisk"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/voice-gateway/internal/adapter/events"
+	httpadapter "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/voice-gateway/internal/adapter/http"
+	redisadapter "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/voice-gateway/internal/adapter/redis"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/voice-gateway/internal/adapter/stt"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/voice-gateway/internal/adapter/tenant"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/voice-gateway/internal/adapter/tts"
+	callservice "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/voice-gateway/internal/application/call"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/voice-gateway/internal/config"
 )
 
 func main() {
@@ -78,9 +78,55 @@ func main() {
 	}
 	defer eventPublisher.Close()
 
-	// TODO: register real STT/TTS providers
 	sttProviders := make(map[string]stt.Provider)
 	ttsProviders := make(map[string]tts.Provider)
+
+	providerClosers := make([]func(), 0)
+
+	if cfg.STT.GoogleProjectID != "" {
+		googleSTT, err := stt.NewGoogleProviderV2(cfg.STT.GoogleProjectID, cfg.STT.GoogleCredentials, log)
+		if err != nil {
+			log.Warn("failed to initialize google stt provider", zap.Error(err))
+		} else {
+			sttProviders[string(stt.ProviderGoogle)] = googleSTT
+			providerClosers = append(providerClosers, func() {
+				if err := googleSTT.Close(); err != nil {
+					log.Warn("failed to close google stt provider", zap.Error(err))
+				}
+			})
+			log.Info("google stt provider registered")
+		}
+	}
+
+	if cfg.TTS.GoogleProjectID != "" {
+		googleTTS, err := tts.NewGoogleProviderV2(cfg.TTS.GoogleProjectID, cfg.TTS.GoogleCredentials, log)
+		if err != nil {
+			log.Warn("failed to initialize google tts provider", zap.Error(err))
+		} else {
+			ttsProviders[string(tts.ProviderGoogle)] = googleTTS
+			providerClosers = append(providerClosers, func() {
+				if err := googleTTS.Close(); err != nil {
+					log.Warn("failed to close google tts provider", zap.Error(err))
+				}
+			})
+			log.Info("google tts provider registered")
+		}
+	}
+
+	if cfg.TTS.ElevenLabsAPIKey != "" {
+		elevenLabsTTS, err := tts.NewElevenLabsProviderV2(cfg.TTS.ElevenLabsAPIKey, log)
+		if err != nil {
+			log.Warn("failed to initialize elevenlabs tts provider", zap.Error(err))
+		} else {
+			ttsProviders[string(tts.ProviderElevenLabs)] = elevenLabsTTS
+			providerClosers = append(providerClosers, func() {
+				if err := elevenLabsTTS.Close(); err != nil {
+					log.Warn("failed to close elevenlabs tts provider", zap.Error(err))
+				}
+			})
+			log.Info("elevenlabs tts provider registered")
+		}
+	}
 
 	callSvc := callservice.NewService(
 		asteriskClient,
@@ -96,14 +142,18 @@ func main() {
 
 	// Metrics server (separate port for Prometheus scraping)
 	metricsServer := &http.Server{
-		Addr:    fmt.Sprintf(":%d", cfg.Metrics.Port),
-		Handler: promhttp.Handler(),
+		Addr: fmt.Sprintf(":%d", cfg.Metrics.Port),
+		Handler: func() http.Handler {
+			mux := http.NewServeMux()
+			mux.Handle(cfg.Metrics.Path, promhttp.Handler())
+			return mux
+		}(),
 	}
 
 	// HTTP server for management API
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),
-		Handler:      httpadapter.NewRouter(callSvc, log, redisClient, eventPublisher, asteriskClient),
+		Handler:      httpadapter.NewRouter(callSvc, log, redisClient, eventPublisher, asteriskClient, tenantClient, cfg.Server.CORSAllowedOrigins, cfg.Asterisk),
 		ReadTimeout:  cfg.Server.ReadTimeout,
 		WriteTimeout: cfg.Server.WriteTimeout,
 		IdleTimeout:  cfg.Server.IdleTimeout,
@@ -156,6 +206,10 @@ func main() {
 	}
 
 	log.Info("servers stopped")
+
+	for _, closer := range providerClosers {
+		closer()
+	}
 }
 
 // initLogger initializes the logger with the specified level and environment.

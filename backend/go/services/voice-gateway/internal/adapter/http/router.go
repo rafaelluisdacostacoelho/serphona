@@ -4,24 +4,28 @@ package http
 import (
 	"context"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
-	"voice-gateway/internal/adapter/asterisk"
-	"voice-gateway/internal/adapter/events"
-	"voice-gateway/internal/adapter/http/handler"
-	callservice "voice-gateway/internal/application/call"
+	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/voice-gateway/internal/adapter/asterisk"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/voice-gateway/internal/adapter/events"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/voice-gateway/internal/adapter/http/handler"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/voice-gateway/internal/adapter/tenant"
+	callservice "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/voice-gateway/internal/application/call"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/voice-gateway/internal/config"
 )
 
 // NewRouter creates a new HTTP router with all routes configured.
-func NewRouter(callService *callservice.Service, logger *zap.Logger, redisClient *redis.Client, kafkaClient events.Publisher, asteriskClient *asterisk.ARIClientHTTP) http.Handler {
+func NewRouter(callService *callservice.Service, logger *zap.Logger, redisClient *redis.Client, kafkaClient events.Publisher, asteriskClient *asterisk.ARIClientHTTP, tenantClient *tenant.Client, allowedOrigins []string, astCfg config.AsteriskConfig) http.Handler {
 	mux := http.NewServeMux()
 
 	// Create handlers
 	callHandler := handler.NewCallHandler(callService, logger)
-	asteriskHandler := handler.NewAsteriskHandler(callService, logger)
+	asteriskHandler := handler.NewAsteriskHandler(callService, tenantClient, redisClient, astCfg, logger)
 
 	// Health check endpoints
 	mux.HandleFunc("GET /health", healthHandler)
@@ -29,13 +33,13 @@ func NewRouter(callService *callservice.Service, logger *zap.Logger, redisClient
 	mux.HandleFunc("GET /health/ready", readinessHandler)
 
 	// Call management API
-	mux.HandleFunc("GET /api/v1/calls/{call_id}", callHandler.GetCall)
-	mux.HandleFunc("DELETE /api/v1/calls/{call_id}", callHandler.EndCall)
-	mux.HandleFunc("POST /api/v1/calls/{call_id}/transfer", callHandler.TransferCall)
-	mux.HandleFunc("GET /api/v1/tenants/{tenant_id}/calls", callHandler.ListCalls)
+	mux.Handle("GET /api/v1/calls/{call_id}", authmw.RequireAuthHTTP(http.HandlerFunc(callHandler.GetCall)))
+	mux.Handle("DELETE /api/v1/calls/{call_id}", authmw.RequireAuthHTTP(http.HandlerFunc(callHandler.EndCall)))
+	mux.Handle("POST /api/v1/calls/{call_id}/transfer", authmw.RequireAuthHTTP(http.HandlerFunc(callHandler.TransferCall)))
+	mux.Handle("GET /api/v1/tenants/{tenant_id}/calls", authmw.RequireAuthHTTP(http.HandlerFunc(callHandler.ListCalls)))
 
 	// Asterisk ARI webhooks
-	mux.HandleFunc("POST /asterisk/events", asteriskHandler.HandleARIEvent)
+	mux.Handle("POST /asterisk/events", authmw.RequireAuthHTTP(http.HandlerFunc(asteriskHandler.HandleARIEvent)))
 
 	// Passar os clientes para as funções de verificação
 	checkRedisConnection = func() error {
@@ -44,8 +48,9 @@ func NewRouter(callService *callservice.Service, logger *zap.Logger, redisClient
 		return redisClient.Ping(ctx).Err()
 	}
 	checkKafkaConnection = func() error {
-		// Exemplo: Verificar se o cliente Kafka está configurado corretamente
-		return nil // Substituir por lógica real
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		return kafkaClient.HealthCheck(ctx)
 	}
 	checkAsteriskConnection = func() error {
 		// Exemplo: Verificar se o cliente Asterisk está configurado corretamente
@@ -53,7 +58,7 @@ func NewRouter(callService *callservice.Service, logger *zap.Logger, redisClient
 	}
 
 	// Apply middleware
-	return loggingMiddleware(logger)(corsMiddleware(mux))
+	return loggingMiddleware(logger)(corsMiddleware(allowedOrigins, logger)(mux))
 }
 
 // healthHandler handles general health checks.
@@ -113,20 +118,50 @@ func loggingMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 }
 
 // corsMiddleware adds CORS headers.
-func corsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+func corsMiddleware(allowedOrigins []string, logger *zap.Logger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			origin := r.Header.Get("Origin")
+			allowed := ""
+			if len(allowedOrigins) == 0 {
+				allowed = "" // No CORS allowed unless explicitly configured
+			} else if allowedOrigins[0] == "*" {
+				allowed = "*"
+			} else if origin != "" {
+				for _, o := range allowedOrigins {
+					if strings.EqualFold(o, origin) {
+						allowed = origin
+						break
+					}
+				}
+			}
 
-		// Handle preflight requests
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
+			if allowed == "" {
+				if origin != "" {
+					logger.Debug("cors rejected origin", zap.String("origin", origin))
+				}
+				if r.Method == http.MethodOptions {
+					w.WriteHeader(http.StatusNoContent)
+					return
+				}
+				next.ServeHTTP(w, r)
+				return
+			}
 
-		next.ServeHTTP(w, r)
-	})
+			w.Header().Set("Access-Control-Allow-Origin", allowed)
+			w.Header().Set("Vary", "Origin")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+			// Handle preflight requests
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // Implementação da verificação de conexão com Redis

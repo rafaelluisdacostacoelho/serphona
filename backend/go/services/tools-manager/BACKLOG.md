@@ -15,42 +15,44 @@ Provide the governed tool catalog and policy control-plane for Serphona. Tools M
 - Docs/runbooks: how to add/update/publish a tool, rotate secrets, enable tenant, rollback, and versioning/breaking-change checklist (en/pt-BR).
 
 ## Backlog (ordered)
-1) **Scaffolding and config**
-- Create service skeleton (cmd/server) with platform-auth middleware/interceptors, response envelope, health/ready/metrics/pprof, config loader/env map.
-- Add migrations runner (Postgres with RLS), Makefile/Dockerfile, CI wiring.
 
-2) **Catalog data model**
-- Tables: tools, tool_versions, tenant_tools (enablement/overrides), categories/tags; include tenant_id, version status (draft/published/deprecated), owners.
-- Constraints: uniqueness by name+version, per-tenant enablement unique, indexes for tenant/name/category.
+- [ ] Scaffolding and config
+	- [ ] Skeleton em `cmd/server` com platform-auth (middleware/interceptors), envelope de resposta, health/ready/metrics/pprof, carregador de config/env map
+	- [ ] Runner de migracoes (Postgres com RLS), Makefile/Dockerfile, CI
 
-3) **Validation and safety**
-- JSON Schema validation with depth/field/size caps for input/output; host/protocol allowlist metadata; limits on timeouts, retries, payload sizes.
-- Rejection of invalid or unsafe definitions at write time; DTOs with explicit limits.
+- [ ] Catalog data model
+	- [ ] Tabelas: tools, tool_versions, tenant_tools (enablement/overrides), categories/tags; campos tenant_id, status (draft/published/deprecated), owners
+	- [ ] Constraints: unicidade name+version; enablement por tenant unico; indexes por tenant/name/category
 
-4) **Policy/RBAC and quotas**
-- Allow/deny evaluator: tenant, agent, scopes/roles, environment, quotas/rate limits; deterministic precedence.
-- Admin APIs to set policies and quotas; per-tenant enable/disable; audit each decision/change.
+- [ ] Validation and safety
+	- [ ] Validacao JSON Schema com limites de profundidade/campos/tamanho para input/output
+	- [ ] Metadata de allowlist host/protocol e limites de timeout/retries/payload
+	- [ ] Rejeicao de definicoes invalidas ou inseguras no write; DTOs com limites explicitos
 
-5) **Secrets and credentials**
-- Integrate Vault/KMS for provider secrets per tenant/tool; fetch-on-use with caching TTL; mask in logs; rotation API/hooks.
-- Audit: who accessed/rotated; deny cross-tenant access.
+- [ ] Policy/RBAC and quotas
+	- [ ] Avaliador allow/deny por tenant/agent/scopes/roles/ambiente com quotas/rate e precedencia deterministica
+	- [ ] APIs admin para politicas/quotas, enable/disable por tenant; auditar cada decisao/alteracao
 
-6) **Integrations and sync**
-- Read APIs/gRPC to deliver resolved tool definitions (with overrides) by tenant for Tools Gateway and platform-mcp; pagination + ETag/If-None-Match.
-- Change events to Kafka/webhook for cache invalidation in gateway; fallback polling endpoint; contract tests for consumers.
-- MCP catalog view (schema compatible with platform-mcp/tool registry) for agent-orchestrator discovery.
+- [ ] Secrets and credentials
+	- [ ] Integrar Vault/KMS para segredos por tenant/tool; fetch-on-use com cache TTL; mascarar logs; rotacao API/hooks
+	- [ ] Auditar quem acessou/rotacionou; negar acesso cross-tenant
 
-7) **Observability and audit**
-- Metrics: writes/reads, cache hits, policy decisions, quota hits, secret fetches, errors; tracing with tenant/user/tool/version.
-- Audit log: create/update/publish/deprecate actions with diff hash and actor; sampling controls.
+- [ ] Integrations and sync
+	- [ ] APIs/gRPC de leitura para definicoes resolvidas por tenant (Tools Gateway, platform-mcp) com paginacao e ETag/If-None-Match
+	- [ ] Eventos de mudanca via Kafka/webhook para invalidação de cache; endpoint de polling fallback; testes de contrato dos consumidores
+	- [ ] Vista MCP (schema compatível com platform-mcp/tool registry) para agent-orchestrator
 
-8) **Testing and quality**
-- Migrations/RLS tests; policy matrix; catalog resolution with overrides; schema limit tests; secret access tests; cache/ETag tests; contract tests for gateway consumer.
-- Static analysis (gosec), fuzz of input DTOs, load smoke for read APIs.
+- [ ] Observability and audit
+	- [ ] Metricas: writes/reads, cache hits, policy decisions, quota hits, secret fetches, errors; tracing com tenant/user/tool/version
+	- [ ] Audit log de create/update/publish/deprecate com diff hash e actor; sampling controls
 
-9) **Docs and runbooks**
-- How-to: add/update/publish tool, set policies/quotas, enable tenant, rotate secrets, rollback.
-- Versioning/breaking-change checklist; MCP/gateway consumer integration notes; ops dashboards/alerts and oncall runbook.
+- [ ] Testing and quality
+	- [ ] Testes de migracoes/RLS; matriz de politica; resolucao com overrides; limites de schema; acesso a segredos; cache/ETag; contratos com gateway consumer
+	- [ ] Static analysis (gosec), fuzz de DTOs de input, load smoke para read APIs
+
+- [ ] Docs and runbooks
+	- [ ] How-to: add/update/publish tool, politicas/quotas, habilitar tenant, rotacionar segredos, rollback
+	- [ ] Checklist de versionamento/breaking-change; notas de integracao MCP/gateway; dashboards/alertas e runbook de oncall
 
 ## Config to surface
 - ISSUER/AUDIENCE/REQUIRED_SCOPES, TENANT_CLAIM, JWKS_URL/JWT_SECRET; POSTGRES_DSN + TLS/pool/migrations toggle; VAULT/KMS settings; CACHE_TTL/ETAG; RATE/QUOTA defaults; KAFKA/Webhook endpoints; TRACE/METRICS exporters; LOG level/format.

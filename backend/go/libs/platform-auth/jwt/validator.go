@@ -32,15 +32,16 @@ var validationConfig = defaultValidationConfig()
 
 // ValidationConfig controls validation rules beyond the secret.
 type ValidationConfig struct {
-	AllowedAlgs    []string
-	Issuer         string
-	Audience       string
-	ClockSkew      time.Duration
-	MaxTokenBytes  int
-	JWKSURL        string
-	JWKSCacheTTL   time.Duration
-	AllowedKIDs    []string
-	RequiredScopes []string // Optional: enforce presence of specific scopes at validation time
+	AllowedAlgs     []string
+	Issuer          string
+	Audience        string
+	ServiceAudience string
+	ClockSkew       time.Duration
+	MaxTokenBytes   int
+	JWKSURL         string
+	JWKSCacheTTL    time.Duration
+	AllowedKIDs     []string
+	RequiredScopes  []string // Optional: enforce presence of specific scopes at validation time
 }
 
 func defaultValidationConfig() ValidationConfig {
@@ -176,8 +177,15 @@ func ValidateTokenWithSecret(tokenString, secret string) (*types.Claims, error) 
 	if cfg.Issuer != "" {
 		parserOpts = append(parserOpts, jwt.WithIssuer(cfg.Issuer))
 	}
+	expectedAudiences := []string{}
 	if cfg.Audience != "" {
-		parserOpts = append(parserOpts, jwt.WithAudience(cfg.Audience))
+		expectedAudiences = append(expectedAudiences, cfg.Audience)
+	}
+	if cfg.ServiceAudience != "" {
+		expectedAudiences = append(expectedAudiences, cfg.ServiceAudience)
+	}
+	if len(expectedAudiences) == 1 {
+		parserOpts = append(parserOpts, jwt.WithAudience(expectedAudiences[0]))
 	}
 	if len(cfg.AllowedAlgs) > 0 {
 		parserOpts = append(parserOpts, jwt.WithValidMethods(cfg.AllowedAlgs))
@@ -239,7 +247,7 @@ func ValidateTokenWithSecret(tokenString, secret string) (*types.Claims, error) 
 	}
 
 	if claims, ok := token.Claims.(*types.Claims); ok && token.Valid {
-		if err := validateClaimsDetails(claims); err != nil {
+		if err := validateClaimsDetails(claims, cfg); err != nil {
 			return nil, err
 		}
 		// Optionally enforce required scopes at validation time
@@ -435,7 +443,7 @@ func ValidateTokenFromHeader(authHeader string) (*types.Claims, error) {
 	return ValidateToken(token)
 }
 
-func validateClaimsDetails(claims *types.Claims) error {
+func validateClaimsDetails(claims *types.Claims, cfg ValidationConfig) error {
 	if claims == nil {
 		return autherrors.ErrInvalidToken
 	}
@@ -448,6 +456,10 @@ func validateClaimsDetails(claims *types.Claims) error {
 		if _, err := uuid.Parse(tenant); err != nil {
 			return autherrors.ErrInvalidToken
 		}
+	}
+
+	if err := validateAudience(claims, cfg); err != nil {
+		return err
 	}
 
 	if strings.TrimSpace(claims.Service) != "" {
@@ -467,4 +479,38 @@ func validateClaimsDetails(claims *types.Claims) error {
 	default:
 		return autherrors.ErrInvalidRole
 	}
+}
+
+func validateAudience(claims *types.Claims, cfg ValidationConfig) error {
+	if claims == nil {
+		return autherrors.ErrInvalidToken
+	}
+
+	expectedAudience := cfg.Audience
+	if strings.TrimSpace(claims.Service) != "" && cfg.ServiceAudience != "" {
+		expectedAudience = cfg.ServiceAudience
+	}
+
+	if expectedAudience == "" {
+		return nil
+	}
+
+	if len(claims.Audience) == 0 {
+		return autherrors.ErrInvalidAudience
+	}
+
+	if !audienceContains(claims.Audience, expectedAudience) {
+		return autherrors.ErrInvalidAudience
+	}
+
+	return nil
+}
+
+func audienceContains(audiences jwt.ClaimStrings, target string) bool {
+	for _, aud := range audiences {
+		if aud == target {
+			return true
+		}
+	}
+	return false
 }

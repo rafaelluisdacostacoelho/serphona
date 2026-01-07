@@ -86,7 +86,7 @@
 	- [x] DB layers use tenant helpers.
 	- [x] Kafka producer injects tenant header via helpers.
 	- [x] Outbound HTTP uses platform-auth transport + EnsureTenantHeader.
-	- [ ] Integration tests for tenant guard + header injection.
+	- [x] Integration tests for tenant guard + header injection.
 - analytics-query-service
 	- [x] Apply tenant helpers on ClickHouse/Postgres query path.
 	- [x] Enforce EnsureTenantHeader on outbound (if any) via platform-auth transport. (N/A — no outbound clients)
@@ -106,9 +106,11 @@
 	- [x] Verify outbound tenant header injection via platform-auth transport; add test if missing.
 - Cross-service
 	- [ ] One integration assertion per service that outbound calls include X-Tenant-Id when tenant is in context.
+		- [x] billing-service (service client tenant header integration test)
+		- [ ] remaining services (auth-gateway, tenant-manager, tools-gateway, voice-gateway, rag-gateway, agent-orchestrator) — add one outbound integration assertion each.
 
 ## Next steps (execution order)
-1) Ship service-to-service token pattern (SERVICE_AUDIENCE + client credentials) with docs and validation tests.
+1) Ship service-to-service token pattern (SERVICE_AUDIENCE + client credentials) with docs and validation tests. ✅
 2) Close "Service adoption" checklist above (tenant helpers + EnsureTenantHeader + tests per service).
 3) Enforce response envelope helpers across Gin/chi/gRPC; keep contract tests current with new handlers and transports.
 4) Logging/observability: ensure outbound transports in all services and redaction defaults; add propagation tests.

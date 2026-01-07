@@ -78,10 +78,12 @@ Tokens de servico precisam ser emitidos com claims `service` e `scopes` e usar a
 
 ```go
 serviceAudience := os.Getenv("SERVICE_AUDIENCE")
+userAudience := os.Getenv("AUDIENCE")
 authjwt.SetValidationConfig(authjwt.ValidationConfig{
-    Audience:    serviceAudience,      // deve casar com a SERVICE_AUDIENCE na emissao
-    AllowedAlgs: []string{"RS256"},   // preferir chaves assimetricas para chamadas internas
-    AllowedKIDs: []string{"kid-1"},   // allow-list opcional
+    Audience:        userAudience,         // audience para tokens de usuario
+    ServiceAudience: serviceAudience,      // deve casar com a SERVICE_AUDIENCE na emissao (client credentials)
+    AllowedAlgs:     []string{"RS256"},   // preferir chaves assimetricas para chamadas internas
+    AllowedKIDs:     []string{"kid-1"},   // allow-list opcional
 })
 ```
 

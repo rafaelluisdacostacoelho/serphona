@@ -10,7 +10,7 @@ import (
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/response"
 	"go.uber.org/zap"
 
-	callservice "voice-gateway/internal/application/call"
+	callservice "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/voice-gateway/internal/application/call"
 )
 
 // CallHandler handles call-related HTTP requests.

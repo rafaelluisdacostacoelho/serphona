@@ -4,9 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"voice-gateway/internal/domain/call"
-
 	"github.com/IBM/sarama/mocks"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/voice-gateway/internal/domain/call"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 )

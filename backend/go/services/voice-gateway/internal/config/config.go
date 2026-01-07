@@ -22,6 +22,8 @@ type Config struct {
 	Kafka             KafkaConfig
 	TenantManager     TenantManagerConfig
 	AgentOrchestrator AgentOrchestratorConfig
+	STT               STTConfig
+	TTS               TTSConfig
 	Audio             AudioConfig
 	Call              CallConfig
 	Metrics           MetricsConfig
@@ -31,13 +33,14 @@ type Config struct {
 
 // ServerConfig represents server configuration.
 type ServerConfig struct {
-	Host            string        `envconfig:"SERVER_HOST" default:"0.0.0.0"`
-	Port            int           `envconfig:"SERVER_PORT" default:"8080"`
-	GRPCPort        int           `envconfig:"SERVER_GRPC_PORT" default:"9090"`
-	ReadTimeout     time.Duration `envconfig:"SERVER_READ_TIMEOUT" default:"30s"`
-	WriteTimeout    time.Duration `envconfig:"SERVER_WRITE_TIMEOUT" default:"30s"`
-	IdleTimeout     time.Duration `envconfig:"SERVER_IDLE_TIMEOUT" default:"120s"`
-	ShutdownTimeout time.Duration `envconfig:"SERVER_SHUTDOWN_TIMEOUT" default:"30s"`
+	Host               string        `envconfig:"SERVER_HOST" default:"0.0.0.0"`
+	Port               int           `envconfig:"SERVER_PORT" default:"8080"`
+	GRPCPort           int           `envconfig:"SERVER_GRPC_PORT" default:"9090"`
+	ReadTimeout        time.Duration `envconfig:"SERVER_READ_TIMEOUT" default:"30s"`
+	WriteTimeout       time.Duration `envconfig:"SERVER_WRITE_TIMEOUT" default:"30s"`
+	IdleTimeout        time.Duration `envconfig:"SERVER_IDLE_TIMEOUT" default:"120s"`
+	ShutdownTimeout    time.Duration `envconfig:"SERVER_SHUTDOWN_TIMEOUT" default:"30s"`
+	CORSAllowedOrigins []string      `envconfig:"SERVER_CORS_ALLOWED_ORIGINS" default:""`
 }
 
 // AsteriskConfig represents Asterisk connection configuration.
@@ -47,6 +50,14 @@ type AsteriskConfig struct {
 	ARIUsername string `envconfig:"ASTERISK_ARI_USERNAME" required:"true"`
 	ARIPassword string `envconfig:"ASTERISK_ARI_PASSWORD" required:"true"`
 	ARIAppName  string `envconfig:"ASTERISK_ARI_APP_NAME" default:"serphona"`
+
+	// Webhook hardening
+	WebhookSignatureHeader string        `envconfig:"ASTERISK_WEBHOOK_SIGNATURE_HEADER" default:"X-Asterisk-Signature"`
+	WebhookSecret          string        `envconfig:"ASTERISK_WEBHOOK_SECRET"`
+	WebhookBasicUser       string        `envconfig:"ASTERISK_WEBHOOK_BASIC_USER"`
+	WebhookBasicPass       string        `envconfig:"ASTERISK_WEBHOOK_BASIC_PASS"`
+	WebhookIdempotencyTTL  time.Duration `envconfig:"ASTERISK_WEBHOOK_IDEMPOTENCY_TTL" default:"10m"`
+	WebhookReplayWindow    time.Duration `envconfig:"ASTERISK_WEBHOOK_REPLAY_WINDOW" default:"5m"`
 
 	// AMI Configuration (optional, for fallback)
 	AMIHost     string `envconfig:"ASTERISK_AMI_HOST"`
@@ -83,6 +94,21 @@ type AgentOrchestratorConfig struct {
 	URL     string        `envconfig:"AGENT_ORCHESTRATOR_URL" required:"true"`
 	Token   string        `envconfig:"AGENT_ORCHESTRATOR_TOKEN"`
 	Timeout time.Duration `envconfig:"AGENT_ORCHESTRATOR_TIMEOUT" default:"30s"`
+}
+
+// STTConfig represents Speech-to-Text provider configuration.
+type STTConfig struct {
+	DefaultProvider   string `envconfig:"STT_DEFAULT_PROVIDER" default:"google"`
+	GoogleProjectID   string `envconfig:"STT_GOOGLE_PROJECT_ID"`
+	GoogleCredentials string `envconfig:"STT_GOOGLE_CREDENTIALS_FILE"`
+}
+
+// TTSConfig represents Text-to-Speech provider configuration.
+type TTSConfig struct {
+	DefaultProvider   string `envconfig:"TTS_DEFAULT_PROVIDER" default:"google"`
+	GoogleProjectID   string `envconfig:"TTS_GOOGLE_PROJECT_ID"`
+	GoogleCredentials string `envconfig:"TTS_GOOGLE_CREDENTIALS_FILE"`
+	ElevenLabsAPIKey  string `envconfig:"TTS_ELEVENLABS_API_KEY"`
 }
 
 // AudioConfig represents audio processing configuration.

@@ -9,14 +9,14 @@ import (
 	platformmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"go.uber.org/zap"
 
-	"voice-gateway/internal/adapter/agent"
-	"voice-gateway/internal/adapter/asterisk"
-	"voice-gateway/internal/adapter/events"
-	"voice-gateway/internal/adapter/redis"
-	"voice-gateway/internal/adapter/stt"
-	"voice-gateway/internal/adapter/tenant"
-	"voice-gateway/internal/adapter/tts"
-	"voice-gateway/internal/domain/call"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/voice-gateway/internal/adapter/agent"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/voice-gateway/internal/adapter/asterisk"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/voice-gateway/internal/adapter/events"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/voice-gateway/internal/adapter/redis"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/voice-gateway/internal/adapter/stt"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/voice-gateway/internal/adapter/tenant"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/voice-gateway/internal/adapter/tts"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/voice-gateway/internal/domain/call"
 )
 
 // Service orchestrates call lifecycle and interactions.
@@ -271,6 +271,11 @@ func (s *Service) EndCall(ctx context.Context, callID uuid.UUID) error {
 // GetCallState retrieves current call state.
 func (s *Service) GetCallState(ctx context.Context, callID uuid.UUID) (*call.Call, error) {
 	return s.callStateRepo.Get(ctx, callID)
+}
+
+// GetCallByChannel retrieves a call by its Asterisk channel ID.
+func (s *Service) GetCallByChannel(ctx context.Context, channelID string) (*call.Call, error) {
+	return s.callStateRepo.GetByChannelID(ctx, channelID)
 }
 
 // ListActiveCalls lists all active calls for a tenant.

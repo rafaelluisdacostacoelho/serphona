@@ -1,7 +1,4 @@
-//go:build integration
-// +build integration
-
-package kafka
+package integration
 
 import (
 	"context"
@@ -210,7 +207,8 @@ func mustProducer(t *testing.T, brokers []string) sarama.SyncProducer {
 func testBrokers() []string {
 	brokers := os.Getenv("KAFKA_BROKERS")
 	if brokers == "" {
-		brokers = "localhost:9093"
+		// Update broker port to 9092
+		brokers = "localhost:9092"
 	}
 	return []string{brokers}
 }

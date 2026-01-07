@@ -15,17 +15,55 @@
 - MCP/Agent alignment: no MCP interface/catalog; execution path is HTTP-only; no gRPC.
 
 ## Action items
-1) Auth & tenant: add real JWT middleware with issuer/audience/scopes, enforce tenant scoping on tools/integrations/executions; drop mock IDs; add role-based access and CORS/rate limits.
-2) Validation & safety: enforce payload size limits, schema depth/field limits, allowed outbound host/protocol allowlist, and per-tool/tenant enablement checks; cap TopK/limits if present.
-3) Resilience: add retries/backoff and circuit breaker for downstream HTTP; timeouts per tool; idempotency for executions; DLQ or error queue for failed executions; clearer error codes (use 4xx/5xx, not 200 on failure).
-4) Data/migrations: wire migrations on startup; add tenant scoping and indexes; ensure unique constraints (tool name, tenant-tool). Add DB TLS/pool config.
-5) Observability/audit: add Prometheus metrics (latency, errors, rate-limit blocks, retries), tracing (HTTP inbound + outbound), and structured audit logs for tool exec and OAuth events.
-6) Billing/quotas: enforce per-tenant/tool quotas and rate limits; emit usage events (tool, latency, status, credits) to billing/analytics sink; define pricing model for credits.
-7) OAuth/integrations: enforce provider allowlist, secure state storage/expiry, token encryption at rest, revocation callbacks, and per-tenant integration isolation; mask secrets in logs.
-8) MCP/Agent: expose catalog/discovery endpoint or gRPC for agent-orchestrator/MCP; standardize tool schema contracts and versioning.
-9) Testing: contract tests for tool schema validation, auth/tenant isolation, execution error paths, OAuth flows with fake provider, retry/backoff behavior, and metrics/tracing emission.
-10) Runbooks: tool onboarding/disable, rotating secrets, handling downstream outages/DLQ replay, quota/rate-limit tuning, OAuth token refresh failures.
-11) Response contract: adopt the shared envelope helper (success data/meta; error code/message/details/trace_id) for all HTTP handlers and adjust execution error mapping/tests accordingly.
+
+- [ ] Auth & tenant
+	- [ ] Substituir mock auth por JWT (issuer/audience/scopes) e tenant guard em tool/integration/execute
+	- [ ] Enforce role-based access e CORS/rate limits
+	- [ ] Remover IDs aleatorios; sempre filtrar por tenant autenticado
+
+- [ ] Validation & safety
+	- [ ] Limitar payload (size) e profundidade/campos de schema
+	- [ ] Allowlist de host/protocolo para execucoes downstream; checar enablement por tenant/tool
+	- [ ] Cap de TopK/limits e validacao forte de schemas
+
+- [ ] Resilience
+	- [ ] Retries/backoff e circuit breaker por tool; timeouts configuraveis
+	- [ ] Idempotencia de execucao e DLQ/erro queue para falhas
+	- [ ] Mapear erros para 4xx/5xx (nao 200) e incluir trace_id
+
+- [ ] Data/migrations
+	- [ ] Rodar migracoes no startup; constraints de unicidade (tool name, tenant-tool) e indices
+	- [ ] RLS/tenant scoping nas queries e filtros obrigatorios
+	- [ ] Configurar TLS/pool do DB
+
+- [ ] Observability/audit
+	- [ ] Metricas (latencia, erros, rate-limit blocks, retries) e tracing inbound/outbound
+	- [ ] Audit estruturado para execucoes e eventos OAuth
+
+- [ ] Billing/quotas
+	- [ ] Quotas/rate limits por tenant/tool; bloqueio e metricas
+	- [ ] Eventos de uso (tool, latencia, status, credits) para billing/analytics; modelo de preco
+
+- [ ] OAuth/integrations
+	- [ ] Provider allowlist; state storage seguro + expiracao; PKCE
+	- [ ] Token encryption at rest e revogacao; isolamento por tenant
+	- [ ] Mascara de segredos em logs
+
+- [ ] MCP/Agent
+	- [ ] Expor catalog/discovery endpoint ou gRPC para agent-orchestrator/MCP
+	- [ ] Padronizar schema/versao das ferramentas
+
+- [ ] Testing
+	- [ ] Contratos de schema, isolamento auth/tenant, caminhos de erro de execucao
+	- [ ] OAuth com fake provider; retries/backoff; metrics/tracing emission
+
+- [ ] Runbooks
+	- [ ] Onboarding/desabilitar tool, rotacionar segredos, lidar com outages/DLQ replay
+	- [ ] Ajuste de quota/rate-limit e falhas de refresh de token
+
+- [ ] Response contract
+	- [ ] Adotar envelope comum (success meta; error code/message/details/trace_id) em todos os handlers
+	- [ ] Ajustar mapeamento de erros de execucao e testes
 
 ## Config to surface
 - HTTP addr, timeouts, body size, CORS, rate limits.

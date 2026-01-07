@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"voice-gateway/internal/domain/call"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/voice-gateway/internal/domain/call"
 
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/types"
 )
@@ -21,6 +21,7 @@ type Publisher interface {
 	Publish(ctx context.Context, event *types.Event) error
 	PublishAsync(ctx context.Context, event *types.Event)
 	Close() error
+	HealthCheck(ctx context.Context) error
 	PublishCallStarted(ctx context.Context, c *call.Call) error
 	PublishCallAnswered(ctx context.Context, c *call.Call) error
 	PublishCallTransferred(ctx context.Context, c *call.Call) error
@@ -30,6 +31,8 @@ type Publisher interface {
 // kafkaPublisher publishes events to Kafka.
 type kafkaPublisher struct {
 	producer    sarama.SyncProducer
+	brokers     []string
+	config      *sarama.Config
 	topicPrefix string
 	logger      *zap.Logger
 }
@@ -52,6 +55,8 @@ func NewPublisher(brokers []string, topicPrefix string, logger *zap.Logger) (Pub
 
 	return &kafkaPublisher{
 		producer:    producer,
+		brokers:     brokers,
+		config:      config,
 		topicPrefix: topicPrefix,
 		logger:      logger,
 	}, nil
@@ -60,6 +65,35 @@ func NewPublisher(brokers []string, topicPrefix string, logger *zap.Logger) (Pub
 // Close closes the Kafka producer.
 func (p *kafkaPublisher) Close() error {
 	return p.producer.Close()
+}
+
+// HealthCheck verifies connectivity to Kafka brokers.
+func (p *kafkaPublisher) HealthCheck(ctx context.Context) error {
+	if len(p.brokers) == 0 {
+		return fmt.Errorf("no kafka brokers configured")
+	}
+
+	client, err := sarama.NewClient(p.brokers, p.config)
+	if err != nil {
+		return fmt.Errorf("failed to create kafka client: %w", err)
+	}
+	defer client.Close()
+
+	brokers := client.Brokers()
+	if len(brokers) == 0 {
+		return fmt.Errorf("kafka client has no brokers")
+	}
+
+	for _, b := range brokers {
+		if err := b.Open(client.Config()); err != nil && err != sarama.ErrAlreadyConnected {
+			return fmt.Errorf("failed to open broker %s: %w", b.Addr(), err)
+		}
+		if ok, _ := b.Connected(); !ok {
+			return fmt.Errorf("kafka broker not connected: %s", b.Addr())
+		}
+	}
+
+	return ctx.Err()
 }
 
 // CallEvent represents a call-related event.
@@ -309,6 +343,29 @@ func (p *kafkaPublisher) publishEvent(ctx context.Context, eventType, key string
 			zap.String("event_type", eventType),
 			zap.Error(err),
 		)
+
+		// Attempt DLQ publish with minimal envelope
+		dlqTopic := fmt.Sprintf("%s.dlq", p.topicPrefix)
+		dlqPayload := map[string]interface{}{
+			"failed_event_type": eventType,
+			"key":               key,
+			"error":             err.Error(),
+			"payload":           payload,
+			"ts":                time.Now().UTC().Format(time.RFC3339Nano),
+		}
+
+		dlqValue, marshalErr := json.Marshal(dlqPayload)
+		if marshalErr == nil {
+			dlqMsg := &sarama.ProducerMessage{
+				Topic: dlqTopic,
+				Key:   sarama.StringEncoder(key),
+				Value: sarama.ByteEncoder(dlqValue),
+			}
+			if _, _, dlqErr := p.producer.SendMessage(dlqMsg); dlqErr != nil {
+				p.logger.Error("failed to publish to dlq", zap.Error(dlqErr))
+			}
+		}
+
 		return fmt.Errorf("failed to publish event: %w", err)
 	}
 

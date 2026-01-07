@@ -110,10 +110,12 @@ Service tokens must be issued with `service` and `scopes` claims and use the ser
 
 ```go
 serviceAudience := os.Getenv("SERVICE_AUDIENCE")
+userAudience := os.Getenv("AUDIENCE")
 authjwt.SetValidationConfig(authjwt.ValidationConfig{
-    Audience:     serviceAudience,      // must match the SERVICE_AUDIENCE used at issuance
-    AllowedAlgs:  []string{"RS256"},   // prefer asymmetric keys for internal calls
-    AllowedKIDs:  []string{"kid-1"},   // optional allow-list
+    Audience:        userAudience,       // audience for end-user tokens
+    ServiceAudience: serviceAudience,    // must match the SERVICE_AUDIENCE used at issuance for client credentials
+    AllowedAlgs:     []string{"RS256"}, // prefer asymmetric keys for internal calls
+    AllowedKIDs:     []string{"kid-1"}, // optional allow-list
 })
 ```
 

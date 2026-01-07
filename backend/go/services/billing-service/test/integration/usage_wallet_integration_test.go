@@ -1,7 +1,4 @@
-//go:build integration
-// +build integration
-
-package kafka
+package integration
 
 import (
 	"context"
@@ -10,6 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	gormsqlite "gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
@@ -46,11 +45,13 @@ func TestUsageReportedDebitsWalletAndStoresTransaction(t *testing.T) {
 		RequestID:   "req-integration-1",
 	}
 
-	if err := svc.DebitUsage(context.Background(), evt); err != nil {
+	ctx := authmw.WithTenantID(context.Background(), evt.TenantID.String())
+
+	if err := svc.DebitUsage(ctx, evt); err != nil {
 		t.Fatalf("DebitUsage failed: %v", err)
 	}
 
-	wallet, err := walletRepo.FindByTenantID(context.Background(), evt.TenantID)
+	wallet, err := walletRepo.FindByTenantID(ctx, evt.TenantID)
 	if err != nil {
 		t.Fatalf("find wallet: %v", err)
 	}
@@ -69,7 +70,7 @@ func TestUsageReportedDebitsWalletAndStoresTransaction(t *testing.T) {
 		t.Fatalf("unexpected wallet balance: got %d want %d", wallet.Balance, 100-expectedAmount)
 	}
 
-	txs, err := walletRepo.FindTransactionsByWalletID(context.Background(), wallet.ID, 0, 10)
+	txs, err := walletRepo.FindTransactionsByWalletID(ctx, wallet.ID, 0, 10)
 	if err != nil {
 		t.Fatalf("find transactions: %v", err)
 	}

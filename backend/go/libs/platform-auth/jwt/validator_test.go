@@ -73,6 +73,51 @@ func signedServiceToken(t *testing.T, exp time.Time, service string, scopes []st
 	return token
 }
 
+func signedTokenWithAudience(t *testing.T, exp time.Time, role, audience string) string {
+	t.Helper()
+
+	claims := types.Claims{
+		UserID:    "11111111-1111-1111-1111-111111111111",
+		Email:     "user@example.com",
+		Name:      "Test User",
+		Role:      role,
+		TenantID:  "22222222-2222-2222-2222-222222222222",
+		SessionID: "33333333-3333-3333-3333-333333333333",
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(exp),
+			Audience:  jwt.ClaimStrings{audience},
+		},
+	}
+
+	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(testSecret))
+	if err != nil {
+		t.Fatalf("failed to sign token: %v", err)
+	}
+
+	return token
+}
+
+func signedServiceTokenWithAudience(t *testing.T, exp time.Time, service string, scopes []string, tenant, audience string) string {
+	t.Helper()
+
+	claims := types.Claims{
+		Service:  service,
+		TenantID: tenant,
+		Scopes:   scopes,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(exp),
+			Audience:  jwt.ClaimStrings{audience},
+		},
+	}
+
+	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(testSecret))
+	if err != nil {
+		t.Fatalf("failed to sign service token: %v", err)
+	}
+
+	return token
+}
+
 func signedRSAToken(t *testing.T, privateKey *rsa.PrivateKey, kid string, exp time.Time) string {
 	t.Helper()
 
@@ -341,6 +386,50 @@ func TestValidateServiceTokenRequiresScopes(t *testing.T) {
 
 	if _, err := authjwt.ValidateToken(token); err != autherrors.ErrInsufficientPermissions {
 		t.Fatalf("expected service token without scopes to fail with insufficient permissions, got %v", err)
+	}
+}
+
+func TestValidateServiceTokenRequiresServiceAudience(t *testing.T) {
+	authjwt.SetSecret(testSecret)
+	authjwt.SetValidationConfig(authjwt.ValidationConfig{
+		AllowedAlgs:     []string{"HS256"},
+		Audience:        "app-audience",
+		ServiceAudience: "svc-audience",
+	})
+	defer authjwt.ResetValidationConfig()
+
+	token := signedServiceTokenWithAudience(t, time.Now().Add(time.Hour), "tenant-manager", []string{"tenant:read"}, "platform", "svc-audience")
+
+	if _, err := authjwt.ValidateToken(token); err != nil {
+		t.Fatalf("expected service token with service audience to be valid, got %v", err)
+	}
+
+	wrongAudience := signedServiceTokenWithAudience(t, time.Now().Add(time.Hour), "tenant-manager", []string{"tenant:read"}, "platform", "app-audience")
+
+	if _, err := authjwt.ValidateToken(wrongAudience); err != autherrors.ErrInvalidAudience {
+		t.Fatalf("expected invalid audience for service token, got %v", err)
+	}
+}
+
+func TestValidateUserTokenWithServiceAudienceConfigured(t *testing.T) {
+	authjwt.SetSecret(testSecret)
+	authjwt.SetValidationConfig(authjwt.ValidationConfig{
+		AllowedAlgs:     []string{"HS256"},
+		Audience:        "app-audience",
+		ServiceAudience: "svc-audience",
+	})
+	defer authjwt.ResetValidationConfig()
+
+	userToken := signedTokenWithAudience(t, time.Now().Add(time.Hour), "user", "app-audience")
+
+	if _, err := authjwt.ValidateToken(userToken); err != nil {
+		t.Fatalf("expected user token with primary audience to be valid, got %v", err)
+	}
+
+	wrongAudience := signedTokenWithAudience(t, time.Now().Add(time.Hour), "user", "svc-audience")
+
+	if _, err := authjwt.ValidateToken(wrongAudience); err != autherrors.ErrInvalidAudience {
+		t.Fatalf("expected invalid audience for user token, got %v", err)
 	}
 }
 
