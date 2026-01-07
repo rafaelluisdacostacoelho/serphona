@@ -53,8 +53,9 @@ func NewRouter(callService *callservice.Service, logger *zap.Logger, redisClient
 		return kafkaClient.HealthCheck(ctx)
 	}
 	checkAsteriskConnection = func() error {
-		// Exemplo: Verificar se o cliente Asterisk está configurado corretamente
-		return nil // Substituir por lógica real
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		return asteriskClient.HealthCheck(ctx)
 	}
 
 	// Apply middleware

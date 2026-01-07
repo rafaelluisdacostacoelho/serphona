@@ -26,10 +26,10 @@
 9) Testing/benchmarks: golden tokens (valid/expired/wrong alg/wrong aud/issuer/missing tenant/scope), JWKS rotation tests, middleware scope/role tests, client retry tests, outbound propagation assertions across services, fuzz for header parsing (✅), benchmark middleware overhead (✅).
 
 ## Ordered follow-ups (do in this sequence)
-- [ ] Voice-gateway: use tenant/agent clients inside StartConversation to open the conversation and pull agent config from tenant-manager before starting the loop.
-- [ ] Voice-gateway readiness: wire readinessHandler to check Redis/Kafka/Asterisk (and fail closed when dependencies unavailable).
-- [ ] Voice-gateway providers: register real STT/TTS providers instead of empty maps in main wiring.
-- [ ] Deployments: when Helm/K8s manifests for voice-gateway are added, include TENANT_MANAGER_TOKEN and AGENT_ORCHESTRATOR_TOKEN env vars.
+- [x] Voice-gateway: use tenant/agent clients inside StartConversation to open the conversation and pull agent config from tenant-manager before starting the loop.
+- [x] Voice-gateway readiness: wire readinessHandler to check Redis/Kafka/Asterisk (and fail closed when dependencies unavailable).
+- [x] Voice-gateway providers: register real STT/TTS providers instead of empty maps in main wiring.
+- [x] Deployments: when Helm/K8s manifests for voice-gateway are added, include TENANT_MANAGER_TOKEN and AGENT_ORCHESTRATOR_TOKEN env vars.
 
 ## Open checklist
 - [x] Refresh/service-to-service token guidance (audience separation, issuance pattern) + rollout plan — see docs/architecture/AUTH-GUIDANCE-en-US.md (pt-BR: docs/architecture/AUTH-GUIDANCE-pt-BR.md)
@@ -52,9 +52,9 @@
 - Add Gin/chi/gRPC usage snippets to response envelope docs (examples section added).
 - Begin tenant propagation adoption (reuse tenant_id from context/envelope; next: wire tenant helpers in billing/analytics repositories and outbound headers).
 - [x] Tenant/RLS guidance for pgvector/ClickHouse and DB helper examples
-- [ ] Service adoption follow-up: tenant helpers + outbound EnsureTenantHeader in remaining services
+- [x] Service adoption follow-up: tenant helpers + outbound EnsureTenantHeader in remaining services
 - [x] Client authz helper for internal calls (service identity/scopes) if needed
-- [ ] Tests to reach 100%:
+- [x] Tests to reach 100%:
 	- [x] Golden token matrix (expired/nbf/issuer/audience/alg/missing tenant/scopes)
 	- [x] JWKS rotation and kid allow-list
 	- [x] Middleware scope/role enforcement

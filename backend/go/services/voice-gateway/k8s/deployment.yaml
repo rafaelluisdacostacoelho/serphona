@@ -104,11 +104,21 @@ spec:
             configMapKeyRef:
               name: voice-gateway-config
               key: tenant.manager.url
+        - name: TENANT_MANAGER_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: voice-gateway-secrets
+              key: tenant.manager.token
         - name: AGENT_ORCHESTRATOR_URL
           valueFrom:
             configMapKeyRef:
               name: voice-gateway-config
               key: agent.orchestrator.url
+        - name: AGENT_ORCHESTRATOR_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: voice-gateway-secrets
+              key: agent.orchestrator.token
         
         # Google Cloud Configuration (optional)
         - name: GOOGLE_CLOUD_PROJECT_ID

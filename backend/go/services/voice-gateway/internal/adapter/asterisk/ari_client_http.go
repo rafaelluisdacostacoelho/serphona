@@ -79,6 +79,28 @@ func (c *ARIClientHTTP) Close() error {
 	return nil
 }
 
+// HealthCheck performs a lightweight ARI info call to verify availability.
+func (c *ARIClientHTTP) HealthCheck(ctx context.Context) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/ari/asterisk/info", c.baseURL), nil)
+	if err != nil {
+		return fmt.Errorf("failed to build health request: %w", err)
+	}
+	req.SetBasicAuth(c.username, c.password)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("ari health request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("ari health returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
 // AnswerChannel answers an incoming channel.
 func (c *ARIClientHTTP) AnswerChannel(ctx context.Context, channelID string) error {
 	endpoint := fmt.Sprintf("%s/ari/channels/%s/answer", c.baseURL, channelID)

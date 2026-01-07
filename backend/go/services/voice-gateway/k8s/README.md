@@ -69,6 +69,8 @@ asterisk.ari.username: "seu-usuario"
 asterisk.ari.password: "sua-senha-segura"
 redis.password: "senha-redis-se-necessario"
 elevenlabs.api.key: "sua-chave-elevenlabs"
+tenant.manager.token: "token-s2s-para-tenant-manager"
+agent.orchestrator.token: "token-s2s-para-agent-orchestrator"
 ```
 
 Para Google Cloud credentials:
