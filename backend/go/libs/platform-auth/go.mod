@@ -8,6 +8,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/prometheus/client_golang v1.20.5
 	github.com/serphona/backend/go/libs/platform-observability v0.0.0-00010101000000-000000000000
+	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.54.0
 	go.opentelemetry.io/otel v1.29.0
 	go.opentelemetry.io/otel/trace v1.29.0
@@ -15,6 +16,9 @@ require (
 )
 
 require (
+	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
 	go.opentelemetry.io/proto/otlp v1.3.1 // indirect
 	go.uber.org/mock v0.5.0 // indirect
 	golang.org/x/arch v0.20.0 // indirect
@@ -26,6 +30,7 @@ require (
 	golang.org/x/text v0.27.0 // indirect
 	golang.org/x/tools v0.34.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240903143218-8af14fe29dc1 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 replace github.com/serphona/backend/go/libs/platform-observability => ../platform-observability
@@ -70,3 +75,5 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240903143218-8af14fe29dc1
 	google.golang.org/protobuf v1.36.9 // indirect
 )
+
+replace github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/test/examples => ./test/examples

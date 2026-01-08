@@ -2,7 +2,10 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/url"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/entity"
@@ -41,16 +44,19 @@ type ToolService interface {
 type toolServiceImpl struct {
 	toolRepo  repository.ToolRepository
 	validator service.SchemaValidator
+	policy    ExecutionPolicy
 }
 
 // NewToolService creates a new ToolService
 func NewToolService(
 	toolRepo repository.ToolRepository,
 	validator service.SchemaValidator,
+	policy ExecutionPolicy,
 ) ToolService {
 	return &toolServiceImpl{
 		toolRepo:  toolRepo,
 		validator: validator,
+		policy:    policy,
 	}
 }
 
@@ -80,6 +86,10 @@ func (s *toolServiceImpl) CreateTool(ctx context.Context, tool *entity.Tool) err
 	// Validate HTTP method
 	if !isValidHTTPMethod(tool.Method) {
 		return fmt.Errorf("invalid HTTP method: %s", tool.Method)
+	}
+
+	if err := s.validateBaseURL(tool.BaseURL); err != nil {
+		return err
 	}
 
 	// Create tool
@@ -138,6 +148,10 @@ func (s *toolServiceImpl) UpdateTool(ctx context.Context, tool *entity.Tool) err
 	// Validate HTTP method
 	if !isValidHTTPMethod(tool.Method) {
 		return fmt.Errorf("invalid HTTP method: %s", tool.Method)
+	}
+
+	if err := s.validateBaseURL(tool.BaseURL); err != nil {
+		return err
 	}
 
 	return s.toolRepo.Update(ctx, tool)
@@ -200,4 +214,32 @@ func isValidHTTPMethod(method string) bool {
 	}
 
 	return false
+}
+
+func (s *toolServiceImpl) validateBaseURL(rawURL string) error {
+	if len(s.policy.AllowedHosts) == 0 {
+		return errors.New("no allowed hosts configured; set EXEC_ALLOWED_HOSTS")
+	}
+
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("base_url must be a valid URL: %w", err)
+	}
+
+	if !strings.EqualFold(parsed.Scheme, "https") {
+		return fmt.Errorf("base_url must use https scheme")
+	}
+
+	host := parsed.Hostname()
+	if host == "" {
+		return fmt.Errorf("base_url must include a host")
+	}
+
+	for _, allowed := range s.policy.AllowedHosts {
+		if strings.EqualFold(allowed, host) {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("base_url host '%s' is not in allowed list", host)
 }

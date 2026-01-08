@@ -736,3 +736,47 @@ func TestValidateTokenPrefersHMACWhenAlgIsHS256(t *testing.T) {
 		t.Fatalf("expected HMAC token to validate without JWKS, got %v", err)
 	}
 }
+
+func TestMustSetSecretFromEnvPanics(t *testing.T) {
+	resetSecretForTests()
+	t.Setenv(authjwt.EnvJWTSecret, "")
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatalf("expected panic when JWT_SECRET missing")
+		}
+	}()
+
+	authjwt.MustSetSecretFromEnv()
+}
+
+func TestMustEnsureSecretLoadedPanicsWhenMissing(t *testing.T) {
+	resetSecretForTests()
+	t.Setenv(authjwt.EnvJWTSecret, "")
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatalf("expected panic when secret not configured")
+		}
+	}()
+
+	authjwt.MustEnsureSecretLoaded()
+}
+
+func TestResetSecretForTestingClearsSecret(t *testing.T) {
+	authjwt.SetSecret("set-before")
+	authjwt.ResetSecretForTesting()
+
+	if got := authjwt.GetSecret(); got != "" {
+		t.Fatalf("expected secret to be cleared, got %q", got)
+	}
+
+	// After reset, EnsureSecretLoaded should read from env again
+	t.Setenv(authjwt.EnvJWTSecret, "from-env")
+	if err := authjwt.EnsureSecretLoaded(); err != nil {
+		t.Fatalf("expected secret to load from env, got %v", err)
+	}
+	if got := authjwt.GetSecret(); got != "from-env" {
+		t.Fatalf("expected secret from env after reset, got %q", got)
+	}
+}

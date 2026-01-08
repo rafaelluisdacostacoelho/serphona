@@ -107,6 +107,9 @@ Content-Type: application/json
 }
 ```
 
+> ℹ️ Regras de segurança: `base_url` deve usar `https` e seu host precisa estar presente em `EXEC_ALLOWED_HOSTS` (configurado via env). Pedidos que violem essa regra são recusados já na criação/atualização da ferramenta e também em tempo de execução.
+> ⚠️ Execuções GET respeitam `EXEC_MAX_QUERY_PARAMS`; métodos e headers obedecem allow/deny lists (`EXEC_ALLOWED_METHODS`/`EXEC_BLOCKED_METHODS`, `EXEC_ALLOWED_HEADERS`/`EXEC_BLOCKED_HEADERS`).
+
 #### Listar Ferramentas
 
 ```bash
@@ -423,6 +426,15 @@ RATE_LIMIT_REQUESTS_PER_MINUTE=100
 # Billing
 ENABLE_CREDIT_CONSUMPTION=true
 CREDIT_COST_PER_TOOL_CALL=1
+
+# Execução segura (validada também na criação/atualização de Tool)
+EXEC_ALLOWED_HOSTS=api.example.com,storage.example.com
+EXEC_MAX_PAYLOAD_BYTES=1048576
+EXEC_ALLOWED_METHODS=GET,POST,PUT,PATCH,DELETE
+EXEC_BLOCKED_METHODS=
+EXEC_ALLOWED_HEADERS=
+EXEC_BLOCKED_HEADERS=
+EXEC_MAX_QUERY_PARAMS=25
 ```
 
 ---
@@ -435,6 +447,7 @@ CREDIT_COST_PER_TOOL_CALL=1
 - `tool_execution_duration_seconds{tool_id}`
 - `tool_credits_consumed_total{tenant_id, tool_id}`
 - `tool_rate_limit_hits_total{tenant_id}`
+- `tools_gateway_execution_blocked_total{reason,tool,tenant}` — bloqueios por host/método/header não permitido, payload acima do limite ou excesso de query params
 
 ### Logging
 

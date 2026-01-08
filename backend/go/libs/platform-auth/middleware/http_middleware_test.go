@@ -132,6 +132,28 @@ func TestRequireScopesHTTPDenied(t *testing.T) {
 	}
 }
 
+func TestRequireScopesHTTPSuccess(t *testing.T) {
+	authjwt.SetSecret(middlewareTestSecret)
+	authjwt.ResetSecretOnceForTests()
+
+	protected := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := middleware.RequireAuthHTTP(middleware.RequireScopesHTTP("read:reports")(protected))
+
+	token := signedTokenWithScopes(t, "user", time.Now().Add(time.Hour), []string{"read:reports"})
+	req := httptest.NewRequest(http.MethodGet, "/reports", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+}
+
 func TestChiRequireAnyScopeAlias(t *testing.T) {
 	authjwt.SetSecret(middlewareTestSecret)
 	authjwt.ResetSecretOnceForTests()
@@ -144,6 +166,50 @@ func TestChiRequireAnyScopeAlias(t *testing.T) {
 
 	token := signedTokenWithScopes(t, "user", time.Now().Add(time.Hour), []string{"read:reports"})
 
+	req := httptest.NewRequest(http.MethodGet, "/data", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+}
+
+func TestChiRequireScopesAlias(t *testing.T) {
+	authjwt.SetSecret(middlewareTestSecret)
+	authjwt.ResetSecretOnceForTests()
+
+	protected := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := middleware.ChiRequireAuth(middleware.ChiRequireScopes("write:reports")(protected))
+
+	token := signedTokenWithScopes(t, "user", time.Now().Add(time.Hour), []string{"write:reports"})
+	req := httptest.NewRequest(http.MethodGet, "/reports", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+}
+
+func TestRequireAnyScopeHTTPSuccess(t *testing.T) {
+	authjwt.SetSecret(middlewareTestSecret)
+	authjwt.ResetSecretOnceForTests()
+
+	protected := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := middleware.RequireAuthHTTP(middleware.RequireAnyScopeHTTP("read:a", "write:b")(protected))
+
+	token := signedTokenWithScopes(t, "user", time.Now().Add(time.Hour), []string{"write:b"})
 	req := httptest.NewRequest(http.MethodGet, "/data", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rr := httptest.NewRecorder()

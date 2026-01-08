@@ -120,42 +120,60 @@ func loggingMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 
 // corsMiddleware adds CORS headers.
 func corsMiddleware(allowedOrigins []string, logger *zap.Logger) func(http.Handler) http.Handler {
+	allowedMethods := map[string]struct{}{
+		http.MethodGet:     {},
+		http.MethodPost:    {},
+		http.MethodDelete:  {},
+		http.MethodOptions: {},
+	}
+
+	originAllowed := func(origin string) bool {
+		if origin == "" {
+			return false
+		}
+		if len(allowedOrigins) == 0 {
+			return false
+		}
+		if allowedOrigins[0] == "*" {
+			return true
+		}
+		for _, o := range allowedOrigins {
+			if strings.EqualFold(o, origin) {
+				return true
+			}
+		}
+		return false
+	}
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
-			allowed := ""
-			if len(allowedOrigins) == 0 {
-				allowed = "" // No CORS allowed unless explicitly configured
-			} else if allowedOrigins[0] == "*" {
-				allowed = "*"
-			} else if origin != "" {
-				for _, o := range allowedOrigins {
-					if strings.EqualFold(o, origin) {
-						allowed = origin
-						break
-					}
-				}
-			}
+			isPreflight := r.Method == http.MethodOptions
 
-			if allowed == "" {
-				if origin != "" {
-					logger.Debug("cors rejected origin", zap.String("origin", origin))
-				}
-				if r.Method == http.MethodOptions {
-					w.WriteHeader(http.StatusNoContent)
-					return
-				}
-				next.ServeHTTP(w, r)
+			if origin != "" && !originAllowed(origin) {
+				logger.Warn("cors blocked origin", zap.String("origin", origin))
+				w.WriteHeader(http.StatusForbidden)
 				return
 			}
 
-			w.Header().Set("Access-Control-Allow-Origin", allowed)
-			w.Header().Set("Vary", "Origin")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			if _, ok := allowedMethods[r.Method]; !ok {
+				w.WriteHeader(http.StatusMethodNotAllowed)
+				return
+			}
 
-			// Handle preflight requests
-			if r.Method == http.MethodOptions {
+			if origin != "" {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Vary", "Origin")
+				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+				w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+			}
+
+			if isPreflight {
+				reqMethod := r.Header.Get("Access-Control-Request-Method")
+				if _, ok := allowedMethods[reqMethod]; !ok {
+					w.WriteHeader(http.StatusForbidden)
+					return
+				}
 				w.WriteHeader(http.StatusNoContent)
 				return
 			}

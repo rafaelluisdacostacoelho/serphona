@@ -4,9 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/entity"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/repository"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/service"
@@ -58,6 +62,36 @@ type toolExecutorServiceImpl struct {
 	validator      service.SchemaValidator
 	httpClient     service.HTTPClient
 	grpcClient     service.GRPCClient
+	policy         ExecutionPolicy
+}
+
+// ExecutionPolicy controls outbound execution constraints.
+type ExecutionPolicy struct {
+	AllowedHosts    []string
+	MaxPayloadBytes int
+	AllowedMethods  []string
+	BlockedMethods  []string
+	AllowedHeaders  []string
+	BlockedHeaders  []string
+	MaxQueryParams  int
+}
+
+var (
+	execBlockedTotal *prometheus.CounterVec
+	execMetricsOnce  sync.Once
+)
+
+func initExecutionMetrics() {
+	execMetricsOnce.Do(func() {
+		execBlockedTotal = prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "tools_gateway_execution_blocked_total",
+				Help: "Executions blocked before dispatch to external tools",
+			},
+			[]string{"reason", "tool", "tenant"},
+		)
+		prometheus.MustRegister(execBlockedTotal)
+	})
 }
 
 // NewToolExecutorService creates a new ToolExecutorService
@@ -68,6 +102,7 @@ func NewToolExecutorService(
 	validator service.SchemaValidator,
 	httpClient service.HTTPClient,
 	grpcClient service.GRPCClient,
+	policy ExecutionPolicy,
 ) ToolExecutorService {
 	return &toolExecutorServiceImpl{
 		toolRepo:       toolRepo,
@@ -76,6 +111,7 @@ func NewToolExecutorService(
 		validator:      validator,
 		httpClient:     httpClient,
 		grpcClient:     grpcClient,
+		policy:         policy,
 	}
 }
 
@@ -92,6 +128,26 @@ func (s *toolExecutorServiceImpl) Execute(ctx context.Context, req *ExecutionReq
 	// Check if tool is active
 	if !tool.IsActive {
 		return nil, fmt.Errorf("tool '%s' is not active", tool.Name)
+	}
+
+	if err := s.enforceMethodPolicy(tool.Method, tool.Name, req.TenantID.String()); err != nil {
+		return s.createErrorResponse(ctx, tool, req, entity.StatusError, err, 0)
+	}
+
+	if err := s.enforceHostAllowlist(tool, req.TenantID.String()); err != nil {
+		return s.createErrorResponse(ctx, tool, req, entity.StatusError, err, 0)
+	}
+
+	if err := s.enforcePayloadLimit(req.Input, tool.Name, req.TenantID.String()); err != nil {
+		return s.createErrorResponse(ctx, tool, req, entity.StatusError, err, 0)
+	}
+
+	if err := s.enforceHeaderPolicy(tool.Headers, tool.Name, req.TenantID.String()); err != nil {
+		return s.createErrorResponse(ctx, tool, req, entity.StatusError, err, 0)
+	}
+
+	if err := s.enforceQueryParamLimit(req.Input, tool.Method, tool.Name, req.TenantID.String()); err != nil {
+		return s.createErrorResponse(ctx, tool, req, entity.StatusError, err, 0)
 	}
 
 	// Get tenant-specific configuration (if exists)
@@ -133,6 +189,130 @@ func (s *toolExecutorServiceImpl) Execute(ctx context.Context, req *ExecutionReq
 
 	// Create successful execution record
 	return s.createSuccessResponse(ctx, tool, req, httpResp)
+}
+
+func (s *toolExecutorServiceImpl) enforceHostAllowlist(tool *entity.Tool, tenantID string) error {
+	if len(s.policy.AllowedHosts) == 0 {
+		return nil
+	}
+
+	parsed, err := url.Parse(tool.BaseURL)
+	if err != nil {
+		return fmt.Errorf("invalid base_url: %w", err)
+	}
+
+	host := parsed.Hostname()
+	for _, allowed := range s.policy.AllowedHosts {
+		if strings.EqualFold(host, allowed) {
+			return nil
+		}
+	}
+
+	initExecutionMetrics()
+	execBlockedTotal.WithLabelValues("host_not_allowed", tool.Name, tenantID).Inc()
+	return fmt.Errorf("host '%s' not allowed", host)
+}
+
+func (s *toolExecutorServiceImpl) enforcePayloadLimit(input map[string]interface{}, toolName, tenantID string) error {
+	if s.policy.MaxPayloadBytes <= 0 {
+		return nil
+	}
+
+	body, err := json.Marshal(input)
+	if err != nil {
+		return fmt.Errorf("failed to marshal input for size check: %w", err)
+	}
+
+	if len(body) > s.policy.MaxPayloadBytes {
+		initExecutionMetrics()
+		execBlockedTotal.WithLabelValues("payload_too_large", toolName, tenantID).Inc()
+		return fmt.Errorf("payload too large: %d bytes (max %d)", len(body), s.policy.MaxPayloadBytes)
+	}
+
+	return nil
+}
+
+func (s *toolExecutorServiceImpl) enforceMethodPolicy(method, toolName, tenantID string) error {
+	if len(s.policy.BlockedMethods) > 0 {
+		for _, blocked := range s.policy.BlockedMethods {
+			if strings.EqualFold(blocked, method) {
+				initExecutionMetrics()
+				execBlockedTotal.WithLabelValues("method_blocked", toolName, tenantID).Inc()
+				return fmt.Errorf("method '%s' is blocked", method)
+			}
+		}
+	}
+
+	if len(s.policy.AllowedMethods) > 0 {
+		for _, allowed := range s.policy.AllowedMethods {
+			if strings.EqualFold(allowed, method) {
+				return nil
+			}
+		}
+		initExecutionMetrics()
+		execBlockedTotal.WithLabelValues("method_not_allowed", toolName, tenantID).Inc()
+		return fmt.Errorf("method '%s' is not in allowlist", method)
+	}
+
+	return nil
+}
+
+func (s *toolExecutorServiceImpl) enforceHeaderPolicy(headers json.RawMessage, toolName, tenantID string) error {
+	if len(headers) == 0 {
+		return nil
+	}
+
+	var headerMap map[string]string
+	if err := json.Unmarshal(headers, &headerMap); err != nil {
+		return fmt.Errorf("invalid headers configuration: %w", err)
+	}
+
+	for key := range headerMap {
+		lowerKey := strings.ToLower(key)
+
+		for _, blocked := range s.policy.BlockedHeaders {
+			if strings.EqualFold(blocked, lowerKey) {
+				initExecutionMetrics()
+				execBlockedTotal.WithLabelValues("header_blocked", toolName, tenantID).Inc()
+				return fmt.Errorf("header '%s' is blocked", key)
+			}
+		}
+
+		if len(s.policy.AllowedHeaders) > 0 {
+			allowed := false
+			for _, allowedHeader := range s.policy.AllowedHeaders {
+				if strings.EqualFold(allowedHeader, lowerKey) {
+					allowed = true
+					break
+				}
+			}
+			if !allowed {
+				initExecutionMetrics()
+				execBlockedTotal.WithLabelValues("header_not_allowed", toolName, tenantID).Inc()
+				return fmt.Errorf("header '%s' is not in allowlist", key)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (s *toolExecutorServiceImpl) enforceQueryParamLimit(input map[string]interface{}, method, toolName, tenantID string) error {
+	if !strings.EqualFold(method, entity.HTTPMethodGET) {
+		return nil
+	}
+
+	if s.policy.MaxQueryParams <= 0 {
+		return nil
+	}
+
+	if len(input) > s.policy.MaxQueryParams {
+		initExecutionMetrics()
+		execBlockedTotal.WithLabelValues("query_params_limit", toolName, tenantID).Inc()
+		return fmt.Errorf("too many query params: %d (max %d)", len(input), s.policy.MaxQueryParams)
+	}
+
+	return nil
 }
 
 // createSuccessResponse creates a successful execution response and logs it

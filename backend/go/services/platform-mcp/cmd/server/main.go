@@ -10,7 +10,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"platform-mcp/internal/config"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/platform-mcp/internal/config"
 
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"

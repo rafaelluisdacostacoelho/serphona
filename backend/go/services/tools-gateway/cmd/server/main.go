@@ -16,9 +16,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	authjwt "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/jwt"
 	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/adapter/http/handler"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/adapter/http/middleware"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/config"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/service"
 	postgresrepo "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/infrastructure/repository/postgres"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/usecase"
@@ -28,6 +30,12 @@ import (
 
 func main() {
 	log.Println("Starting Tools Gateway Service...")
+
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("failed to load config: %v", err)
+	}
+	configureAuth(cfg)
 
 	// Initialize database
 	db, err := initDB()
@@ -43,14 +51,32 @@ func main() {
 	validator := service.NewSchemaValidator()
 	serviceName := getEnv("SERVICE_NAME", "tools-gateway")
 	serviceInstance := getEnv("SERVICE_INSTANCE", "tools-gateway-1")
-	serviceAudience := getEnv("SERVICE_AUDIENCE", "")
+	serviceAudience := cfg.Auth.ServiceAudience
 	authmw.SetAuthMetricsService(serviceName)
 	httpClient := service.NewHTTPClient(30*time.Second, serviceName, serviceInstance, serviceAudience)
 	grpcClient := service.NewGRPCClient(serviceName, serviceInstance, serviceAudience)
 	log.Printf("Service identity: %s/%s audience=%s", serviceName, serviceInstance, serviceAudience)
 
-	toolService := usecase.NewToolService(toolRepo, validator)
-	executorService := usecase.NewToolExecutorService(toolRepo, tenantToolRepo, executionRepo, validator, httpClient, grpcClient)
+	execPolicy := usecase.ExecutionPolicy{
+		AllowedHosts:    cfg.Execution.AllowedHosts,
+		MaxPayloadBytes: cfg.Execution.MaxPayloadBytes,
+		AllowedMethods:  cfg.Execution.AllowedMethods,
+		BlockedMethods:  cfg.Execution.BlockedMethods,
+		AllowedHeaders:  cfg.Execution.AllowedHeaders,
+		BlockedHeaders:  cfg.Execution.BlockedHeaders,
+		MaxQueryParams:  cfg.Execution.MaxQueryParams,
+	}
+
+	toolService := usecase.NewToolService(toolRepo, validator, execPolicy)
+	executorService := usecase.NewToolExecutorService(
+		toolRepo,
+		tenantToolRepo,
+		executionRepo,
+		validator,
+		httpClient,
+		grpcClient,
+		execPolicy,
+	)
 
 	// Initialize handlers
 	toolHandler := handler.NewToolHandler(toolService, executorService)
@@ -58,7 +84,7 @@ func main() {
 	router := setupRouter(toolHandler, serviceName)
 
 	srv := &http.Server{
-		Addr:         getEnv("HTTP_ADDR", ":8085"),
+		Addr:         cfg.HTTPAddr,
 		Handler:      router,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
@@ -89,6 +115,23 @@ func main() {
 func initDB() (*gorm.DB, error) {
 	dsn := getEnv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/serphona_tools?sslmode=disable")
 	return gorm.Open(postgres.Open(dsn), &gorm.Config{})
+}
+
+func configureAuth(cfg *config.Config) {
+	authjwt.SetValidationConfig(authjwt.ValidationConfig{
+		AllowedAlgs:    cfg.Auth.AllowedAlgs,
+		Issuer:         cfg.Auth.Issuer,
+		Audience:       cfg.Auth.Audience,
+		ClockSkew:      cfg.Auth.ClockSkew,
+		MaxTokenBytes:  cfg.Auth.MaxTokenBytes,
+		JWKSURL:        cfg.Auth.JWKSURL,
+		JWKSCacheTTL:   cfg.Auth.JWKSCacheTTL,
+		AllowedKIDs:    cfg.Auth.AllowedKIDs,
+		RequiredScopes: cfg.Auth.RequiredScopes,
+	})
+	if cfg.Auth.JWTSecret != "" {
+		authjwt.SetSecret(cfg.Auth.JWTSecret)
+	}
 }
 
 func setupRouter(toolHandler *handler.ToolHandler, serviceName string) *gin.Engine {

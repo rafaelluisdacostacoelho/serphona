@@ -125,21 +125,21 @@ func (c *httpClientImpl) executeOnce(ctx context.Context, tool *entity.Tool, inp
 		return nil, err
 	}
 
-	// Define tenantID at the beginning of the function
+	// Tenant propagation; required unless tool is explicitly auth-less
 	var tenantID string
 	if id, err := middleware.TenantIDFromContext(ctx); err == nil && id != "" {
 		tenantID = id
-	} else {
-		// Allow requests without tenant ID if the tool's AuthType is none
-		if tool.AuthType != entity.AuthTypeNone.String() {
-			return nil, fmt.Errorf("tenant ID extraction failed: %w", err)
-		}
+	} else if tool.AuthType != entity.AuthTypeNone.String() {
+		return nil, fmt.Errorf("tenant ID extraction failed: %w", err)
 	}
 
 	if tenantID != "" {
 		req.Header.Set(middleware.TenantIDHeader, tenantID)
-	} else {
-		req.Header = middleware.EnsureTenantHeader(req.Header, tenantID)
+	}
+
+	// Scopes propagation (best-effort)
+	if scopes, err := middleware.ScopesFromContext(ctx); err == nil && len(scopes) > 0 {
+		req.Header.Set("X-Scopes", strings.Join(scopes, " "))
 	}
 
 	// Add service identity headers for internal tracing/auth

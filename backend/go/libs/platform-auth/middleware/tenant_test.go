@@ -116,3 +116,9 @@ func TestEnforceTenantAllowsEmptyRequestedTenant(t *testing.T) {
 		t.Fatalf("expected empty requested tenant to pass, got %v", err)
 	}
 }
+
+func TestTenantFromHeadersNil(t *testing.T) {
+	if tenant := tenantFromHeaders(nil); tenant != unknownTenantLabel {
+		t.Fatalf("expected unknown tenant for nil headers, got %s", tenant)
+	}
+}

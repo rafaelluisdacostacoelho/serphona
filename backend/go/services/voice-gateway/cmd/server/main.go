@@ -136,6 +136,8 @@ func main() {
 		agentClient,
 		sttProviders,
 		ttsProviders,
+		cfg.STT.DefaultProvider,
+		cfg.TTS.DefaultProvider,
 		cfg.Call.MaxConcurrentCalls,
 		log,
 	)

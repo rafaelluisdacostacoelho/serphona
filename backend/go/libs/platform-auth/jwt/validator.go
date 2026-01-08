@@ -514,3 +514,10 @@ func audienceContains(audiences jwt.ClaimStrings, target string) bool {
 	}
 	return false
 }
+
+// ResetSecretForTesting resets the JWT secret and the sync.Once instance for testing purposes.
+func ResetSecretForTesting() {
+	jwtSecret = ""
+	ensureSecretOnce = sync.Once{}
+	ensureSecretErr = nil
+}

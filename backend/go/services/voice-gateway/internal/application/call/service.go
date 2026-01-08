@@ -32,6 +32,8 @@ type Service struct {
 	// Providers
 	sttProviders map[string]stt.Provider
 	ttsProviders map[string]tts.Provider
+	defaultSTT   string
+	defaultTTS   string
 
 	// Configuration
 	maxConcurrentCalls int
@@ -46,6 +48,8 @@ func NewService(
 	agentClient *agent.Client,
 	sttProviders map[string]stt.Provider,
 	ttsProviders map[string]tts.Provider,
+	defaultSTT string,
+	defaultTTS string,
 	maxConcurrentCalls int,
 	logger *zap.Logger,
 ) *Service {
@@ -57,6 +61,8 @@ func NewService(
 		agentClient:        agentClient,
 		sttProviders:       sttProviders,
 		ttsProviders:       ttsProviders,
+		defaultSTT:         defaultSTT,
+		defaultTTS:         defaultTTS,
 		maxConcurrentCalls: maxConcurrentCalls,
 		logger:             logger,
 	}
@@ -161,18 +167,11 @@ func (s *Service) StartConversation(ctx context.Context, callID uuid.UUID, agent
 	c.AgentID = agentID
 
 	if providerSettings != nil {
-		if providerSettings.STTProvider != "" {
-			c.STTProvider = providerSettings.STTProvider
-			if _, ok := s.sttProviders[providerSettings.STTProvider]; !ok {
-				s.logger.Warn("stt provider not registered", zap.String("provider", providerSettings.STTProvider))
-			}
-		}
-		if providerSettings.TTSProvider != "" {
-			c.TTSProvider = providerSettings.TTSProvider
-			if _, ok := s.ttsProviders[providerSettings.TTSProvider]; !ok {
-				s.logger.Warn("tts provider not registered", zap.String("provider", providerSettings.TTSProvider))
-			}
-		}
+		c.STTProvider = s.selectSTTProvider(providerSettings.STTProvider)
+		c.TTSProvider = s.selectTTSProvider(providerSettings.TTSProvider, agentCfg.Voice.Provider)
+	} else {
+		c.STTProvider = s.selectSTTProvider("")
+		c.TTSProvider = s.selectTTSProvider("", agentCfg.Voice.Provider)
 	}
 
 	if c.Metadata == nil {
@@ -197,6 +196,58 @@ func (s *Service) StartConversation(ctx context.Context, callID uuid.UUID, agent
 	)
 
 	return nil
+}
+
+func (s *Service) selectSTTProvider(requested string) string {
+	if requested != "" {
+		if _, ok := s.sttProviders[requested]; ok {
+			return requested
+		}
+		s.logger.Warn("stt provider not registered, falling back to default", zap.String("provider", requested))
+	}
+
+	if s.defaultSTT != "" {
+		if _, ok := s.sttProviders[s.defaultSTT]; ok {
+			return s.defaultSTT
+		}
+		s.logger.Warn("default stt provider not registered", zap.String("provider", s.defaultSTT))
+	}
+
+	for name := range s.sttProviders {
+		return name
+	}
+
+	return requested
+}
+
+func (s *Service) selectTTSProvider(requested, agentProvider string) string {
+	if requested != "" {
+		if _, ok := s.ttsProviders[requested]; ok {
+			return requested
+		}
+		s.logger.Warn("tts provider not registered, attempting fallback", zap.String("provider", requested))
+	}
+
+	if agentProvider != "" {
+		if _, ok := s.ttsProviders[agentProvider]; ok {
+			s.logger.Info("using agent voice provider as fallback", zap.String("provider", agentProvider))
+			return agentProvider
+		}
+		s.logger.Warn("agent voice provider not registered", zap.String("provider", agentProvider))
+	}
+
+	if s.defaultTTS != "" {
+		if _, ok := s.ttsProviders[s.defaultTTS]; ok {
+			return s.defaultTTS
+		}
+		s.logger.Warn("default tts provider not registered", zap.String("provider", s.defaultTTS))
+	}
+
+	for name := range s.ttsProviders {
+		return name
+	}
+
+	return requested
 }
 
 // TransferCall transfers a call to a queue or external number.

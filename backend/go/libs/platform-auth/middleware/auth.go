@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"log"
 	"net/http"
 	"time"
 
@@ -34,11 +35,22 @@ func RequireAuth() gin.HandlerFunc {
 				return
 			}
 		} else {
-			_ = authjwt.EnsureSecretLoaded()
+			// Ensure the error from EnsureSecretLoaded is always handled.
+			if err := authjwt.EnsureSecretLoaded(); err != nil {
+				// Add logging to verify the error returned by EnsureSecretLoaded.
+				log.Printf("EnsureSecretLoaded error: %v", err)
+				mapped := mapAuthError(err)
+				tenant := tenantFromHeaders(c.Request.Header)
+				recordAuthError("gin", mapped, tenant, start)
+				recordSpanError(span, mapped, err)
+				c.JSON(mapped.status, errorPayload(mapped))
+				c.Abort()
+				return
+			}
 		}
 		authHeader := c.GetHeader("Authorization")
 
-		claims, err := authjwt.ValidateTokenFromHeader(authHeader)
+		claims, err := ValidateTokenFromHeader(authHeader)
 		if err != nil {
 			mapped := mapAuthError(err)
 			tenant := tenantFromHeaders(c.Request.Header)
@@ -214,3 +226,6 @@ func RequireAnyScope(scopes ...string) gin.HandlerFunc {
 func RequireAllScopes(scopes ...string) gin.HandlerFunc {
 	return RequireScopes(scopes...)
 }
+
+// Ensure the validateTokenFromHeader variable is exported for testing purposes.
+var ValidateTokenFromHeader = authjwt.ValidateTokenFromHeader

@@ -6,9 +6,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
+	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/response"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/adapter/http/dto"
+	gwmiddleware "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/repository"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/usecase"
 )
@@ -125,7 +126,7 @@ func (h *ToolHandler) ExecuteTool(c *gin.Context) {
 		return
 	}
 
-	claims, err := middleware.GetClaimsFromContext(c)
+	claims, err := authmw.GetClaimsFromContext(c)
 	if err != nil {
 		response.WriteError(ctx, c.Writer, http.StatusUnauthorized, "UNAUTHORIZED", "claims not found in context", nil)
 		return
@@ -150,8 +151,9 @@ func (h *ToolHandler) ExecuteTool(c *gin.Context) {
 		Input:    req.Input,
 	}
 
-	// Set tenant context for outbound requests
-	ctxWithTenant := middleware.WithTenantID(ctx, tenantID.String())
+	// Set tenant + scopes context for outbound requests
+	ctxWithTenant := gwmiddleware.WithTenantID(ctx, tenantID.String())
+	ctxWithTenant = gwmiddleware.WithScopes(ctxWithTenant, claims.Scopes)
 
 	resp, err := h.executorService.Execute(ctxWithTenant, execReq)
 	if err != nil {

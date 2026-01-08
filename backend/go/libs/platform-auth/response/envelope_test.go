@@ -3,6 +3,7 @@ package response
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -85,5 +86,26 @@ func TestWriteErrorIncludesIDs(t *testing.T) {
 	}
 	if body.Error.TraceID != traceID {
 		t.Fatalf("expected trace_id %s, got %q", traceID, body.Error.TraceID)
+	}
+}
+
+func TestWriteJSONNoContent(t *testing.T) {
+	w := httptest.NewRecorder()
+	writeJSON(w, http.StatusNoContent, map[string]string{"ignored": "value"})
+
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d", w.Code)
+	}
+	if w.Body.Len() != 0 {
+		t.Fatalf("expected empty body for no content, got %q", w.Body.String())
+	}
+}
+
+func TestWriteJSONEncodingError(t *testing.T) {
+	w := httptest.NewRecorder()
+	writeJSON(w, http.StatusOK, map[string]float64{"bad": math.Inf(1)})
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 on encode failure, got %d", w.Code)
 	}
 }

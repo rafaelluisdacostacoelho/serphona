@@ -129,3 +129,9 @@ func TestSafeGRPCRequestFields(t *testing.T) {
 		t.Fatalf("x-trace not preserved, got %v", got)
 	}
 }
+
+func TestSafeRequestFieldsFromContextNil(t *testing.T) {
+	if fields, ok := SafeRequestFieldsFromContext(nil); ok || fields != nil {
+		t.Fatalf("expected nil fields when context missing, got %v", fields)
+	}
+}

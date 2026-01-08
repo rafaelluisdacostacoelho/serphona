@@ -5,10 +5,11 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"strings"
 	"time"
 
-	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/entity"
+	gwmiddleware "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/middleware"
 	"github.com/sony/gobreaker"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
@@ -92,8 +93,13 @@ func (c *grpcClientImpl) Call(
 	}
 
 	// Tenant propagation
-	if tenantID, err := middleware.TenantIDFromContext(ctx); err == nil && tenantID != "" {
-		md[middleware.TenantIDHeader] = tenantID
+	if tenantID, err := gwmiddleware.TenantIDFromContext(ctx); err == nil && tenantID != "" {
+		md[gwmiddleware.TenantIDHeader] = tenantID
+	}
+
+	// Scopes propagation
+	if scopes, err := gwmiddleware.ScopesFromContext(ctx); err == nil && len(scopes) > 0 {
+		md["x-scopes"] = strings.Join(scopes, " ")
 	}
 
 	// Service identity

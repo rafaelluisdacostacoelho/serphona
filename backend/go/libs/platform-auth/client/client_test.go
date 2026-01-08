@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
@@ -266,6 +267,75 @@ func TestClientMTLS(t *testing.T) {
 	}
 	if !sawClientCert {
 		t.Fatalf("expected client certificate to be presented")
+	}
+}
+
+func TestContextVariants(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/auth/validate":
+			_ = json.NewEncoder(w).Encode(mockClaims{UserID: "ctx-validate"})
+		case "/api/v1/auth/users/id-123":
+			_ = json.NewEncoder(w).Encode(map[string]string{"id": "id-123"})
+		case "/api/v1/auth/me":
+			_ = json.NewEncoder(w).Encode(map[string]string{"id": "me-ctx"})
+		case "/api/v1/auth/refresh":
+			_ = json.NewEncoder(w).Encode(map[string]any{"accessToken": "new-ctx", "refreshToken": "ref-ctx", "expiresIn": 30})
+		case "/api/v1/auth/logout":
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer ts.Close()
+
+	cl := New(ts.URL)
+	ctx := context.WithValue(context.Background(), struct{}{}, "noop")
+
+	claims, err := cl.ValidateTokenWithContext(ctx, "token")
+	if err != nil || claims.UserID != "ctx-validate" {
+		t.Fatalf("unexpected validate result: claims=%+v err=%v", claims, err)
+	}
+
+	user, err := cl.GetUserByIDWithContext(ctx, "id-123", "bearer")
+	if err != nil || user.ID != "id-123" {
+		t.Fatalf("unexpected user: %+v err=%v", user, err)
+	}
+
+	me, err := cl.GetMeWithContext(ctx, "bearer")
+	if err != nil || me.ID != "me-ctx" {
+		t.Fatalf("unexpected me user: %+v err=%v", me, err)
+	}
+
+	tokens, err := cl.RefreshTokenWithContext(ctx, "refresh")
+	if err != nil || tokens.AccessToken != "new-ctx" {
+		t.Fatalf("unexpected refresh: %+v err=%v", tokens, err)
+	}
+
+	if err := cl.LogoutWithContext(ctx, "token"); err != nil {
+		t.Fatalf("expected logout success, got %v", err)
+	}
+}
+
+func TestWithTLSFilesSuccess(t *testing.T) {
+	materials := generateTLSMaterials(t)
+	caFile := writePEMTemp(t, "ca-*.pem", materials.caCertPEM)
+	clientCertFile := writePEMTemp(t, "client-*.pem", materials.clientCertPEM)
+	clientKeyFile := writePEMTemp(t, "client-key-*.pem", materials.clientKeyPEM)
+
+	c := New("http://example")
+	if _, err := c.WithTLSFiles(caFile, clientCertFile, clientKeyFile); err != nil {
+		t.Fatalf("expected tls files to load, got %v", err)
+	}
+	if c.tlsConfig == nil || c.tlsConfig.Certificates == nil {
+		t.Fatalf("expected tls config with client cert")
+	}
+}
+
+func TestTLSConfigFromFilesInvalidPEM(t *testing.T) {
+	bad := writePEMTemp(t, "bad-*.pem", []byte("not-a-pem"))
+	if _, err := TLSConfigFromFiles(bad, "", ""); err == nil {
+		t.Fatalf("expected error for invalid CA pem")
 	}
 }
 
