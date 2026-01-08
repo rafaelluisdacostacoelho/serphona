@@ -289,6 +289,44 @@ func TestStreamAuthInterceptorSuccess(t *testing.T) {
 	}
 }
 
+func TestStreamAuthInterceptorMissingToken(t *testing.T) {
+	authjwt.SetSecret(middlewareTestSecret)
+	authjwt.ResetSecretOnceForTests()
+
+	stream := &mockServerStream{ctx: context.Background()}
+	interceptor := middleware.StreamAuthInterceptor()
+
+	err := interceptor(nil, stream, &grpc.StreamServerInfo{FullMethod: "/svc/Stream", IsServerStream: true}, func(srv interface{}, ss grpc.ServerStream) error {
+		return nil
+	})
+
+	if status.Code(err) != codes.Unauthenticated {
+		t.Fatalf("expected unauthenticated, got %v", err)
+	}
+}
+
+func TestStreamAuthInterceptorScopesDenied(t *testing.T) {
+	authjwt.SetSecret(middlewareTestSecret)
+	authjwt.ResetSecretOnceForTests()
+
+	token := signedTokenWithScopes(t, "user", time.Now().Add(time.Hour), []string{"read:invoices"})
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer "+token))
+	stream := &mockServerStream{ctx: ctx}
+
+	interceptor := middleware.StreamAuthInterceptor("read:reports")
+
+	err := interceptor(nil, stream, &grpc.StreamServerInfo{FullMethod: "/svc/Stream", IsServerStream: true}, func(srv interface{}, ss grpc.ServerStream) error {
+		return nil
+	})
+
+	if status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("expected permission denied, got %v", err)
+	}
+	if status.Convert(err).Message() != "Insufficient permissions" {
+		t.Fatalf("unexpected message %s", status.Convert(err).Message())
+	}
+}
+
 func TestStreamAnyScopeInterceptorDenied(t *testing.T) {
 	authjwt.SetSecret(middlewareTestSecret)
 	authjwt.ResetSecretOnceForTests()
@@ -308,6 +346,43 @@ func TestStreamAnyScopeInterceptorDenied(t *testing.T) {
 	}
 	if status.Convert(err).Message() != "Insufficient permissions" {
 		t.Fatalf("unexpected message %s", status.Convert(err).Message())
+	}
+}
+
+func TestStreamAnyScopeInterceptorSuccess(t *testing.T) {
+	authjwt.SetSecret(middlewareTestSecret)
+	authjwt.ResetSecretOnceForTests()
+
+	token := signedTokenWithScopes(t, "user", time.Now().Add(time.Hour), []string{"read:reports"})
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer "+token, "x-request-id", "stream-success"))
+	stream := &mockServerStream{ctx: ctx}
+
+	interceptor := middleware.StreamAnyScopeInterceptor("read:reports", "read:invoices")
+
+	handled := false
+	err := interceptor(nil, stream, &grpc.StreamServerInfo{FullMethod: "/svc/Stream", IsServerStream: true}, func(srv interface{}, ss grpc.ServerStream) error {
+		handled = true
+		claims, err := middleware.ClaimsFromContext(ss.Context())
+		if err != nil {
+			return err
+		}
+		if claims.UserID == "" {
+			return errors.New("claims missing in stream")
+		}
+		if _, err := middleware.RequestIDFromContext(ss.Context()); err != nil {
+			return err
+		}
+		return nil
+	})
+
+	if err != nil {
+		t.Fatalf("expected success, got %v", err)
+	}
+	if !handled {
+		t.Fatalf("expected handler to run")
+	}
+	if got := stream.header.Get("x-request-id"); len(got) == 0 || got[0] == "" {
+		t.Fatalf("expected x-request-id header to be set")
 	}
 }
 

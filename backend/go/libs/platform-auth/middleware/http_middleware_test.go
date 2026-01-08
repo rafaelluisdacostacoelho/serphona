@@ -103,6 +103,42 @@ func TestRequireAuthHTTPMissingToken(t *testing.T) {
 	}, 1)
 }
 
+func TestRequireAuthHTTPInvalidToken(t *testing.T) {
+	authjwt.SetSecret(middlewareTestSecret)
+	authjwt.ResetSecretOnceForTests()
+	middleware.SetMetricsRegisterer(prometheus.NewRegistry())
+	middleware.SetAuthMetricsService("test-service")
+	t.Cleanup(func() { middleware.SetMetricsRegisterer(nil) })
+
+	handler := middleware.RequireAuthHTTP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	req.Header.Set("Authorization", "Bearer not-a-token")
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rr.Code)
+	}
+
+	var body map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &body)
+	if body["code"] != autherrors.CodeInvalidToken {
+		t.Fatalf("expected code %s, got %v", autherrors.CodeInvalidToken, body["code"])
+	}
+
+	assertMetricCounter(t, middleware.MetricAuthRequestsTotal, map[string]string{
+		"transport": "http",
+		"result":    "unauthorized",
+		"service":   "test-service",
+		"tenant_id": "unknown",
+		"component": "http",
+	}, 1)
+}
+
 func TestRequireScopesHTTPDenied(t *testing.T) {
 	authjwt.SetSecret(middlewareTestSecret)
 	authjwt.ResetSecretOnceForTests()

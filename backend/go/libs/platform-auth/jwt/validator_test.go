@@ -780,3 +780,93 @@ func TestResetSecretForTestingClearsSecret(t *testing.T) {
 		t.Fatalf("expected secret from env after reset, got %q", got)
 	}
 }
+
+func TestValidateTokenJWKSFetchFailures(t *testing.T) {
+	resetSecretForTests()
+
+	priv := rsaKeyPair(t)
+	kid := "kid-err"
+	token := signedRSAToken(t, priv, kid, time.Now().Add(time.Hour))
+
+	cases := []struct {
+		name   string
+		body   string
+		status int
+	}{
+		{name: "status not ok", body: "{}", status: http.StatusInternalServerError},
+		{name: "bad json", body: "not-json", status: http.StatusOK},
+		{name: "no usable keys", body: `{"keys": []}`, status: http.StatusOK},
+		{name: "unsupported kty", body: `{"keys":[{"kid":"kid-err","kty":"EC","n":"","e":""}]}`, status: http.StatusOK},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			jwksServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			t.Cleanup(jwksServer.Close)
+
+			authjwt.SetValidationConfig(authjwt.ValidationConfig{
+				AllowedAlgs:  []string{"RS256"},
+				JWKSURL:      jwksServer.URL,
+				JWKSCacheTTL: time.Second,
+			})
+			t.Cleanup(func() {
+				authjwt.ResetValidationConfig()
+				authjwt.ResetJWKSCacheForTests()
+			})
+
+			if _, err := authjwt.ValidateToken(token); err != autherrors.ErrJWKSFetchFailed {
+				t.Fatalf("expected ErrJWKSFetchFailed, got %v", err)
+			}
+		})
+	}
+}
+
+func TestValidateTokenInvalidTenantUUID(t *testing.T) {
+	resetSecretForTests()
+	authjwt.SetSecret(testSecret)
+
+	claims := types.Claims{
+		UserID:   "11111111-1111-1111-1111-111111111111",
+		Email:    "user@example.com",
+		Name:     "Test User",
+		Role:     "user",
+		TenantID: "not-a-uuid",
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+		},
+	}
+
+	token, _ := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(testSecret))
+
+	if _, err := authjwt.ValidateToken(token); err != autherrors.ErrInvalidToken {
+		t.Fatalf("expected invalid token for bad tenant uuid, got %v", err)
+	}
+}
+
+func TestValidateServiceTokenInvalidTenant(t *testing.T) {
+	resetSecretForTests()
+	authjwt.SetSecret(testSecret)
+
+	token := signedServiceToken(t, time.Now().Add(time.Hour), "svc", []string{"a"}, "invalid-tenant")
+
+	if _, err := authjwt.ValidateToken(token); err != autherrors.ErrInvalidToken {
+		t.Fatalf("expected invalid token for bad service tenant, got %v", err)
+	}
+}
+
+func TestExtractTokenFromHeaderMissingBearerValue(t *testing.T) {
+	if _, err := authjwt.ExtractTokenFromHeader("Bearer "); err != autherrors.ErrMissingToken {
+		t.Fatalf("expected missing token error, got %v", err)
+	}
+
+	if _, err := authjwt.ValidateTokenFromHeader("Bearer "); err != autherrors.ErrMissingToken {
+		t.Fatalf("expected missing token error from ValidateTokenFromHeader, got %v", err)
+	}
+
+	if _, err := authjwt.ValidateTokenFromHeader("Bearer"); err != autherrors.ErrInvalidToken {
+		t.Fatalf("expected invalid token error for malformed header, got %v", err)
+	}
+}
