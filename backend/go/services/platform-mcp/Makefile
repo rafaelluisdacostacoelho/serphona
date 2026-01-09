@@ -5,6 +5,7 @@ MAIN=./cmd/server/main.go
 PKG=./...
 COVERAGE_DIR=coverage
 SWAG_OUT ?= docs
+SWAG_BIN ?= $(shell command -v swag 2>/dev/null || echo "$(shell go env GOPATH)/bin/swag")
 
 help:
 	@echo "Platform MCP - commands"
@@ -45,9 +46,10 @@ clean:
 	rm -rf bin $(COVERAGE_DIR)
 
 swagger:
-	@command -v swag >/dev/null || { \
-		echo "swag nao encontrado; instale:"; \
-		echo "  go install github.com/swaggo/swag/cmd/swag@latest"; \
-		exit 1; \
-	}
-	@swag init -g $(MAIN) -o $(SWAG_OUT)
+	@SWAG_BIN=$(SWAG_BIN); \
+	if [ ! -x "$$SWAG_BIN" ]; then \
+		echo "swag nao encontrado; instalando..."; \
+		go install github.com/swaggo/swag/cmd/swag@latest; \
+		SWAG_BIN="$(shell go env GOPATH)/bin/swag"; \
+	fi; \
+	PATH="$(shell go env GOPATH)/bin:$$PATH" "$$SWAG_BIN" init -g $(MAIN) -d cmd/server,internal -o $(SWAG_OUT)

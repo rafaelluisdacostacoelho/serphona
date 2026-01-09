@@ -24,6 +24,8 @@ import (
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/service"
 	postgresrepo "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/infrastructure/repository/postgres"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/usecase"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -140,6 +142,12 @@ func setupRouter(toolHandler *handler.ToolHandler, serviceName string) *gin.Engi
 	router.Use(middleware.RequestLogger(nil))
 	router.Use(middleware.Metrics(serviceName))
 	router.Use(middleware.AuthMetrics(serviceName))
+
+	// Swagger UI (UI under /swagger/index.html, spec served from /swagger-docs/doc.json to avoid wildcard conflicts)
+	router.GET("/swagger-docs/doc.json", func(c *gin.Context) {
+		c.File("./docs/swagger.json")
+	})
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler, ginSwagger.URL("/swagger-docs/doc.json")))
 
 	// Health check
 	router.GET("/health", func(c *gin.Context) {

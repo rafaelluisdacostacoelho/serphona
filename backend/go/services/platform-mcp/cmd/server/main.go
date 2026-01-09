@@ -17,6 +17,8 @@ import (
 	authjwt "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/jwt"
 	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/response"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
@@ -122,6 +124,12 @@ func configureAuth(cfg *config.Config) {
 func buildHTTPServer(cfg *config.Config) *http.Server {
 	r := gin.New()
 	r.Use(gin.Recovery())
+
+	// Swagger UI (UI under /swagger/index.html, spec served from /swagger-docs/doc.json to avoid wildcard conflicts)
+	r.GET("/swagger-docs/doc.json", func(c *gin.Context) {
+		c.File("./docs/swagger.json")
+	})
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler, ginSwagger.URL("/swagger-docs/doc.json")))
 
 	r.GET("/health", func(c *gin.Context) {
 		response.WriteSuccess(c.Request.Context(), c.Writer, http.StatusOK, gin.H{"status": "ok"})

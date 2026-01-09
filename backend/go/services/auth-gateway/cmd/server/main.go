@@ -1,5 +1,9 @@
 package main
 
+// @title Auth Gateway API
+// @version 1.0
+// @BasePath /api/v1
+
 import (
 	"context"
 	"fmt"
@@ -12,6 +16,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	docs "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/auth-gateway/docs"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/auth-gateway/internal/adapter/http/handler"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/auth-gateway/internal/adapter/http/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/auth-gateway/internal/adapter/oauth"
@@ -21,6 +26,8 @@ import (
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/auth-gateway/internal/service/jwt"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/auth-gateway/internal/service/tenant"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/auth-gateway/internal/usecase/auth"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -41,6 +48,11 @@ func main() {
 	if err != nil {
 		logger.Fatal("Failed to load config", zap.Error(err))
 	}
+
+	// Swagger metadata for UI
+	docs.SwaggerInfo.BasePath = "/api/v1"
+	docs.SwaggerInfo.Title = "Auth Gateway API"
+	docs.SwaggerInfo.Version = "1.0"
 
 	logger.Info("Starting auth-gateway service",
 		zap.String("env", cfg.Server.Env),
@@ -216,6 +228,12 @@ func setupRouter(authHandler *handler.AuthHandler, authMiddleware *middleware.Au
 	}
 
 	router := gin.Default()
+
+	// Swagger UI (UI under /swagger/index.html, spec served from /swagger-docs/doc.json to avoid wildcard conflicts)
+	router.GET("/swagger-docs/doc.json", func(c *gin.Context) {
+		c.File("./docs/swagger.json")
+	})
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler, ginSwagger.URL("/swagger-docs/doc.json")))
 
 	// Middleware order: correlation -> logging -> metrics -> CORS -> recovery.
 	router.Use(middleware.Correlation())

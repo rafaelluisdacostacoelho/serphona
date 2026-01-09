@@ -299,6 +299,7 @@ func startHTTPServer(cfg *config.Config, deps *Dependencies, log *zap.Logger) *h
 
 	// Serve OpenAPI/Swagger UI (static)
 	r.Static("/docs", "./api/openapi")
+	r.Static("/swagger", "./api/openapi")
 
 	// API routes with authentication
 	api := r.Group("/api/v1")

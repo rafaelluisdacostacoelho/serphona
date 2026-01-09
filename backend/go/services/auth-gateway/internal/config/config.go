@@ -145,6 +145,14 @@ func Load() (*Config, error) {
 		},
 	}
 
+	// In non-production, allow localhost by default if no explicit CORS allowlist is set.
+	if len(config.Server.AllowedOrigins) == 0 && config.Server.Env != "production" {
+		config.Server.AllowedOrigins = []string{
+			"http://localhost:8080",
+			"http://127.0.0.1:8080",
+		}
+	}
+
 	return config, nil
 }
 

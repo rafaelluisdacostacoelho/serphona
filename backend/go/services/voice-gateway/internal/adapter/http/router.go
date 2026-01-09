@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	httpSwagger "github.com/swaggo/http-swagger"
 	"go.uber.org/zap"
 
 	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
@@ -31,6 +32,12 @@ func NewRouter(callService *callservice.Service, logger *zap.Logger, redisClient
 	mux.HandleFunc("GET /health", healthHandler)
 	mux.HandleFunc("GET /health/live", livenessHandler)
 	mux.HandleFunc("GET /health/ready", readinessHandler)
+
+	// Swagger UI
+	mux.HandleFunc("/swagger/doc.json", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "./docs/swagger.json")
+	})
+	mux.Handle("/swagger/", httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json")))
 
 	// Call management API
 	mux.Handle("GET /api/v1/calls/{call_id}", authmw.RequireAuthHTTP(http.HandlerFunc(callHandler.GetCall)))

@@ -29,6 +29,8 @@ import (
 	pgrepo "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/billing-service/internal/adapter/postgres"
 	walletapp "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/billing-service/internal/application/wallet"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/billing-service/internal/config"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	gormpostgres "gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -124,6 +126,12 @@ func setupRouter(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	router.Use(limitBody(cfg.Server.MaxBodyBytes))
 	router.Use(cors(cfg.Server))
 	router.Use(gin.Logger())
+
+	// Swagger UI (UI under /swagger/index.html, spec served from /swagger-docs/doc.json to avoid wildcard conflicts)
+	router.GET("/swagger-docs/doc.json", func(c *gin.Context) {
+		c.File("./docs/swagger.json")
+	})
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler, ginSwagger.URL("/swagger-docs/doc.json")))
 
 	if cfg.Observability.EnableMetrics {
 		httpmw.SetMetricsRegisterer(prometheus.DefaultRegisterer)

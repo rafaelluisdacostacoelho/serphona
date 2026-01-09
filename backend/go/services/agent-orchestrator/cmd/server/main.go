@@ -23,6 +23,8 @@ import (
 	redisRepo "github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/infrastructure/repository/redis"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/agent-orchestrator/internal/usecase"
 	"github.com/redis/go-redis/v9"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 func main() {
@@ -193,6 +195,12 @@ func setupRouter(sessionHandler *handler.SessionHandler, agentHandler *handler.A
 	router.Use(httpmw.Metrics(metricsCollector))
 	router.Use(corsMiddleware())
 	router.Use(requestIDMiddleware())
+
+	// Swagger UI (UI under /swagger/index.html, spec served from /swagger-docs/doc.json to avoid wildcard conflicts)
+	router.GET("/swagger-docs/doc.json", func(c *gin.Context) {
+		c.File("./docs/swagger.json")
+	})
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler, ginSwagger.URL("/swagger-docs/doc.json")))
 
 	// Health check
 	router.GET("/health", healthCheckHandler)

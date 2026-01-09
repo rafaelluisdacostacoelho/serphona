@@ -21,6 +21,8 @@ import (
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/analytics-query-service/internal/infrastructure/repository/clickhouse"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/analytics-query-service/internal/usecase"
 	"github.com/redis/go-redis/v9"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 // TenantEnforcerAdapter encapsula a função EnforceTenant
@@ -209,6 +211,12 @@ func setupRouter(analyticsHandler *handler.AnalyticsHandler, config Config) *gin
 	rateLimiter := middleware.NewRateLimiter(config.RateLimit, config.RateBurst)
 	router.Use(rateLimiter.Middleware())
 	log.Printf("✅ Rate limiting enabled: %d req/min, burst %d", config.RateLimit, config.RateBurst)
+
+	// Swagger UI (UI under /swagger/index.html, spec served from /swagger-docs/doc.json to avoid wildcard conflicts)
+	router.GET("/swagger-docs/doc.json", func(c *gin.Context) {
+		c.File("./docs/swagger.json")
+	})
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler, ginSwagger.URL("/swagger-docs/doc.json")))
 
 	// Health check
 	router.GET("/health", healthCheckHandler)

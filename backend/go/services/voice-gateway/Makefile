@@ -25,6 +25,7 @@ GOCOV ?= $(shell command -v gocov 2>/dev/null)
 GOCOV_HTML ?= $(shell command -v gocov-html 2>/dev/null)
 SWAG_MAIN ?= cmd/server/main.go
 SWAG_OUT ?= docs
+SWAG_BIN ?= $(shell command -v swag 2>/dev/null || echo "$(shell go env GOPATH)/bin/swag")
 
 ## help: Display this help message
 help:
@@ -218,12 +219,13 @@ deps-verify:
 
 ## swagger: Generate Swagger docs (requires swag)
 swagger:
-	@command -v swag >/dev/null || { \
-		echo "swag nao encontrado; instale:"; \
-		echo "  go install github.com/swaggo/swag/cmd/swag@latest"; \
-		exit 1; \
-	}
-	@swag init -g $(SWAG_MAIN) -o $(SWAG_OUT)
+	@SWAG_BIN=$(SWAG_BIN); \
+	if [ ! -x "$$SWAG_BIN" ]; then \
+		echo "swag nao encontrado; instalando..."; \
+		go install github.com/swaggo/swag/cmd/swag@latest; \
+		SWAG_BIN="$(shell go env GOPATH)/bin/swag"; \
+	fi; \
+	PATH="$(shell go env GOPATH)/bin:$$PATH" "$$SWAG_BIN" init -g main.go -d cmd/server,internal/adapter/http,internal/adapter/http/handler,internal/adapter/redis,internal/adapter/asterisk,internal/adapter/audio,internal/adapter/agent,internal/adapter/events,internal/adapter/stt,internal/adapter/tts,internal/adapter/tenant,internal/application/call,internal/application/conversation,internal/application/audio,internal/config,internal/domain/call,internal/domain/conversation,internal/domain/audio -o $(SWAG_OUT)
 
 ## docker-build: Build Docker image
 docker-build:

@@ -8,6 +8,7 @@ GO_COVER ?= go tool cover
 COBERTURA_DIR ?= coverage
 SWAG_MAIN ?= cmd/server/main.go
 SWAG_OUT ?= docs
+SWAG_BIN ?= $(shell command -v swag 2>/dev/null || echo "$(shell go env GOPATH)/bin/swag")
 
 help: ## Mostra este help
 	@echo 'Uso: make <alvo>'
@@ -49,12 +50,13 @@ clean: ## Limpa artefatos
 	rm -rf $(COBERTURA_DIR)
 
 swagger: ## Gera docs Swagger (requer swag)
-	@command -v swag >/dev/null || { \
-		echo "swag nao encontrado; instale:"; \
-		echo "  go install github.com/swaggo/swag/cmd/swag@latest"; \
-		exit 1; \
-	}
-	@swag init -g $(SWAG_MAIN) -o $(SWAG_OUT)
+	@SWAG_BIN=$(SWAG_BIN); \
+	if [ ! -x "$$SWAG_BIN" ]; then \
+		echo "swag nao encontrado; instalando..."; \
+		go install github.com/swaggo/swag/cmd/swag@latest; \
+		SWAG_BIN="$(shell go env GOPATH)/bin/swag"; \
+	fi; \
+	PATH="$(shell go env GOPATH)/bin:$$PATH" "$$SWAG_BIN" init -g $(SWAG_MAIN) -d cmd/server,internal -o $(SWAG_OUT)
 
 docker-build: ## Build da imagem Docker
 	docker build -t $(DOCKER_IMAGE):$(DOCKER_TAG) .

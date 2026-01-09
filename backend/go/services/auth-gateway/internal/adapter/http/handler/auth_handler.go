@@ -22,6 +22,13 @@ type AuthHandler struct {
 	logger    *zap.Logger
 }
 
+// ErrorResponse documents the error envelope returned by the API.
+type ErrorResponse struct {
+	Code    string      `json:"code"`
+	Message string      `json:"message"`
+	Details interface{} `json:"details,omitempty"`
+}
+
 // NewAuthHandler creates a new auth handler
 func NewAuthHandler(authUC *auth.UseCase, jwtSvc *jwt.Service, logger *zap.Logger) *AuthHandler {
 	return &AuthHandler{
