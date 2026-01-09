@@ -1,4 +1,4 @@
-.PHONY: help build run test clean migrate-up migrate-down docker-build docker-run
+.PHONY: help build run test clean migrate-up migrate-down docker-build docker-run swagger
 
 # Variables
 SERVICE_NAME=billing-service
@@ -11,6 +11,8 @@ GO_COVER ?= go tool cover
 COBERTURA_DIR ?= coverage
 GOCOV ?= $(shell command -v gocov 2>/dev/null)
 GOCOV_HTML ?= $(shell command -v gocov-html 2>/dev/null)
+SWAG_MAIN ?= cmd/server/main.go
+SWAG_OUT ?= docs
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -87,6 +89,14 @@ docker-run: ## Run Docker container
 
 docker-push: ## Push Docker image to registry
 	docker push $(DOCKER_IMAGE):$(DOCKER_TAG)
+
+swagger: ## Generate Swagger docs (requires swag)
+	@command -v swag >/dev/null || { \
+		echo "swag nao encontrado; instale:"; \
+		echo "  go install github.com/swaggo/swag/cmd/swag@latest"; \
+		exit 1; \
+	}
+	@swag init -g $(SWAG_MAIN) -o $(SWAG_OUT)
 
 lint: ## Run linter
 	golangci-lint run ./...

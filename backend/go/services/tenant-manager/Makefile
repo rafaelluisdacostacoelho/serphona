@@ -17,6 +17,8 @@ GO_COVER ?= go tool cover
 COBERTURA_DIR ?= coverage
 GOCOV ?= $(shell command -v gocov 2>/dev/null)
 GOCOV_HTML ?= $(shell command -v gocov-html 2>/dev/null)
+SWAG_MAIN ?= cmd/server/main.go
+SWAG_OUT ?= docs
 
 # Docker settings
 DOCKER_REGISTRY ?= ghcr.io/voicecustomer
@@ -32,7 +34,7 @@ LDFLAGS := -ldflags "-s -w \
 	-X main.BuildTime=$(BUILD_TIME) \
 	-X main.GoVersion=$(GO_VERSION)"
 
-.PHONY: all build clean test lint fmt vet run docker-build docker-push migrate-up migrate-down generate help
+.PHONY: all build clean test lint fmt vet run docker-build docker-push migrate-up migrate-down generate help swagger
 
 # Default target
 all: lint test build
@@ -214,6 +216,15 @@ generate-mocks:
 	@echo "Generating mocks..."
 	@which mockgen > /dev/null || go install github.com/golang/mock/mockgen@latest
 	go generate ./internal/...
+
+## swagger: Generate Swagger docs (requires swag)
+swagger:
+	@command -v swag >/dev/null || { \
+		echo "swag nao encontrado; instale:"; \
+		echo "  go install github.com/swaggo/swag/cmd/swag@latest"; \
+		exit 1; \
+	}
+	@swag init -g $(SWAG_MAIN) -o $(SWAG_OUT)
 
 # =============================================================================
 # Docker targets

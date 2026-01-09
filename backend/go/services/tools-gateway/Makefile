@@ -1,4 +1,4 @@
-.PHONY: help build run test clean docker-build docker-run migrate-up migrate-down
+.PHONY: help build run test clean docker-build docker-run migrate-up migrate-down swagger
 
 # Variables
 APP_NAME=tools-gateway
@@ -10,6 +10,8 @@ GO_COVER ?= go tool cover
 COBERTURA_DIR ?= coverage
 GOCOV ?= $(shell command -v gocov 2>/dev/null)
 GOCOV_HTML ?= $(shell command -v gocov-html 2>/dev/null)
+SWAG_MAIN ?= cmd/server/main.go
+SWAG_OUT ?= docs
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -107,6 +109,14 @@ migrate-down: ## Run database migrations down
 	@echo "Running migrations down..."
 	@psql $(DATABASE_URL) < migrations/001_create_tools_tables.down.sql
 	@echo "Migrations rolled back"
+
+swagger: ## Generate Swagger docs (requires swag)
+	@command -v swag >/dev/null || { \
+		echo "swag nao encontrado; instale:"; \
+		echo "  go install github.com/swaggo/swag/cmd/swag@latest"; \
+		exit 1; \
+	}
+	@swag init -g $(SWAG_MAIN) -o $(SWAG_OUT)
 
 db-create: ## Create database
 	@echo "Creating database..."

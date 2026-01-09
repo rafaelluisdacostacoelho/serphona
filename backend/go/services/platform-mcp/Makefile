@@ -1,9 +1,10 @@
-.PHONY: help build run test test-coverage lint fmt tidy clean
+.PHONY: help build run test test-coverage lint fmt tidy clean swagger
 
 BINARY=platform-mcp
 MAIN=./cmd/server/main.go
 PKG=./...
 COVERAGE_DIR=coverage
+SWAG_OUT ?= docs
 
 help:
 	@echo "Platform MCP - commands"
@@ -42,3 +43,11 @@ tidy:
 
 clean:
 	rm -rf bin $(COVERAGE_DIR)
+
+swagger:
+	@command -v swag >/dev/null || { \
+		echo "swag nao encontrado; instale:"; \
+		echo "  go install github.com/swaggo/swag/cmd/swag@latest"; \
+		exit 1; \
+	}
+	@swag init -g $(MAIN) -o $(SWAG_OUT)

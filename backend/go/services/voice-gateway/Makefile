@@ -1,4 +1,4 @@
-.PHONY: help build run test test-coverage test-race clean fmt lint docker-build docker-run docker-stop docker-logs deps-update deps-download proto gen
+.PHONY: help build run test test-coverage test-race clean fmt lint docker-build docker-run docker-stop docker-logs deps-update deps-download proto gen swagger
 
 # Variables
 BINARY_NAME=voice-gateway
@@ -23,6 +23,8 @@ PKG ?= ./...
 COBERTURA_DIR ?= coverage
 GOCOV ?= $(shell command -v gocov 2>/dev/null)
 GOCOV_HTML ?= $(shell command -v gocov-html 2>/dev/null)
+SWAG_MAIN ?= cmd/server/main.go
+SWAG_OUT ?= docs
 
 ## help: Display this help message
 help:
@@ -213,6 +215,15 @@ deps-verify:
 	@echo "Verifying dependencies..."
 	$(GOMOD) verify
 	@echo "Dependencies verified"
+
+## swagger: Generate Swagger docs (requires swag)
+swagger:
+	@command -v swag >/dev/null || { \
+		echo "swag nao encontrado; instale:"; \
+		echo "  go install github.com/swaggo/swag/cmd/swag@latest"; \
+		exit 1; \
+	}
+	@swag init -g $(SWAG_MAIN) -o $(SWAG_OUT)
 
 ## docker-build: Build Docker image
 docker-build:
