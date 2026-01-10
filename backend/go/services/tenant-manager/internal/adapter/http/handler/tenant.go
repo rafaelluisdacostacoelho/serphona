@@ -84,17 +84,6 @@ type ListTenantsResponse struct {
 }
 
 // Create handles POST /api/v1/tenants
-// @Summary Create a new tenant
-// @Description Creates a new tenant organization
-// @Tags tenants
-// @Accept json
-// @Produce json
-// @Param request body CreateTenantRequest true "Tenant creation request"
-// @Success 201 {object} TenantResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 409 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /api/v1/tenants [post]
 func (h *TenantHandler) Create(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	requestID := getRequestID(ctx)
@@ -144,16 +133,6 @@ func (h *TenantHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 // Get handles GET /api/v1/tenants/{id}
-// @Summary Get tenant by ID
-// @Description Retrieves a tenant by its ID
-// @Tags tenants
-// @Produce json
-// @Param id path string true "Tenant ID" format(uuid)
-// @Success 200 {object} TenantResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /api/v1/tenants/{id} [get]
 func (h *TenantHandler) Get(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -176,18 +155,6 @@ func (h *TenantHandler) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 // Update handles PUT /api/v1/tenants/{id}
-// @Summary Update tenant
-// @Description Updates an existing tenant
-// @Tags tenants
-// @Accept json
-// @Produce json
-// @Param id path string true "Tenant ID" format(uuid)
-// @Param request body UpdateTenantRequest true "Tenant update request"
-// @Success 200 {object} TenantResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /api/v1/tenants/{id} [put]
 func (h *TenantHandler) Update(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	requestID := getRequestID(ctx)
@@ -241,16 +208,6 @@ func (h *TenantHandler) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 // Delete handles DELETE /api/v1/tenants/{id}
-// @Summary Delete tenant
-// @Description Soft-deletes a tenant
-// @Tags tenants
-// @Produce json
-// @Param id path string true "Tenant ID" format(uuid)
-// @Success 204 "No Content"
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /api/v1/tenants/{id} [delete]
 func (h *TenantHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	requestID := getRequestID(ctx)
@@ -278,18 +235,6 @@ func (h *TenantHandler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 // List handles GET /api/v1/tenants
-// @Summary List tenants
-// @Description Lists tenants with pagination
-// @Tags tenants
-// @Produce json
-// @Param page query int false "Page number" default(1)
-// @Param page_size query int false "Page size" default(20)
-// @Param status query string false "Filter by status"
-// @Param search query string false "Search in name/email"
-// @Success 200 {object} ListTenantsResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /api/v1/tenants [get]
 func (h *TenantHandler) List(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

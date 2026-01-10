@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -31,12 +30,7 @@ type ServerConfig struct {
 
 // DatabaseConfig holds database configuration
 type DatabaseConfig struct {
-	Host     string
-	Port     string
-	User     string
-	Password string
-	DBName   string
-	SSLMode  string
+	URL string
 }
 
 // JWTConfig holds JWT configuration
@@ -96,12 +90,7 @@ func Load() (*Config, error) {
 			AllowCredentials: getEnv("CORS_ALLOW_CREDENTIALS", "false") == "true",
 		},
 		Database: DatabaseConfig{
-			Host:     getEnv("DB_HOST", "localhost"),
-			Port:     getEnv("DB_PORT", "5432"),
-			User:     getEnv("DB_USER", "postgres"),
-			Password: getEnv("DB_PASSWORD", "postgres"),
-			DBName:   getEnv("DB_NAME", "serphona_auth"),
-			SSLMode:  getEnv("DB_SSLMODE", "disable"),
+			URL: getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/serphona_auth?sslmode=disable"),
 		},
 		JWT: JWTConfig{
 			SecretKey:            getEnv("JWT_SECRET", "your-secret-key-change-in-production"),
@@ -158,10 +147,7 @@ func Load() (*Config, error) {
 
 // GetDSN returns the database connection string
 func (c *DatabaseConfig) GetDSN() string {
-	return fmt.Sprintf(
-		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-		c.Host, c.Port, c.User, c.Password, c.DBName, c.SSLMode,
-	)
+	return c.URL
 }
 
 // getEnv gets an environment variable or returns a default value

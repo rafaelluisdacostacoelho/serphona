@@ -59,20 +59,12 @@ env:
   CORS_ALLOWED_ORIGINS: "https://app.serphona.com,https://console.serphona.com"
   CORS_ALLOW_CREDENTIALS: "true"
 
-  DB_HOST: "auth-gateway-postgres"
-  DB_PORT: "5432"
-  DB_USER:
+  # Database URL unificada
+  DATABASE_URL:
     valueFrom:
       secretKeyRef:
         name: auth-gateway-db
-        key: username
-  DB_PASSWORD:
-    valueFrom:
-      secretKeyRef:
-        name: auth-gateway-db
-        key: password
-  DB_NAME: "serphona_auth"
-  DB_SSLMODE: "disable"
+        key: url
 
   JWT_SECRET:
     valueFrom:

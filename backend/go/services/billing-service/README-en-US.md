@@ -289,12 +289,10 @@ SEED_TEST_WALLETS=true make migrate-up
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| DATABASE_URL | PostgreSQL connection URL | - |
-| DB_HOST | PostgreSQL host | localhost |
-| DB_PORT | PostgreSQL port | 5432 |
-| DB_USER | Database user | postgres |
-| DB_PASSWORD | Database password | postgres |
-| DB_NAME | Database name | serphona_billing |
+| DATABASE_URL | PostgreSQL connection URL (required) | - |
+| DB_MAX_OPEN_CONNS | Max open connections | 25 |
+| DB_MAX_IDLE_CONNS | Max idle connections | 5 |
+| DB_CONN_MAX_LIFETIME | Connection max lifetime (e.g., 5m) | 5m |
 
 ### Stripe
 

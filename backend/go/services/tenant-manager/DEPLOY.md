@@ -12,36 +12,36 @@
 ## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────────┐
-│           Kubernetes Cluster                 │
-│                                              │
+┌────────────────────────────────────────────┐
+│           Kubernetes Cluster               │
+│                                            │
 │  ┌──────────────────────────────────────┐  │
-│  │  Ingress / Load Balancer              │  │
-│  └──────────────┬───────────────────────┘  │
-│                 │                           │
-│  ┌──────────────▼───────────────────────┐  │
-│  │  tenant-manager Service (ClusterIP)   │  │
-│  │  - HTTP: 80 → 8080                    │  │
-│  │  - gRPC: 9090                         │  │
-│  └──────────────┬───────────────────────┘  │
-│                 │                           │
-│  ┌──────────────▼───────────────────────┐  │
-│  │  tenant-manager Deployment            │  │
+│  │  Ingress / Load Balancer             │  │
+│  └──────────────────┬───────────────────┘  │
+│                     │                      │
+│  ┌──────────────────▼───────────────────┐  │
+│  │  tenant-manager Service (ClusterIP)  │  │
+│  │  - HTTP: 80 → 8080                   │  │
+│  │  - gRPC: 9090                        │  │
+│  └──────────────────┬───────────────────┘  │
+│                     │                      │
+│  ┌──────────────────▼───────────────────┐  │
+│  │  tenant-manager Deployment           │  │
 │  │  - Replicas: 3-10 (HPA)              │  │
 │  │  - Resources: 250m CPU, 256Mi RAM    │  │
-│  └──────┬───────┬───────┬────────────────┘  │
-│         │       │       │                   │
-│    ┌────▼──┐ ┌─▼────┐ ┌▼─────┐           │
-│    │ Pod 1 │ │ Pod 2│ │ Pod 3│           │
-│    └───────┘ └──────┘ └──────┘           │
-└─────────────────────────────────────────────┘
-        │          │          │
-   ┌────▼──────────▼──────────▼─────┐
-   │  External Dependencies          │
-   │  - PostgreSQL (RDS)             │
-   │  - Redis (ElastiCache)          │
-   │  - Kafka (MSK)                  │
-   └─────────────────────────────────┘
+│  └──────┬────────┬─────────┬────────────┘  │
+│         │        │         │               │
+│    ┌────▼──┐ ┌───▼───┐ ┌───▼───┐           │
+│    │ Pod 1 │ │ Pod 2 │ │ Pod 3 │           │
+│    └───────┘ └───────┘ └───────┘           │
+└────────────────────────────────────────────┘
+           │          │          │
+      ┌────▼──────────▼──────────▼────┐
+      │  External Dependencies        │
+      │  - PostgreSQL (RDS)           │
+      │  - Redis (ElastiCache)        │
+      │  - Kafka (MSK)                │
+      └───────────────────────────────┘
 ```
 
 ## 🚀 Quick Start
@@ -69,10 +69,10 @@ kubectl create namespace serphona
 ### 3. Create Secrets
 
 ```bash
-# Copy example and edit
+# Copy example and edit (contains both app and DB secrets)
 cp k8s/secrets.yaml.example k8s/secrets.yaml
 
-# Edit secrets.yaml with actual values
+# Edit secrets.yaml with actual values (JWT, Redis URL/password, DATABASE_URL in tenant-manager-db)
 # vim k8s/secrets.yaml
 
 # Apply secrets
@@ -80,9 +80,9 @@ kubectl apply -f k8s/secrets.yaml
 ```
 
 **Important Secret Values:**
-- `database-password`: Strong password (20+ chars)
+- `tenant-manager-db.url`: Full `DATABASE_URL` with sslmode=require
 - `jwt-secret`: Random 32+ character string
-- `redis-url`: Redis connection string
+- `redis-url`: Redis connection string with password embedded
 - Generate secrets: `openssl rand -base64 32`
 
 ### 4. Deploy Resources
@@ -217,6 +217,7 @@ kubectl get events -n serphona --sort-by='.lastTimestamp'
 
 # Check secrets
 kubectl get secret tenant-manager-secrets -n serphona -o yaml
+kubectl get secret tenant-manager-db -n serphona -o yaml
 ```
 
 ### Database Connection Issues
@@ -225,7 +226,7 @@ kubectl get secret tenant-manager-secrets -n serphona -o yaml
 # Test from pod
 kubectl exec -it POD_NAME -n serphona -- sh
 # Inside pod:
-# curl -v telnet://DATABASE_HOST:5432
+# pg_isready -d "$DATABASE_URL"
 ```
 
 ### Performance Issues

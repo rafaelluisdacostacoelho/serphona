@@ -20,6 +20,11 @@ spec:
         env:
         - name: KAFKA_BOOTSTRAP
           value: "kafka:9092"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: analytics-processor-db
+              key: url
         readinessProbe:
           httpGet:
             path: /healthz

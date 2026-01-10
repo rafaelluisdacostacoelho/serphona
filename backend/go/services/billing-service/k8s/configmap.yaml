@@ -10,10 +10,6 @@ data:
   ENV: "production"
   
   # Database Configuration
-  DB_HOST: "postgres.serphona.svc.cluster.local"
-  DB_PORT: "5432"
-  DB_NAME: "serphona_billing"
-  DB_SSLMODE: "require"
   DB_MAX_OPEN_CONNS: "25"
   DB_MAX_IDLE_CONNS: "5"
   DB_CONN_MAX_LIFETIME: "5m"

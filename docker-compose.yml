@@ -24,6 +24,86 @@ services:
       retries: 5
     networks:
       - serphona
+
+  # PostgreSQL dedicado para o tenant-manager (isolamento por serviço)
+  tenant-manager-postgres:
+    image: postgres:16-alpine
+    container_name: serphona-tenant-manager-postgres
+    environment:
+      POSTGRES_USER: tm_user
+      POSTGRES_PASSWORD: tm_pass
+      POSTGRES_DB: tenant_manager
+    ports:
+      - "5433:5432"
+    volumes:
+      - tenant_manager_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tm_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - serphona
+
+  # PostgreSQL dedicado para o auth-gateway
+  auth-gateway-postgres:
+    image: postgres:16-alpine
+    container_name: serphona-auth-gateway-postgres
+    environment:
+      POSTGRES_USER: ag_user
+      POSTGRES_PASSWORD: ag_pass
+      POSTGRES_DB: auth_gateway
+    ports:
+      - "5434:5432"
+    volumes:
+      - auth_gateway_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ag_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - serphona
+
+  # PostgreSQL dedicado para o billing-service
+  billing-service-postgres:
+    image: postgres:16-alpine
+    container_name: serphona-billing-service-postgres
+    environment:
+      POSTGRES_USER: bs_user
+      POSTGRES_PASSWORD: bs_pass
+      POSTGRES_DB: billing_service
+    ports:
+      - "5435:5432"
+    volumes:
+      - billing_service_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bs_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - serphona
+
+  # PostgreSQL dedicado para o analytics-processor
+  analytics-processor-postgres:
+    image: postgres:16-alpine
+    container_name: serphona-analytics-processor-postgres
+    environment:
+      POSTGRES_USER: ap_user
+      POSTGRES_PASSWORD: ap_pass
+      POSTGRES_DB: analytics_processor
+    ports:
+      - "5436:5432"
+    volumes:
+      - analytics_processor_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ap_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - serphona
   
   # Redis - Cache e sessões
   redis:
@@ -103,7 +183,7 @@ services:
       SERVICE_AUDIENCE: serphona-services
       SERVICE_AUTH_TOKEN: ""
       HTTP_PORT: 8080
-      DATABASE_URL: postgres://serphona:serphona_dev@postgres:5432/serphona?sslmode=disable
+      DATABASE_URL: postgres://tm_user:tm_pass@tenant-manager-postgres:5432/tenant_manager?sslmode=disable
       REDIS_URL: redis://:serphona_dev@redis:6379/0
       KAFKA_BROKERS: kafka:29092
       LOG_LEVEL: debug
@@ -111,6 +191,8 @@ services:
       - "8081:8080"
     depends_on:
       postgres:
+        condition: service_healthy
+      tenant-manager-postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -130,7 +212,7 @@ services:
       SERVICE_INSTANCE: auth-gateway-1
       SERVICE_AUTH_TOKEN: ""
       HTTP_PORT: 8080
-      DATABASE_URL: postgres://serphona:serphona_dev@postgres:5432/serphona?sslmode=disable
+      DATABASE_URL: postgres://ag_user:ag_pass@auth-gateway-postgres:5432/auth_gateway?sslmode=disable
       REDIS_URL: redis://:serphona_dev@redis:6379/1
       JWT_SECRET: dev-jwt-secret-change-in-production
       LOG_LEVEL: debug
@@ -138,6 +220,8 @@ services:
       - "8082:8080"
     depends_on:
       postgres:
+        condition: service_healthy
+      auth-gateway-postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -239,14 +323,14 @@ services:
       SERVICE_AUDIENCE: serphona-services
       SERVICE_AUTH_TOKEN: ""
       HTTP_PORT: 8080
-      DATABASE_URL: postgres://serphona:serphona_dev@postgres:5432/serphona?sslmode=disable
+      DATABASE_URL: postgres://bs_user:bs_pass@billing-service-postgres:5432/billing_service?sslmode=disable
       REDIS_URL: redis://:serphona_dev@redis:6379/5
       KAFKA_BROKERS: kafka:29092
       LOG_LEVEL: debug
     ports:
       - "8086:8080"
     depends_on:
-      - postgres
+      - billing-service-postgres
       - redis
       - kafka
     networks:
@@ -266,10 +350,10 @@ services:
       SERVICE_NAME: analytics-processor
       SERVICE_INSTANCE: analytics-processor-1
       KAFKA_BROKERS: kafka:29092
-      DATABASE_URL: postgres://serphona:serphona_dev@postgres:5432/serphona?sslmode=disable
+      DATABASE_URL: postgres://ap_user:ap_pass@analytics-processor-postgres:5432/analytics_processor?sslmode=disable
       LOG_LEVEL: DEBUG
     depends_on:
-      - postgres
+      - analytics-processor-postgres
       - kafka
     networks:
       - serphona
@@ -328,6 +412,10 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  tenant_manager_pg_data:
+  auth_gateway_pg_data:
+  billing_service_pg_data:
+  analytics_processor_pg_data:
 
 networks:
   serphona:

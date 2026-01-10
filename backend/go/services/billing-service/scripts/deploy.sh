@@ -73,8 +73,20 @@ if ! kubectl get secret billing-service-secrets -n ${NAMESPACE} &> /dev/null; th
     echo -e "${RED}Error: Secret 'billing-service-secrets' not found in namespace ${NAMESPACE}${NC}"
     echo -e "${YELLOW}Please create the secret first using:${NC}"
     echo "kubectl create secret generic billing-service-secrets \\"
-    echo "  --from-literal=DB_PASSWORD=... \\"
     echo "  --from-literal=STRIPE_SECRET_KEY=... \\"
+    echo "  --from-literal=STRIPE_PUBLISHABLE_KEY=... \\"
+    echo "  --from-literal=STRIPE_WEBHOOK_SECRET=... \\"
+    echo "  --from-literal=JWT_SECRET=... \\"
+    echo "  --from-literal=REDIS_PASSWORD=... \\"
+    echo "  --from-literal=REDIS_URL=redis://:<REDIS_PASSWORD>@redis.serphona.svc.cluster.local:6379/1 \\"
+    echo "  -n ${NAMESPACE}"
+    exit 1
+fi
+if ! kubectl get secret billing-service-db -n ${NAMESPACE} &> /dev/null; then
+    echo -e "${RED}Error: Secret 'billing-service-db' not found in namespace ${NAMESPACE}${NC}"
+    echo -e "${YELLOW}Please create the secret first using:${NC}"
+    echo "kubectl create secret generic billing-service-db \\"
+    echo "  --from-literal=url=postgresql://<USER>:<PASSWORD>@<HOST>:5432/<DB_NAME>?sslmode=require \\"
     echo "  -n ${NAMESPACE}"
     exit 1
 fi

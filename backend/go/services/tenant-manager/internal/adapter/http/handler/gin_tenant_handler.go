@@ -63,6 +63,19 @@ func NewGinTenantHandler(service *tenant.Service, logger *zap.Logger) *GinTenant
 }
 
 // Create handles POST /api/v1/tenants.
+// @Summary Create tenant
+// @Tags Tenants
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param request body CreateTenantRequest true "Tenant payload"
+// @Success 201 {object} TenantResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 403 {object} ErrorResponse
+// @Failure 409 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/v1/tenants [post]
 func (h *GinTenantHandler) Create(c *gin.Context) {
 	if !h.requireScope(c, "write:tenants") {
 		return
@@ -102,6 +115,18 @@ func (h *GinTenantHandler) Create(c *gin.Context) {
 }
 
 // Get handles GET /api/v1/tenants/:id.
+// @Summary Get tenant
+// @Tags Tenants
+// @Security BearerAuth
+// @Produce json
+// @Param id path string true "Tenant ID"
+// @Success 200 {object} TenantResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 403 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/v1/tenants/{id} [get]
 func (h *GinTenantHandler) Get(c *gin.Context) {
 	if !h.requireScope(c, "read:tenants") {
 		return
@@ -124,6 +149,21 @@ func (h *GinTenantHandler) Get(c *gin.Context) {
 }
 
 // Update handles PUT /api/v1/tenants/:id.
+// @Summary Update tenant
+// @Tags Tenants
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param id path string true "Tenant ID"
+// @Param request body UpdateTenantRequest true "Tenant update payload"
+// @Success 200 {object} TenantResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 403 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 409 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/v1/tenants/{id} [put]
 func (h *GinTenantHandler) Update(c *gin.Context) {
 	if !h.requireScope(c, "write:tenants") {
 		return
@@ -168,6 +208,18 @@ func (h *GinTenantHandler) Update(c *gin.Context) {
 }
 
 // Delete handles DELETE /api/v1/tenants/:id.
+// @Summary Delete tenant
+// @Tags Tenants
+// @Security BearerAuth
+// @Produce json
+// @Param id path string true "Tenant ID"
+// @Success 204 {string} string "No Content"
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 403 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/v1/tenants/{id} [delete]
 func (h *GinTenantHandler) Delete(c *gin.Context) {
 	if !h.requireScope(c, "write:tenants") {
 		return
@@ -190,6 +242,20 @@ func (h *GinTenantHandler) Delete(c *gin.Context) {
 }
 
 // List handles GET /api/v1/tenants.
+// @Summary List tenants
+// @Tags Tenants
+// @Security BearerAuth
+// @Produce json
+// @Param page query int false "Page number"
+// @Param page_size query int false "Page size"
+// @Param status query string false "Tenant status filter"
+// @Param search query string false "Search by name or email"
+// @Success 200 {object} ListTenantsResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 403 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/v1/tenants [get]
 func (h *GinTenantHandler) List(c *gin.Context) {
 	if !h.requireScope(c, "read:tenants") {
 		return
@@ -263,6 +329,18 @@ func (h *GinTenantHandler) List(c *gin.Context) {
 }
 
 // GetQuota handles GET /api/v1/tenants/:id/quota.
+// @Summary Get tenant quota
+// @Tags Tenants
+// @Security BearerAuth
+// @Produce json
+// @Param id path string true "Tenant ID"
+// @Success 200 {object} QuotaResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 403 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/v1/tenants/{id}/quota [get]
 func (h *GinTenantHandler) GetQuota(c *gin.Context) {
 	if !h.requireScope(c, "read:tenants") {
 		return
@@ -287,6 +365,20 @@ func (h *GinTenantHandler) GetQuota(c *gin.Context) {
 }
 
 // UpdateQuota handles PUT /api/v1/tenants/:id/quota.
+// @Summary Update tenant quota
+// @Tags Tenants
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param id path string true "Tenant ID"
+// @Param request body UpdateQuotaRequest true "Quota payload"
+// @Success 200 {object} QuotaResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 403 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/v1/tenants/{id}/quota [put]
 func (h *GinTenantHandler) UpdateQuota(c *gin.Context) {
 	if !h.requireScope(c, "write:tenants") {
 		return
@@ -327,6 +419,21 @@ func (h *GinTenantHandler) UpdateQuota(c *gin.Context) {
 }
 
 // IncrementUsage handles POST /api/v1/tenants/:id/usage.
+// @Summary Increment tenant usage
+// @Tags Tenants
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param id path string true "Tenant ID"
+// @Param request body IncrementUsageRequest true "Usage payload"
+// @Success 200 {object} QuotaResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 403 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 429 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/v1/tenants/{id}/usage [post]
 func (h *GinTenantHandler) IncrementUsage(c *gin.Context) {
 	if !h.requireScope(c, "write:tenants") {
 		return

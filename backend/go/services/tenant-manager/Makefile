@@ -20,6 +20,7 @@ GOCOV_HTML ?= $(shell command -v gocov-html 2>/dev/null)
 SWAG_MAIN ?= cmd/server/main.go
 SWAG_OUT ?= docs
 SWAG_BIN ?= $(shell command -v swag 2>/dev/null || echo "$(shell go env GOPATH)/bin/swag")
+SWAG_DIRS ?= .
 
 # Docker settings
 DOCKER_REGISTRY ?= ghcr.io/voicecustomer
@@ -226,7 +227,7 @@ swagger:
 		go install github.com/swaggo/swag/cmd/swag@latest; \
 		SWAG_BIN="$(shell go env GOPATH)/bin/swag"; \
 	fi; \
-	PATH="$(shell go env GOPATH)/bin:$$PATH" "$$SWAG_BIN" init -g $(SWAG_MAIN) -d cmd/server,internal -o $(SWAG_OUT)
+	PATH="$(shell go env GOPATH)/bin:$$PATH" "$$SWAG_BIN" init -g $(SWAG_MAIN) -d $(SWAG_DIRS) -o $(SWAG_OUT)
 
 # =============================================================================
 # Docker targets

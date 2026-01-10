@@ -134,13 +134,16 @@ kubectl create namespace serphona-prod
 
 ```bash
 kubectl create secret generic billing-service-secrets \
-  --from-literal=DB_USER=postgres \
-  --from-literal=DB_PASSWORD='your-secure-password' \
   --from-literal=STRIPE_SECRET_KEY='sk_live_...' \
   --from-literal=STRIPE_PUBLISHABLE_KEY='pk_live_...' \
   --from-literal=STRIPE_WEBHOOK_SECRET='whsec_...' \
   --from-literal=JWT_SECRET='your-jwt-secret-min-32-chars' \
   --from-literal=REDIS_PASSWORD='your-redis-password' \
+  --from-literal=REDIS_URL='redis://:your-redis-password@redis.serphona.svc.cluster.local:6379/1' \
+  -n serphona-prod
+
+kubectl create secret generic billing-service-db \
+  --from-literal=url='postgresql://<USER>:<PASSWORD>@<HOST>:5432/<DB_NAME>?sslmode=require' \
   -n serphona-prod
 ```
 
@@ -298,7 +301,7 @@ kubectl exec -n serphona-prod $POD -- nslookup postgres.serphona.svc.cluster.loc
 
 # Testar conectividade com banco
 kubectl exec -n serphona-prod $POD -- sh -c \
-  "pg_isready -h postgres.serphona.svc.cluster.local -p 5432"
+  "pg_isready -d \"$DATABASE_URL\""
 
 # Shell no pod
 kubectl exec -it $POD -n serphona-prod -- sh
@@ -312,9 +315,10 @@ kubectl get secrets -n serphona-prod
 
 # Descrever secret
 kubectl describe secret billing-service-secrets -n serphona-prod
+kubectl describe secret billing-service-db -n serphona-prod
 
 # Ver valores (base64 decoded)
-kubectl get secret billing-service-secrets -n serphona-prod -o jsonpath='{.data.DB_PASSWORD}' | base64 -d
+kubectl get secret billing-service-db -n serphona-prod -o jsonpath='{.data.url}' | base64 -d
 ```
 
 ### Performance Issues

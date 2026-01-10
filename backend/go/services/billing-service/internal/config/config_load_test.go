@@ -12,12 +12,7 @@ func TestLoadBuildsConfigFromEnv(t *testing.T) {
 	t.Setenv("CORS_ALLOWED_METHODS", "GET,POST")
 	t.Setenv("CORS_ALLOWED_HEADERS", "Content-Type,Authorization")
 
-	t.Setenv("DB_HOST", "db.example")
-	t.Setenv("DB_PORT", "5555")
-	t.Setenv("DB_USER", "dbuser")
-	t.Setenv("DB_PASSWORD", "dbpass")
-	t.Setenv("DB_NAME", "billingdb")
-	t.Setenv("DB_SSLMODE", "require")
+	t.Setenv("DATABASE_URL", "postgresql://dbuser:dbpass@db.example:5555/billingdb?sslmode=require")
 
 	t.Setenv("REDIS_HOST", "redis.example")
 	t.Setenv("REDIS_PORT", "6380")
@@ -68,8 +63,7 @@ func TestLoadBuildsConfigFromEnv(t *testing.T) {
 		t.Fatalf("expected load to succeed, got %v", err)
 	}
 
-	expectedDBURL := "postgresql://dbuser:dbpass@db.example:5555/billingdb?sslmode=require"
-	if cfg.Database.URL != expectedDBURL {
+	if cfg.Database.URL != "postgresql://dbuser:dbpass@db.example:5555/billingdb?sslmode=require" {
 		t.Fatalf("unexpected database url %s", cfg.Database.URL)
 	}
 	expectedRedisURL := "redis://:redispw@redis.example:6380/2"

@@ -46,6 +46,13 @@ env:
   SERVICE_INSTANCE: billing-service-1
   SERVICE_AUDIENCE: serphona-services
 
+  # Banco dedicado (usar secret por ambiente)
+  DATABASE_URL:
+    valueFrom:
+      secretKeyRef:
+        name: billing-service-db
+        key: url
+
   # Auth/JWKS (produção)
   JWT_VALIDATION_JWKS_URL: ""
   JWT_VALIDATION_ISSUER: ""

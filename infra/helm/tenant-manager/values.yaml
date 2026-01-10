@@ -63,6 +63,13 @@ env:
   SERVICE_INSTANCE: tenant-manager-1
   SERVICE_AUDIENCE: serphona-services
 
+  # Banco dedicado (definir secret ou value override por ambiente)
+  DATABASE_URL:
+    valueFrom:
+      secretKeyRef:
+        name: tenant-manager-db
+        key: url
+
   # Auth/JWKS (produção)
   JWT_VALIDATION_JWKS_URL: ""
   JWT_VALIDATION_ISSUER: ""

@@ -55,6 +55,22 @@ func NewGinAPIKeyHandler(service *apikeyapp.Service, logger *zap.Logger) *GinAPI
 }
 
 // Create handles POST /tenants/:id/api-keys
+// @Summary Create API key
+// @Tags APIKeys
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param id path string true "Tenant ID"
+// @Param request body CreateAPIKeyRequest true "API key payload"
+// @Success 201 {object} APIKeyResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 403 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 409 {object} ErrorResponse
+// @Failure 429 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/v1/tenants/{id}/api-keys [post]
 func (h *GinAPIKeyHandler) Create(c *gin.Context) {
 	tenantID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -87,6 +103,19 @@ func (h *GinAPIKeyHandler) Create(c *gin.Context) {
 }
 
 // List handles GET /tenants/:id/api-keys
+// @Summary List API keys
+// @Tags APIKeys
+// @Security BearerAuth
+// @Produce json
+// @Param id path string true "Tenant ID"
+// @Param active_only query bool false "Filter only active keys"
+// @Success 200 {array} APIKeyResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 403 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/v1/tenants/{id}/api-keys [get]
 func (h *GinAPIKeyHandler) List(c *gin.Context) {
 	tenantID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -116,6 +145,19 @@ func (h *GinAPIKeyHandler) List(c *gin.Context) {
 }
 
 // Delete handles DELETE /tenants/:id/api-keys/:keyId
+// @Summary Delete API key
+// @Tags APIKeys
+// @Security BearerAuth
+// @Produce json
+// @Param id path string true "Tenant ID"
+// @Param keyId path string true "API key ID"
+// @Success 204 {string} string "No Content"
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 403 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/v1/tenants/{id}/api-keys/{keyId} [delete]
 func (h *GinAPIKeyHandler) Delete(c *gin.Context) {
 	keyID, err := uuid.Parse(c.Param("keyId"))
 	if err != nil {

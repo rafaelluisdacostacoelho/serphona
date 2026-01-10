@@ -33,6 +33,24 @@ spec:
         runAsNonRoot: true
         runAsUser: 1000
         fsGroup: 1000
+
+      initContainers:
+      - name: wait-for-postgres
+        image: postgres:15-alpine
+        command:
+          - sh
+          - -c
+          - |
+            until pg_isready -d "$DATABASE_URL"; do
+              echo "Waiting for PostgreSQL..."
+              sleep 2
+            done
+        env:
+          - name: DATABASE_URL
+            valueFrom:
+              secretKeyRef:
+                name: tenant-manager-db
+                key: url
       containers:
       - name: tenant-manager
         image: serphona/tenant-manager:latest
@@ -53,32 +71,11 @@ spec:
           value: "8080"
         - name: GRPC_PORT
           value: "9090"
-        - name: DATABASE_HOST
-          valueFrom:
-            secretKeyRef:
-              name: tenant-manager-secrets
-              key: database-host
-        - name: DATABASE_PORT
-          value: "5432"
-        - name: DATABASE_NAME
-          valueFrom:
-            secretKeyRef:
-              name: tenant-manager-secrets
-              key: database-name
-        - name: DATABASE_USER
-          valueFrom:
-            secretKeyRef:
-              name: tenant-manager-secrets
-              key: database-user
-        - name: DATABASE_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: tenant-manager-secrets
-              key: database-password
-        - name: DATABASE_SSL_MODE
-          value: "require"
         - name: DATABASE_URL
-          value: "postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)"
+          valueFrom:
+            secretKeyRef:
+              name: tenant-manager-db
+              key: url
         - name: REDIS_URL
           valueFrom:
             secretKeyRef:

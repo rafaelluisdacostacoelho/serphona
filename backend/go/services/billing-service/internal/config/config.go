@@ -37,16 +37,10 @@ type ServerConfig struct {
 }
 
 type DatabaseConfig struct {
-	Host         string
-	Port         string
-	User         string
-	Password     string
-	Name         string
-	SSLMode      string
+	URL          string
 	MaxOpenConns int
 	MaxIdleConns int
 	MaxLifetime  string
-	URL          string
 }
 
 type RedisConfig struct {
@@ -139,16 +133,10 @@ func Load() (*Config, error) {
 			AllowedHeaders: getEnvAsSlice("CORS_ALLOWED_HEADERS", []string{"Content-Type", "Authorization"}),
 		},
 		Database: DatabaseConfig{
-			Host:         getEnv("DB_HOST", "localhost"),
-			Port:         getEnv("DB_PORT", "5432"),
-			User:         getEnv("DB_USER", "postgres"),
-			Password:     getEnv("DB_PASSWORD", "postgres"),
-			Name:         getEnv("DB_NAME", "serphona_billing"),
-			SSLMode:      getEnv("DB_SSLMODE", "disable"),
+			URL:          getEnv("DATABASE_URL", ""),
 			MaxOpenConns: getEnvAsInt("DB_MAX_OPEN_CONNS", 25),
 			MaxIdleConns: getEnvAsInt("DB_MAX_IDLE_CONNS", 5),
 			MaxLifetime:  getEnv("DB_CONN_MAX_LIFETIME", "5m"),
-			URL:          getEnv("DATABASE_URL", ""),
 		},
 		Redis: RedisConfig{
 			Host:     getEnv("REDIS_HOST", "localhost"),
@@ -203,19 +191,6 @@ func Load() (*Config, error) {
 			AuthToken: getEnv("SERVICE_AUTH_TOKEN", ""),
 			Audience:  getEnv("SERVICE_AUDIENCE", ""),
 		},
-	}
-
-	// Build database URL if not provided
-	if config.Database.URL == "" {
-		config.Database.URL = fmt.Sprintf(
-			"postgresql://%s:%s@%s:%s/%s?sslmode=%s",
-			config.Database.User,
-			config.Database.Password,
-			config.Database.Host,
-			config.Database.Port,
-			config.Database.Name,
-			config.Database.SSLMode,
-		)
 	}
 
 	// Build Redis URL if not provided
