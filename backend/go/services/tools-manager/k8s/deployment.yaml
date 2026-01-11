@@ -1,0 +1,237 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tools-manager
+  namespace: serphona
+  labels:
+    app: tools-manager
+    component: backend
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: tools-manager
+  template:
+    metadata:
+      labels:
+        app: tools-manager
+        component: backend
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8087"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: tools-manager
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+
+      initContainers:
+      - name: wait-for-postgres
+        image: postgres:15-alpine
+        command:
+          - sh
+          - -c
+          - |
+            until pg_isready -d "$DATABASE_URL"; do
+              echo "Waiting for PostgreSQL..."
+              sleep 2
+            done
+        env:
+          - name: DATABASE_URL
+            valueFrom:
+              secretKeyRef:
+                name: tools-manager-db
+                key: url
+
+      - name: run-migrations
+        image: migrate/migrate:v4.17.0
+        command:
+        - migrate
+        - -path=/migrations
+        - -database
+        - $(DATABASE_URL)
+        - up
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: tools-manager-db
+              key: url
+        volumeMounts:
+        - name: migrations
+          mountPath: /migrations
+          readOnly: true
+
+      containers:
+      - name: tools-manager
+        image: serphona/tools-manager:latest
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8087
+          protocol: TCP
+
+        envFrom:
+        - configMapRef:
+            name: tools-manager-config
+        - secretRef:
+            name: tools-manager-secrets
+        env:
+        - name: SERVER_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: tools-manager-config
+              key: server-host
+        - name: SERVER_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: tools-manager-config
+              key: server-port
+        - name: ENV
+          valueFrom:
+            configMapKeyRef:
+              name: tools-manager-config
+              key: env
+        - name: METRICS_PATH
+          valueFrom:
+            configMapKeyRef:
+              name: tools-manager-config
+              key: metrics-path
+        - name: HEALTH_PATH
+          valueFrom:
+            configMapKeyRef:
+              name: tools-manager-config
+              key: health-path
+        - name: READY_PATH
+          valueFrom:
+            configMapKeyRef:
+              name: tools-manager-config
+              key: ready-path
+        - name: JWT_ALLOWED_ALGS
+          valueFrom:
+            configMapKeyRef:
+              name: tools-manager-config
+              key: jwt-allowed-algs
+        - name: JWT_ISSUER
+          valueFrom:
+            configMapKeyRef:
+              name: tools-manager-config
+              key: jwt-issuer
+        - name: JWT_AUDIENCE
+          valueFrom:
+            configMapKeyRef:
+              name: tools-manager-config
+              key: jwt-audience
+        - name: JWT_SERVICE_AUDIENCE
+          valueFrom:
+            configMapKeyRef:
+              name: tools-manager-config
+              key: jwt-service-audience
+        - name: JWT_CLOCK_SKEW
+          valueFrom:
+            configMapKeyRef:
+              name: tools-manager-config
+              key: jwt-clock-skew
+        - name: JWT_MAX_TOKEN_BYTES
+          valueFrom:
+            configMapKeyRef:
+              name: tools-manager-config
+              key: jwt-max-token-bytes
+        - name: JWKS_URL
+          valueFrom:
+            configMapKeyRef:
+              name: tools-manager-config
+              key: jwks-url
+        - name: JWKS_CACHE_TTL
+          valueFrom:
+            configMapKeyRef:
+              name: tools-manager-config
+              key: jwks-cache-ttl
+        - name: JWKS_ALLOWED_KIDS
+          valueFrom:
+            configMapKeyRef:
+              name: tools-manager-config
+              key: jwks-allowed-kids
+        - name: JWT_REQUIRED_SCOPES
+          valueFrom:
+            configMapKeyRef:
+              name: tools-manager-config
+              key: jwt-required-scopes
+        - name: TENANT_CLAIM
+          valueFrom:
+            configMapKeyRef:
+              name: tools-manager-config
+              key: tenant-claim
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: tools-manager-db
+              key: url
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: tools-manager-secrets
+              key: jwt-secret
+
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+              - ALL
+
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+
+      volumes:
+      - name: migrations
+        configMap:
+          name: tools-manager-migrations
+      - name: tmp
+        emptyDir: {}
+
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - tools-manager
+              topologyKey: kubernetes.io/hostname

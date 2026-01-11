@@ -23,6 +23,22 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U test -d test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      TOOLS_MANAGER_TEST_DATABASE_URL: postgres://test:test@localhost:5432/test?sslmode=disable
     defaults:
       run:
         working-directory: backend/go/services/tools-manager
@@ -39,6 +55,22 @@ jobs:
 
       - name: Download dependencies
         run: go mod download
+
+      - name: Install Postgres client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Wait for Postgres
+        run: |
+          for i in {1..30}; do
+            pg_isready -h localhost -p 5432 -U test && break
+            sleep 2
+          done
+
+      - name: Run migrations
+        run: |
+          psql "$TOOLS_MANAGER_TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/000001_create_catalog.up.sql
+          psql "$TOOLS_MANAGER_TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/000002_policy_rules.up.sql
+          psql "$TOOLS_MANAGER_TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/000003_quota_rules.up.sql
 
       - name: Run tests
         run: go test -v -race -coverprofile=coverage.out ./...

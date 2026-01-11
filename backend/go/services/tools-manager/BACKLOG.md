@@ -16,26 +16,26 @@ Provide the governed tool catalog and policy control-plane for Serphona. Tools M
 
 ## Backlog (ordered)
 
-- [ ] Scaffolding and config
-	- [ ] Skeleton em `cmd/server` com platform-auth (middleware/interceptors), envelope de resposta, health/ready/metrics/pprof, carregador de config/env map
-	- [ ] Runner de migracoes (Postgres com RLS), Makefile/Dockerfile, CI
+- [x] Scaffolding and config
+	- [x] Skeleton em `cmd/server` com platform-auth (middleware/interceptors), envelope de resposta, health/ready/metrics/pprof, carregador de config/env map
+	- [x] Runner de migracoes (Postgres com RLS), Makefile/Dockerfile, CI
 
-- [ ] Catalog data model
-	- [ ] Tabelas: tools, tool_versions, tenant_tools (enablement/overrides), categories/tags; campos tenant_id, status (draft/published/deprecated), owners
-	- [ ] Constraints: unicidade name+version; enablement por tenant unico; indexes por tenant/name/category
+- [x] Catalog data model
+	- [x] Tabelas: tools, tool_versions, tenant_tools (enablement/overrides), categories/tags; campos tenant_id, status (draft/published/deprecated), owners
+	- [x] Constraints: unicidade name+version; enablement por tenant unico; indexes por tenant/name/category
 
-- [ ] Validation and safety
-	- [ ] Validacao JSON Schema com limites de profundidade/campos/tamanho para input/output
-	- [ ] Metadata de allowlist host/protocol e limites de timeout/retries/payload
-	- [ ] Rejeicao de definicoes invalidas ou inseguras no write; DTOs com limites explicitos
+- [x] Validation and safety
+	- [x] Validacao JSON Schema com limites de profundidade/campos/tamanho para input/output
+	- [x] Metadata de allowlist host/protocol e limites de timeout/retries/payload
+	- [x] Rejeicao de definicoes invalidas ou inseguras no write; DTOs com limites explicitos
 
-- [ ] Policy/RBAC and quotas
-	- [ ] Avaliador allow/deny por tenant/agent/scopes/roles/ambiente com quotas/rate e precedencia deterministica
-	- [ ] APIs admin para politicas/quotas, enable/disable por tenant; auditar cada decisao/alteracao
+- [x] Policy/RBAC and quotas
+	- [x] Avaliador allow/deny por tenant/agent/scopes/roles/ambiente com quotas/rate e precedencia deterministica
+	- [x] APIs admin para politicas/quotas, enable/disable por tenant; auditar cada decisao/alteracao via log
 
-- [ ] Secrets and credentials
-	- [ ] Integrar Vault/KMS para segredos por tenant/tool; fetch-on-use com cache TTL; mascarar logs; rotacao API/hooks
-	- [ ] Auditar quem acessou/rotacionou; negar acesso cross-tenant
+- [x] Secrets and credentials
+	- [x] Integrar Vault/KMS para segredos por tenant/tool; fetch-on-use com cache TTL; mascarar logs; rotacao API/hooks (in-memory encrypted store with TTL cache; plug Vault/KMS via encryption key)
+	- [x] Auditar quem acessou/rotacionou; negar acesso cross-tenant
 
 - [ ] Integrations and sync
 	- [ ] APIs/gRPC de leitura para definicoes resolvidas por tenant (Tools Gateway, platform-mcp) com paginacao e ETag/If-None-Match

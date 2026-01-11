@@ -1,0 +1,121 @@
+-- Tools Manager catalog schema (multi-tenant, RLS on tenant_tools)
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- Core tables
+CREATE TABLE IF NOT EXISTS tools (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL UNIQUE,
+    display_name TEXT NOT NULL,
+    description TEXT,
+    category TEXT,
+    tags TEXT[] DEFAULT '{}'::TEXT[],
+    owners TEXT[] DEFAULT '{}'::TEXT[],
+    is_public BOOLEAN DEFAULT FALSE,
+    is_deprecated BOOLEAN DEFAULT FALSE,
+    created_by UUID,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS tool_versions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tool_id UUID NOT NULL REFERENCES tools(id) ON DELETE CASCADE,
+    version TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('draft','published','deprecated')),
+    input_schema JSONB NOT NULL,
+    output_schema JSONB NOT NULL,
+    definition JSONB NOT NULL,
+    allowlist JSONB NOT NULL DEFAULT '{}'::JSONB,
+    metadata JSONB NOT NULL DEFAULT '{}'::JSONB,
+    timeout_seconds INTEGER NOT NULL DEFAULT 30,
+    max_retries INTEGER NOT NULL DEFAULT 3,
+    published_at TIMESTAMPTZ,
+    deprecated_at TIMESTAMPTZ,
+    created_by UUID,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT tool_versions_unique UNIQUE (tool_id, version)
+);
+
+CREATE TABLE IF NOT EXISTS tenant_tools (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL,
+    tool_id UUID NOT NULL REFERENCES tools(id) ON DELETE CASCADE,
+    tool_version_id UUID REFERENCES tool_versions(id) ON DELETE RESTRICT,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    overrides JSONB NOT NULL DEFAULT '{}'::JSONB,
+    policy JSONB NOT NULL DEFAULT '{}'::JSONB,
+    quota JSONB NOT NULL DEFAULT '{}'::JSONB,
+    allowed_agents TEXT[] NOT NULL DEFAULT '{}'::TEXT[],
+    notes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT tenant_tools_unique UNIQUE (tenant_id, tool_id)
+);
+
+-- Indexes for lookup and filtering
+CREATE INDEX IF NOT EXISTS idx_tools_category ON tools(category);
+CREATE INDEX IF NOT EXISTS idx_tools_tags_gin ON tools USING GIN(tags);
+CREATE INDEX IF NOT EXISTS idx_tools_public ON tools(is_public);
+CREATE INDEX IF NOT EXISTS idx_tool_versions_status ON tool_versions(status);
+CREATE INDEX IF NOT EXISTS idx_tool_versions_tool ON tool_versions(tool_id);
+CREATE INDEX IF NOT EXISTS idx_tool_versions_published_at ON tool_versions(published_at);
+CREATE INDEX IF NOT EXISTS idx_tenant_tools_tenant ON tenant_tools(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_tenant_tools_tool ON tenant_tools(tool_id);
+CREATE INDEX IF NOT EXISTS idx_tenant_tools_enabled ON tenant_tools(enabled);
+
+-- updated_at trigger
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_tools_updated_at BEFORE UPDATE ON tools
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER trg_tool_versions_updated_at BEFORE UPDATE ON tool_versions
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER trg_tenant_tools_updated_at BEFORE UPDATE ON tenant_tools
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Row Level Security for tenant_tools
+ALTER TABLE tenant_tools ENABLE ROW LEVEL SECURITY;
+
+-- Service accounts bypass
+CREATE POLICY tenant_tools_service_accounts_all ON tenant_tools
+    FOR ALL
+    TO service_account
+    USING (TRUE)
+    WITH CHECK (TRUE);
+
+-- Application role isolation (uses app.current_tenant_id set by app layer)
+CREATE POLICY tenant_tools_isolation ON tenant_tools
+    FOR ALL
+    TO application
+    USING (
+        current_setting('app.current_tenant_id', TRUE) = 'platform'
+        OR (
+            current_setting('app.current_tenant_id', TRUE) IS NOT NULL
+            AND tenant_id = current_setting('app.current_tenant_id')::UUID
+        )
+    )
+    WITH CHECK (
+        current_setting('app.current_tenant_id', TRUE) = 'platform'
+        OR (
+            current_setting('app.current_tenant_id', TRUE) IS NOT NULL
+            AND tenant_id = current_setting('app.current_tenant_id')::UUID
+        )
+    );
+
+-- Comments for documentation
+COMMENT ON TABLE tools IS 'Canonical tool catalog (logical definitions)';
+COMMENT ON TABLE tool_versions IS 'Versioned tool definitions with schemas and allowlists';
+COMMENT ON TABLE tenant_tools IS 'Per-tenant enablement and overrides for tools';
+COMMENT ON COLUMN tenant_tools.policy IS 'Allow/deny rules and scope-based policy for a tenant';
+COMMENT ON COLUMN tenant_tools.quota IS 'Rate/usage quotas applied per tenant/tool';
+COMMENT ON COLUMN tenant_tools.overrides IS 'Tenant-specific config overrides (auth, headers, limits)';

@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tools-manager-config
+  namespace: serphona
+  labels:
+    app: tools-manager
+    component: backend
+    version: v1
+data:
+  server-host: "0.0.0.0"
+  server-port: "8087"
+  env: "production"
+  log-level: "info"
+  metrics-path: "/metrics"
+  health-path: "/health"
+  ready-path: "/ready"
+  jwt-allowed-algs: "HS256"
+  jwt-issuer: "https://auth.serphona.svc.cluster.local"
+  jwt-audience: "serphona"
+  jwt-service-audience: "tools-manager"
+  jwt-clock-skew: "30s"
+  jwt-max-token-bytes: "4096"
+  jwks-url: ""
+  jwks-cache-ttl: "5m"
+  jwks-allowed-kids: ""
+  jwt-required-scopes: "tools:read"
+  tenant-claim: "tenant_id"

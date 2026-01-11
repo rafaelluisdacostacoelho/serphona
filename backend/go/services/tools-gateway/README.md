@@ -414,6 +414,9 @@ ENV=development
 
 # Database
 DATABASE_URL=postgresql://user:pass@localhost:5432/serphona_tools
+DB_MAX_OPEN_CONNS=25
+DB_MAX_IDLE_CONNS=5
+DB_CONN_MAX_LIFETIME=5m
 
 # Timeouts
 TOOL_TIMEOUT=30s
