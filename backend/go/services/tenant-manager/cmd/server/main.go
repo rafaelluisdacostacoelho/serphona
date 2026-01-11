@@ -321,7 +321,7 @@ func startHTTPServer(cfg *config.Config, deps *Dependencies, log *zap.Logger) *h
 	r.GET("/swagger/doc.json", func(c *gin.Context) {
 		c.File("./docs/swagger.json")
 	})
-	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler, ginSwagger.URL("/swagger/doc.json")))
+	r.GET("/swagger/ui/*any", ginSwagger.WrapHandler(swaggerFiles.Handler, ginSwagger.URL("/swagger/doc.json")))
 
 	// API routes with authentication
 	api := r.Group("/api/v1")

@@ -174,8 +174,9 @@ services:
   # Tenant Manager
   tenant-manager:
     build:
-      context: ./backend/go/services/tenant-manager
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./backend/go/services/tenant-manager/Dockerfile
+      network: host
     container_name: serphona-tenant-manager
     environment:
       SERVICE_NAME: tenant-manager
@@ -186,6 +187,7 @@ services:
       DATABASE_URL: postgres://tm_user:tm_pass@tenant-manager-postgres:5432/tenant_manager?sslmode=disable
       REDIS_URL: redis://:serphona_dev@redis:6379/0
       KAFKA_BROKERS: kafka:29092
+      JWT_SECRET: dev-jwt-secret-change-in-production
       LOG_LEVEL: debug
     ports:
       - "8081:8080"
@@ -204,8 +206,9 @@ services:
   # Auth Gateway
   auth-gateway:
     build:
-      context: ./backend/go/services/auth-gateway
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./backend/go/services/auth-gateway/Dockerfile
+      network: host
     container_name: serphona-auth-gateway
     environment:
       SERVICE_NAME: auth-gateway

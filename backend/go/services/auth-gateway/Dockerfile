@@ -12,10 +12,10 @@ ENV GOPROXY=https://proxy.golang.org,direct
 
 # Copy shared Go libs and service code (expects build context at repo root)
 COPY backend/go/libs ./backend/go/libs
-COPY backend/go/services/tenant-manager ./backend/go/services/tenant-manager
+COPY backend/go/services/auth-gateway ./backend/go/services/auth-gateway
 
 # Move into service module
-WORKDIR /workspace/backend/go/services/tenant-manager
+WORKDIR /workspace/backend/go/services/auth-gateway
 
 # Download dependencies (replacements resolve to ../../libs/*)
 RUN go mod download
@@ -23,7 +23,7 @@ RUN go mod download
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags="-w -s" \
-    -o /workspace/bin/tenant-manager \
+    -o /workspace/bin/auth-gateway \
     ./cmd/server
 
 # Final stage
@@ -40,10 +40,8 @@ RUN addgroup -g 1000 app && \
 WORKDIR /app
 
 # Copy binary from builder
-COPY --from=builder /workspace/bin/tenant-manager /app/tenant-manager
-COPY --from=builder /workspace/backend/go/services/tenant-manager/migrations /app/migrations
-COPY --from=builder /workspace/backend/go/services/tenant-manager/docs /app/docs
-COPY --from=builder /workspace/backend/go/services/tenant-manager/api /app/api
+COPY --from=builder /workspace/bin/auth-gateway /app/auth-gateway
+COPY --from=builder /workspace/backend/go/services/auth-gateway/docs /app/docs
 
 # Change ownership
 RUN chown -R app:app /app
@@ -59,4 +57,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
 # Run the application
-ENTRYPOINT ["/app/tenant-manager"]
+ENTRYPOINT ["/app/auth-gateway"]
