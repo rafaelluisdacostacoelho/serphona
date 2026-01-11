@@ -19,3 +19,5 @@ Este diretório contém documentação de arquitetura, diagramas e documentos de
 
 - [Documentação de API](../api/)
 - [Registros de Decisões de Arquitetura](../decisions/)
+- [Índice do Livro de Arquitetura](BOOK-INDEX-pt-BR.md)
+- [Diagramas de Arquitetura](DIAGRAMS-pt-BR.md)

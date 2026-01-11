@@ -28,5 +28,10 @@ Purpose: sequence work across services/libs so voice loop (STT → agent → TTS
    - Scope: metrics for ARI/STT/TTS/agent calls, call-state counters, readiness checks (Redis/Kafka/Asterisk), Helm values for secrets/creds, HPA thresholds, and tracing exporter.  
    - Exit: readiness fails closed; dashboards/alerts cover latency/error budget.
 
+6) Tools, MCP, and RAG alignment  
+   - Backlogs: [backend/go/services/tools-gateway/BACKLOG.md](../../backend/go/services/tools-gateway/BACKLOG.md), [backend/go/services/tools-manager/BACKLOG.md](../../backend/go/services/tools-manager/BACKLOG.md), [backend/go/libs/platform-mcp/BACKLOG.md](../../backend/go/libs/platform-mcp/BACKLOG.md); architecture notes in [docs/architecture/RAG-MCP-en-US.md](../architecture/RAG-MCP-en-US.md)  
+   - Scope: ensure voice-gateway and agent-orchestrator consume tool catalog/resolution via Tools Gateway and platform-mcp client; keep MCP transport/tenant propagation consistent with platform-auth; align with RAG/MCP contracts for tool/schema exposure and retrieval flows.  
+   - Exit: contract tests for tool discovery/execution pass against Tools Gateway/Tools Manager and platform-mcp library; headers (tenant/request/trace) propagated in MCP/tool calls; RAG/MCP docs referenced from service READMEs.
+
 ## Work split per step
 - Implement per project backlog items for the step, then promote to next step only when exit criteria met. Keep PT-BR mirror in GLOBAL-VOICE-PLATFORM-BACKLOG-pt-BR.md.

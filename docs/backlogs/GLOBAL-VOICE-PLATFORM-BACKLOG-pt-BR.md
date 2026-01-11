@@ -28,5 +28,10 @@ Propósito: sequenciar o trabalho entre serviços/libs para que o loop de voz (S
    - Escopo: métricas para ARI/STT/TTS/chamadas ao agente, contadores de estado de chamada, readiness (Redis/Kafka/Asterisk), valores de Helm para segredos/creds, HPA e tracing exporter.  
    - Saída: readiness falha de forma fechada; dashboards/alertas cobrem latência/orçamento de erro.
 
+6) Alinhamento de Tools, MCP e RAG  
+   - Backlogs: [backend/go/services/tools-gateway/BACKLOG.md](../../backend/go/services/tools-gateway/BACKLOG.md), [backend/go/services/tools-manager/BACKLOG.md](../../backend/go/services/tools-manager/BACKLOG.md), [backend/go/libs/platform-mcp/BACKLOG.md](../../backend/go/libs/platform-mcp/BACKLOG.md); notas de arquitetura em [docs/architecture/RAG-MCP-pt-BR.md](../architecture/RAG-MCP-pt-BR.md)  
+   - Escopo: garantir que voice-gateway e agent-orchestrator consumam catálogo/resolução de ferramentas via Tools Gateway e cliente platform-mcp; manter transporte MCP com propagação de tenant/request/trace usando platform-auth; alinhar com contratos RAG/MCP para exposição de ferramentas/esquemas e fluxos de retrieval.  
+   - Saída: testes de contrato de descoberta/execução de ferramentas passam contra Tools Gateway/Tools Manager e lib platform-mcp; headers (tenant/request/trace) propagados em chamadas MCP/tools; docs RAG/MCP referenciadas nos READMEs dos serviços.
+
 ## Como usar
 - Entregar as tarefas do backlog do projeto correspondente a cada etapa; só avançar para a próxima quando os critérios de saída forem cumpridos. Espelhar qualquer ajuste também nesta versão PT-BR.

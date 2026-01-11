@@ -19,3 +19,5 @@ This directory contains architecture documentation, diagrams, and design documen
 
 - [API Documentation](../api/)
 - [Architecture Decision Records](../decisions/)
+- [Architecture Book Index](BOOK-INDEX-en-US.md)
+- [Architecture Diagrams](DIAGRAMS-en-US.md)
