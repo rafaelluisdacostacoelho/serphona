@@ -37,10 +37,10 @@ Provide the governed tool catalog and policy control-plane for Serphona. Tools M
 	- [x] Integrar Vault/KMS para segredos por tenant/tool; fetch-on-use com cache TTL; mascarar logs; rotacao API/hooks (in-memory encrypted store with TTL cache; plug Vault/KMS via encryption key)
 	- [x] Auditar quem acessou/rotacionou; negar acesso cross-tenant
 
-- [ ] Integrations and sync
-	- [ ] APIs/gRPC de leitura para definicoes resolvidas por tenant (Tools Gateway, platform-mcp) com paginacao e ETag/If-None-Match
-	- [ ] Eventos de mudanca via Kafka/webhook para invalidação de cache; endpoint de polling fallback; testes de contrato dos consumidores
-	- [ ] Vista MCP (schema compatível com platform-mcp/tool registry) para agent-orchestrator
+- [x] Integrations and sync (webhook + polling fallback; Kafka still to wire when broker is available)
+	- [x] APIs/gRPC de leitura para definicoes resolvidas por tenant (Tools Gateway, platform-mcp) com paginacao e ETag/If-None-Match
+	- [x] Eventos de mudanca via Kafka/webhook para invalidação de cache; endpoint de polling fallback; testes de contrato dos consumidores (webhook + in-memory buffer; Kafka pending)
+	- [x] Vista MCP (schema compatível com platform-mcp/tool registry) para agent-orchestrator
 
 - [ ] Observability and audit
 	- [ ] Metricas: writes/reads, cache hits, policy decisions, quota hits, secret fetches, errors; tracing com tenant/user/tool/version

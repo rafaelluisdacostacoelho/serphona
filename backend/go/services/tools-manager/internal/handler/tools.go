@@ -1,9 +1,12 @@
 package handler
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -13,13 +16,16 @@ import (
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/response"
 	"go.uber.org/zap"
 
+	"tools-manager/internal/events"
+	"tools-manager/internal/metrics"
 	"tools-manager/internal/repository"
 )
 
 // ToolsHandler handles tool CRUD endpoints.
 type ToolsHandler struct {
-	log  *zap.Logger
-	repo *repository.Repository
+	log      *zap.Logger
+	repo     *repository.Repository
+	notifier events.Notifier
 }
 
 const (
@@ -34,8 +40,8 @@ const (
 	maxAllowlistEntries  = 50
 )
 
-func NewToolsHandler(log *zap.Logger, repo *repository.Repository) *ToolsHandler {
-	return &ToolsHandler{log: log, repo: repo}
+func NewToolsHandler(log *zap.Logger, repo *repository.Repository, notifier events.Notifier) *ToolsHandler {
+	return &ToolsHandler{log: log, repo: repo, notifier: notifier}
 }
 
 // createToolRequest is a lightweight DTO (no advanced validation yet).
@@ -87,9 +93,12 @@ func (h *ToolsHandler) List(c *gin.Context) {
 	tools, err := h.repo.ListTools(c.Request.Context(), claims.TenantID)
 	if err != nil {
 		h.log.Error("list tools failed", zap.Error(err))
+		metrics.Errors.WithLabelValues(claims.TenantID, c.FullPath(), "500").Inc()
 		response.WriteError(c.Request.Context(), c.Writer, http.StatusInternalServerError, "internal_error", "failed to list tools", nil)
 		return
 	}
+
+	metrics.ToolsReads.WithLabelValues(claims.TenantID).Inc()
 
 	resp := make([]ToolResponse, 0, len(tools))
 	for _, t := range tools {
@@ -119,6 +128,14 @@ func (h *ToolsHandler) Create(c *gin.Context) {
 		response.WriteError(c.Request.Context(), c.Writer, http.StatusUnauthorized, "unauthorized", "missing claims", nil)
 		return
 	}
+
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		response.WriteError(c.Request.Context(), c.Writer, http.StatusBadRequest, "invalid_request", "failed to read request body", nil)
+		return
+	}
+	_ = c.Request.Body.Close()
+	c.Request.Body = io.NopCloser(bytes.NewReader(body))
 
 	var req createToolRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -178,9 +195,12 @@ func (h *ToolsHandler) Create(c *gin.Context) {
 			return
 		}
 		h.log.Error("create tool failed", zap.Error(err))
+		metrics.Errors.WithLabelValues(claims.TenantID, c.FullPath(), "500").Inc()
 		response.WriteError(c.Request.Context(), c.Writer, http.StatusInternalServerError, "internal_error", "failed to create tool", nil)
 		return
 	}
+
+	metrics.ToolsWrites.WithLabelValues(claims.TenantID).Inc()
 
 	var version *ToolVersion
 	if tool.Version != nil {
@@ -200,6 +220,25 @@ func (h *ToolsHandler) Create(c *gin.Context) {
 	}
 
 	response.WriteSuccess(c.Request.Context(), c.Writer, http.StatusCreated, resp)
+
+	if h.notifier != nil {
+		var versionID string
+		if tool.Version != nil {
+			versionID = tool.Version.ID.String()
+		}
+		hash := sha256.Sum256(body)
+		h.notifier.Notify(events.ChangeEvent{
+			Type:      "tool.updated",
+			TenantID:  claims.TenantID,
+			ToolID:    tool.ID.String(),
+			VersionID: versionID,
+			DiffHash:  hexEncode(hash[:]),
+		})
+	}
+}
+
+func hexEncode(b []byte) string {
+	return strings.ToUpper(fmt.Sprintf("%x", b))
 }
 
 func validateCreateRequest(req createToolRequest) error {

@@ -13,6 +13,7 @@ type Config struct {
 	Auth          AuthConfig
 	Observability ObservabilityConfig
 	Secrets       SecretsConfig
+	Integrations  IntegrationsConfig
 }
 
 // ServerConfig holds HTTP server settings.
@@ -60,6 +61,11 @@ type SecretsConfig struct {
 	VaultToken    string        `envconfig:"SECRETS_VAULT_TOKEN"`
 	VaultMount    string        `envconfig:"SECRETS_VAULT_MOUNT" default:"secret"`
 	VaultPrefix   string        `envconfig:"SECRETS_VAULT_PREFIX" default:"tools-manager"`
+}
+
+// IntegrationsConfig holds outbound sync targets.
+type IntegrationsConfig struct {
+	EventsWebhookURL string `envconfig:"EVENTS_WEBHOOK_URL"`
 }
 
 // Load parses environment variables into Config.

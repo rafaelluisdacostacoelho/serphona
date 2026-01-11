@@ -14,7 +14,9 @@ import (
 	"go.uber.org/zap"
 
 	"tools-manager/internal/config"
+	"tools-manager/internal/events"
 	"tools-manager/internal/handler"
+	"tools-manager/internal/metrics"
 	"tools-manager/internal/repository"
 	"tools-manager/internal/secret"
 )
@@ -25,7 +27,7 @@ type Router struct {
 }
 
 // NewRouter constructs the HTTP engine with health, metrics, and stub APIs.
-func NewRouter(cfg *config.Config, log *zap.Logger, repo *repository.Repository, secretStore *secret.Store) *Router {
+func NewRouter(cfg *config.Config, log *zap.Logger, repo *repository.Repository, secretStore *secret.Store, notifier events.Notifier) *Router {
 	gin.SetMode(modeFromEnv(cfg.Server.Env))
 	engine := gin.New()
 	engine.Use(gin.Recovery())
@@ -56,6 +58,7 @@ func NewRouter(cfg *config.Config, log *zap.Logger, repo *repository.Repository,
 	prometheus.MustRegister(requestCounter)
 	prometheus.MustRegister(policyDecisionCounter)
 	prometheus.MustRegister(quotaDecisionCounter)
+	metrics.Register(prometheus.DefaultRegisterer)
 
 	engine.Use(func(c *gin.Context) {
 		c.Next()
@@ -77,16 +80,20 @@ func NewRouter(cfg *config.Config, log *zap.Logger, repo *repository.Repository,
 	// pprof endpoints under /debug/pprof.
 	pprof.Register(engine)
 
-	toolsHandler := handler.NewToolsHandler(log, repo)
+	toolsHandler := handler.NewToolsHandler(log, repo, notifier)
 	policyHandler := handler.NewPolicyHandler(log, repo)
 	quotaHandler := handler.NewQuotaHandler(log, repo)
 	secretHandler := handler.NewSecretHandler(log, secretStore)
+	catalogHandler := handler.NewCatalogHandler(log, repo, notifier)
 	qGuard := newQuotaGuard(repo, log, quotaDecisionCounter)
 
 	api := engine.Group("/api/v1")
 	api.Use(authmw.RequireAuth(), tenantGuard(), qGuard.Handle(), policyGuard(repo, log, policyDecisionCounter))
 	api.GET("/tools", toolsHandler.List)
 	api.POST("/tools", toolsHandler.Create)
+	api.GET("/catalog/resolved", catalogHandler.Resolved)
+	api.GET("/catalog/mcp", catalogHandler.MCP)
+	api.GET("/catalog/changes", catalogHandler.Changes)
 	api.GET("/policy/rules", policyHandler.List)
 	api.POST("/policy/rules", policyHandler.Create)
 	api.GET("/quota/rules", quotaHandler.List)

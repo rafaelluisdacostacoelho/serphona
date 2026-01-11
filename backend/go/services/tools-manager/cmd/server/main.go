@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"tools-manager/internal/config"
+	"tools-manager/internal/events"
 	"tools-manager/internal/repository"
 	"tools-manager/internal/secret"
 	"tools-manager/internal/server"
@@ -48,8 +49,9 @@ func main() {
 	if err != nil {
 		logger.Fatal("failed to init secret store", zap.Error(err))
 	}
+	notifier := events.NewNotifier(cfg.Integrations.EventsWebhookURL)
 
-	router := server.NewRouter(cfg, logger, repo, secretStore)
+	router := server.NewRouter(cfg, logger, repo, secretStore, notifier)
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	logger.Info("starting tools-manager", zap.String("addr", addr), zap.String("env", cfg.Server.Env))
