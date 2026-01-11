@@ -7,8 +7,8 @@ RUN apk add --no-cache git ca-certificates tzdata
 # Set workspace to include shared libs
 WORKDIR /workspace
 
-# Use public Go proxy to improve download reliability
-ENV GOPROXY=https://proxy.golang.org,direct
+# Use public Go proxy to improve download reliability (fallback avoids Google storage DNS)
+ENV GOPROXY=https://goproxy.io,direct
 
 # Copy shared Go libs and service code (expects build context at repo root)
 COPY backend/go/libs ./backend/go/libs
