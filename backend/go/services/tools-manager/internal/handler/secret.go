@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"tools-manager/internal/audit"
+	"tools-manager/internal/metrics"
 	"tools-manager/internal/secret"
 )
 
@@ -49,6 +50,7 @@ func (h *SecretHandler) Put(c *gin.Context) {
 
 	if err := h.store.Put(claims.TenantID, req.ID, req.Value); err != nil {
 		h.log.Error("secret put failed", zap.Error(err))
+		metrics.Errors.WithLabelValues(claims.TenantID, c.FullPath(), "500").Inc()
 		response.WriteError(c.Request.Context(), c.Writer, http.StatusInternalServerError, "internal_error", "failed to store secret", nil)
 		return
 	}
@@ -84,6 +86,7 @@ func (h *SecretHandler) Get(c *gin.Context) {
 	val, ok, err := h.store.Get(claims.TenantID, id)
 	if err != nil {
 		h.log.Error("secret get failed", zap.Error(err))
+		metrics.Errors.WithLabelValues(claims.TenantID, c.FullPath(), "500").Inc()
 		response.WriteError(c.Request.Context(), c.Writer, http.StatusInternalServerError, "internal_error", "failed to fetch secret", nil)
 		return
 	}

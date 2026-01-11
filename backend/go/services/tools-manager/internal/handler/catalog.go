@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	"tools-manager/internal/events"
+	"tools-manager/internal/metrics"
 	"tools-manager/internal/repository"
 )
 
@@ -45,6 +46,7 @@ func (h *CatalogHandler) Resolved(c *gin.Context) {
 	tools, err := h.repo.ListTools(c.Request.Context(), claims.TenantID)
 	if err != nil {
 		h.log.Error("list tools for catalog failed", zap.Error(err))
+		metrics.Errors.WithLabelValues(claims.TenantID, c.FullPath(), "500").Inc()
 		response.WriteError(c.Request.Context(), c.Writer, http.StatusInternalServerError, "internal_error", "failed to list tools", nil)
 		return
 	}
@@ -70,6 +72,8 @@ func (h *CatalogHandler) Resolved(c *gin.Context) {
 		"offset":    offset,
 		"total":     len(tools),
 	}
+
+	metrics.CatalogReads.WithLabelValues(claims.TenantID).Inc()
 	c.Writer.Header().Set("ETag", etag)
 	response.WriteSuccess(c.Request.Context(), c.Writer, http.StatusOK, resp)
 }
@@ -85,6 +89,7 @@ func (h *CatalogHandler) MCP(c *gin.Context) {
 	tools, err := h.repo.ListTools(c.Request.Context(), claims.TenantID)
 	if err != nil {
 		h.log.Error("list tools for mcp failed", zap.Error(err))
+		metrics.Errors.WithLabelValues(claims.TenantID, c.FullPath(), "500").Inc()
 		response.WriteError(c.Request.Context(), c.Writer, http.StatusInternalServerError, "internal_error", "failed to list tools", nil)
 		return
 	}
@@ -111,6 +116,8 @@ func (h *CatalogHandler) MCP(c *gin.Context) {
 		c.Status(http.StatusNotModified)
 		return
 	}
+
+	metrics.CatalogReads.WithLabelValues(claims.TenantID).Inc()
 	c.Writer.Header().Set("ETag", etag)
 	response.WriteSuccess(c.Request.Context(), c.Writer, http.StatusOK, gin.H{"items": mcpItems})
 }

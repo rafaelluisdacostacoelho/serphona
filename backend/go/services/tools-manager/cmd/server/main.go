@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 
+	"tools-manager/internal/audit"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 	authjwt "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/jwt"
 	"go.uber.org/zap"
@@ -23,6 +25,7 @@ func main() {
 	}
 
 	configureAuth(cfg)
+	audit.SetSampleRate(cfg.Observability.AuditSample)
 
 	logger, err := newLogger(cfg.Server.Env)
 	if err != nil {

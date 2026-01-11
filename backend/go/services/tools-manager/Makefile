@@ -1,4 +1,4 @@
-.PHONY: help build run test test-coverage lint fmt tidy clean deps docker-build docker-run swagger migrate-up migrate-down
+.PHONY: help build run test test-coverage lint fmt tidy clean deps docker-build docker-run swagger migrate-up migrate-down gosec
 
 SERVICE_NAME=tools-manager
 DOCKER_IMAGE=serphona/$(SERVICE_NAME)
@@ -38,6 +38,9 @@ test-coverage: ## Roda testes com cobertura
 
 lint: ## Roda linter
 	golangci-lint run ./...
+
+gosec: ## Static analysis (gosec)
+	gosec ./...
 
 fmt: ## Formata codigo
 	go fmt ./...

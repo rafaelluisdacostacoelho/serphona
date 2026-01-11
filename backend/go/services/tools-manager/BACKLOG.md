@@ -42,13 +42,13 @@ Provide the governed tool catalog and policy control-plane for Serphona. Tools M
 	- [x] Eventos de mudanca via Kafka/webhook para invalidação de cache; endpoint de polling fallback; testes de contrato dos consumidores (webhook + in-memory buffer; Kafka pending)
 	- [x] Vista MCP (schema compatível com platform-mcp/tool registry) para agent-orchestrator
 
-- [ ] Observability and audit
-	- [ ] Metricas: writes/reads, cache hits, policy decisions, quota hits, secret fetches, errors; tracing com tenant/user/tool/version
-	- [ ] Audit log de create/update/publish/deprecate com diff hash e actor; sampling controls
+- [x] Observability and audit
+	- [x] Metricas: writes/reads, cache hits, policy decisions, quota hits, secret fetches, errors; tracing com tenant/user/tool/version
+	- [x] Audit log de create/update/publish/deprecate com diff hash e actor; sampling controls
 
-- [ ] Testing and quality
-	- [ ] Testes de migracoes/RLS; matriz de politica; resolucao com overrides; limites de schema; acesso a segredos; cache/ETag; contratos com gateway consumer
-	- [ ] Static analysis (gosec), fuzz de DTOs de input, load smoke para read APIs
+- [x] Testing and quality
+	- [x] Testes de migracoes/RLS; matriz de politica; resolucao com overrides; limites de schema; acesso a segredos; cache/ETag; contratos com gateway consumer
+	- [x] Static analysis (gosec), fuzz de DTOs de input, load smoke para read APIs
 
 - [ ] Docs and runbooks
 	- [ ] How-to: add/update/publish tool, politicas/quotas, habilitar tenant, rotacionar segredos, rollback

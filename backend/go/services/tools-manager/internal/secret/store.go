@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"io"
 	"time"
+
+	"tools-manager/internal/metrics"
 )
 
 // Store encrypts secrets per tenant with a pluggable backend and TTL cache of decrypted values.
@@ -104,6 +106,7 @@ func (s *Store) Get(tenantID, secretID string) (string, bool, error) {
 	// serve from cache if valid
 	if entry, ok := s.cache[key]; ok {
 		if time.Now().Before(entry.expiresAt) {
+			metrics.SecretFetches.WithLabelValues(tenantID, "true").Inc()
 			return entry.value, true, nil
 		}
 		delete(s.cache, key)
@@ -114,6 +117,7 @@ func (s *Store) Get(tenantID, secretID string) (string, bool, error) {
 		return "", false, err
 	}
 	if !ok {
+		metrics.SecretFetches.WithLabelValues(tenantID, "false").Inc()
 		return "", false, nil
 	}
 
@@ -137,6 +141,7 @@ func (s *Store) Get(tenantID, secretID string) (string, bool, error) {
 	}
 
 	s.cache[key] = cacheEntry{value: string(plaintext), expiresAt: time.Now().Add(s.cacheTTL)}
+	metrics.SecretFetches.WithLabelValues(tenantID, "false").Inc()
 
 	return string(plaintext), true, nil
 }

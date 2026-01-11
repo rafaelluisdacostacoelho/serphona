@@ -88,7 +88,7 @@ func NewRouter(cfg *config.Config, log *zap.Logger, repo *repository.Repository,
 	qGuard := newQuotaGuard(repo, log, quotaDecisionCounter)
 
 	api := engine.Group("/api/v1")
-	api.Use(authmw.RequireAuth(), tenantGuard(), qGuard.Handle(), policyGuard(repo, log, policyDecisionCounter))
+	api.Use(authmw.RequireAuth(), tenantGuard(), traceMiddleware(), qGuard.Handle(), policyGuard(repo, log, policyDecisionCounter))
 	api.GET("/tools", toolsHandler.List)
 	api.POST("/tools", toolsHandler.Create)
 	api.GET("/catalog/resolved", catalogHandler.Resolved)

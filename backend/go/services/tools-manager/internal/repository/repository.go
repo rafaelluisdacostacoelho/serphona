@@ -414,6 +414,6 @@ func setTenant(ctx context.Context, tx pgx.Tx, tenantID string) error {
 	if _, err := tx.Exec(ctx, "SET LOCAL ROLE application"); err != nil {
 		return err
 	}
-	_, err := tx.Exec(ctx, "SET LOCAL app.current_tenant_id = $1", tenantID)
+	_, err := tx.Exec(ctx, "SELECT set_config('app.current_tenant_id', $1, true)", tenantID)
 	return err
 }

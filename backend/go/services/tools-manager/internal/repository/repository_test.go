@@ -4,13 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 const defaultTestDBURL = "postgres://test:test@localhost:55432/test?sslmode=disable"
@@ -211,6 +215,10 @@ func setupTestDB(t *testing.T) *pgxpool.Pool {
 		dbURL = defaultTestDBURL
 	}
 
+	if err := pingDB(ctx, dbURL); err != nil {
+		dbURL = startPostgresContainer(t, ctx)
+	}
+
 	ensureRoleAndMigrate(t, ctx, dbURL)
 
 	cfg, err := pgxpool.ParseConfig(dbURL)
@@ -253,14 +261,40 @@ END $$;
 		t.Fatalf("ensure application role: %v", err)
 	}
 
-	downSQL := readSQL(t, "000001_create_catalog.down.sql")
-	if _, err := conn.Exec(ctx, downSQL); err != nil {
-		t.Fatalf("apply down migration: %v", err)
+	_, err = conn.Exec(ctx, `
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_account') THEN
+        CREATE ROLE service_account;
+    END IF;
+END $$;
+`)
+	if err != nil {
+		t.Fatalf("ensure service_account role: %v", err)
 	}
 
-	upSQL := readSQL(t, "000001_create_catalog.up.sql")
-	if _, err := conn.Exec(ctx, upSQL); err != nil {
-		t.Fatalf("apply up migration: %v", err)
+	downFiles := []string{
+		"000003_quota_rules.down.sql",
+		"000002_policy_rules.down.sql",
+		"000001_create_catalog.down.sql",
+	}
+	for _, file := range downFiles {
+		sql := readSQL(t, file)
+		if _, err := conn.Exec(ctx, sql); err != nil {
+			t.Fatalf("apply down migration %s: %v", file, err)
+		}
+	}
+
+	upFiles := []string{
+		"000001_create_catalog.up.sql",
+		"000002_policy_rules.up.sql",
+		"000003_quota_rules.up.sql",
+	}
+	for _, file := range upFiles {
+		sql := readSQL(t, file)
+		if _, err := conn.Exec(ctx, sql); err != nil {
+			t.Fatalf("apply up migration %s: %v", file, err)
+		}
 	}
 
 	_, err = conn.Exec(ctx, `
@@ -271,6 +305,54 @@ GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO application;
 	if err != nil {
 		t.Fatalf("grant privileges to application role: %v", err)
 	}
+}
+
+func pingDB(ctx context.Context, dbURL string) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	conn, err := pgx.Connect(ctx, dbURL)
+	if err != nil {
+		return err
+	}
+	defer conn.Close(ctx)
+
+	return conn.Ping(ctx)
+}
+
+func startPostgresContainer(t *testing.T, ctx context.Context) string {
+	t.Helper()
+
+	req := testcontainers.ContainerRequest{
+		Image:        "postgres:15-alpine",
+		ExposedPorts: []string{"5432/tcp"},
+		Env: map[string]string{
+			"POSTGRES_USER":     "test",
+			"POSTGRES_PASSWORD": "test",
+			"POSTGRES_DB":       "test",
+		},
+		WaitingFor: wait.ForListeningPort("5432/tcp").WithStartupTimeout(30 * time.Second),
+	}
+
+	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{ContainerRequest: req, Started: true})
+	if err != nil {
+		t.Fatalf("start postgres container: %v", err)
+	}
+
+	host, err := container.Host(ctx)
+	if err != nil {
+		t.Fatalf("container host: %v", err)
+	}
+	port, err := container.MappedPort(ctx, "5432/tcp")
+	if err != nil {
+		t.Fatalf("container mapped port: %v", err)
+	}
+
+	t.Cleanup(func() {
+		_ = container.Terminate(context.Background())
+	})
+
+	return fmt.Sprintf("postgres://test:test@%s:%s/test?sslmode=disable", host, port.Port())
 }
 
 func readSQL(t *testing.T, fileName string) string {

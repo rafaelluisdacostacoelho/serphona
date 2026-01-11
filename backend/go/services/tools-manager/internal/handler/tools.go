@@ -16,6 +16,7 @@ import (
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/response"
 	"go.uber.org/zap"
 
+	"tools-manager/internal/audit"
 	"tools-manager/internal/events"
 	"tools-manager/internal/metrics"
 	"tools-manager/internal/repository"
@@ -221,12 +222,26 @@ func (h *ToolsHandler) Create(c *gin.Context) {
 
 	response.WriteSuccess(c.Request.Context(), c.Writer, http.StatusCreated, resp)
 
+	var versionID string
+	if tool.Version != nil {
+		versionID = tool.Version.ID.String()
+	}
+	hash := sha256.Sum256(body)
+
+	audit.Emit(h.log, audit.Event{
+		Category:  "tool",
+		Action:    "create",
+		Outcome:   "success",
+		TenantID:  claims.TenantID,
+		UserID:    claims.UserID,
+		Service:   claims.Service,
+		ToolID:    tool.ID.String(),
+		VersionID: versionID,
+		Path:      c.FullPath(),
+		DiffHash:  hexEncode(hash[:]),
+	})
+
 	if h.notifier != nil {
-		var versionID string
-		if tool.Version != nil {
-			versionID = tool.Version.ID.String()
-		}
-		hash := sha256.Sum256(body)
 		h.notifier.Notify(events.ChangeEvent{
 			Type:      "tool.updated",
 			TenantID:  claims.TenantID,

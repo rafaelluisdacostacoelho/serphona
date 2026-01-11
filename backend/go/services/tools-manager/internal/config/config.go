@@ -47,9 +47,10 @@ type AuthConfig struct {
 
 // ObservabilityConfig exposes health/metrics/pprof knobs.
 type ObservabilityConfig struct {
-	MetricsPath string `envconfig:"METRICS_PATH" default:"/metrics"`
-	HealthPath  string `envconfig:"HEALTH_PATH" default:"/health"`
-	ReadyPath   string `envconfig:"READY_PATH" default:"/ready"`
+	MetricsPath string  `envconfig:"METRICS_PATH" default:"/metrics"`
+	HealthPath  string  `envconfig:"HEALTH_PATH" default:"/health"`
+	ReadyPath   string  `envconfig:"READY_PATH" default:"/ready"`
+	AuditSample float64 `envconfig:"AUDIT_SAMPLE" default:"1"`
 }
 
 // SecretsConfig controls secret storage integration.
