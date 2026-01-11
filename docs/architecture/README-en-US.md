@@ -21,3 +21,4 @@ This directory contains architecture documentation, diagrams, and design documen
 - [Architecture Decision Records](../decisions/)
 - [Architecture Book Index](BOOK-INDEX-en-US.md)
 - [Architecture Diagrams](DIAGRAMS-en-US.md)
+- [Architecture Summary](SUMMARY-en-US.md)

@@ -12,7 +12,12 @@ Purpose: a reading path so a new contributor can move from platform overview to 
 - [Tenant RLS guidance](TENANT-RLS-GUIDANCE-en-US.md)
 - [Response envelope contract](RESPONSE-ENVELOPE-CONTRACT-en-US.md)
 
-## 2) RAG / MCP / Tools platform
+## 2) Data isolation & secrets
+- [Tenant manager DB isolation](TENANT-MANAGER-DB-ISOLATION-en-US.md)
+- [Per-service DB isolation playbook](SERVICE-DB-ISOLATION-en-US.md)
+- [DB isolation for secrets](DB-ISOLATION-SECRETS-en-US.md)
+
+## 3) RAG / MCP / Tools platform
 - [RAG + MCP architecture](RAG-MCP-en-US.md)
 - [Embedding strategy](EMBEDDING-platform-mcp-en-US.md)
 - [Embed config](EMBED-CONFIG-platform-mcp-en-US.md)
@@ -23,19 +28,19 @@ Purpose: a reading path so a new contributor can move from platform overview to 
 - [Rollout plan (platform-mcp)](ROLLOUT-platform-mcp-en-US.md)
 - [RAG chunking strategy](RAG_CHUNKING_STRATEGY-en-US.md)
 
-## 3) Voice and telephony
+## 4) Voice and telephony
 - [Voice gateway design](VOICE-GATEWAY-DESIGN-en-US.md)
 - [Tenant telephony extensions](TENANT-MANAGER-TELEPHONY-EXTENSIONS-en-US.md)
 
-## 4) Observability and events
+## 5) Observability and events
 - [Auth metrics & observability](AUTH-METRICS-OBSERVABILITY-en-US.md) (revisit for patterns)
 - Platform observability (see service READMEs and dashboards)
 
-## 5) Deployment & infra
+## 6) Deployment & infra
 - Helm/Terraform (see infra/helm, infra/terraform READMEs)
 - Cost/rollout notes: refer to infra docs
 
-## 6) Reference checklists
+## 7) Reference checklists
 - [Testing phase notes](../testing-phase-notes-en-US.md)
 - Service backlogs under `backend/go/services/*/BACKLOG.md` and libs under `backend/go/libs/*/BACKLOG.md`
 

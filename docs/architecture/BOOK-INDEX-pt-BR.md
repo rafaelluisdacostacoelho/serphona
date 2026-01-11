@@ -12,7 +12,12 @@ Propósito: uma trilha de leitura para que quem chega entenda a plataforma, cont
 - [Guia de RLS por tenant](TENANT-RLS-GUIDANCE-pt-BR.md)
 - [Contrato de envelope de resposta](RESPONSE-ENVELOPE-CONTRACT-pt-BR.md)
 
-## 2) RAG / MCP / Tools
+## 2) Isolamento de dados e segredos
+- [Isolamento de DB no tenant-manager](TENANT-MANAGER-DB-ISOLATION-pt-BR.md)
+- [Playbook de isolamento de DB por serviço](SERVICE-DB-ISOLATION-pt-BR.md)
+- [Isolamento de DB para segredos](DB-ISOLATION-SECRETS-pt-BR.md)
+
+## 3) RAG / MCP / Tools
 - [Arquitetura RAG + MCP](RAG-MCP-pt-BR.md)
 - [Estratégia de embedding](EMBEDDING-platform-mcp-pt-BR.md)
 - [Config de embedding](EMBED-CONFIG-platform-mcp-pt-BR.md)
@@ -23,19 +28,19 @@ Propósito: uma trilha de leitura para que quem chega entenda a plataforma, cont
 - [Plano de rollout (platform-mcp)](ROLLOUT-platform-mcp-pt-BR.md)
 - [Estratégia de chunking RAG](RAG_CHUNKING_STRATEGY-pt-BR.md)
 
-## 3) Voz e telefonia
+## 4) Voz e telefonia
 - [Design do voice gateway](VOICE-GATEWAY-DESIGN-pt-BR.md)
 - [Extensões de telefonia no tenant-manager](TENANT-MANAGER-TELEPHONY-EXTENSIONS-pt-BR.md)
 
-## 4) Observabilidade e eventos
+## 5) Observabilidade e eventos
 - [Métricas/observabilidade de auth](AUTH-METRICS-OBSERVABILITY-pt-BR.md) (revisite para padrões)
 - Observabilidade geral: ver READMEs dos serviços e dashboards
 
-## 5) Deploy e infra
+## 6) Deploy e infra
 - Helm/Terraform: ver READMEs em `infra/helm` e `infra/terraform`
 - Custos/rollout: ver docs em infra
 
-## 6) Checklists de referência
+## 7) Checklists de referência
 - [Notas da fase de testes](../testing-phase-notes-pt-BR.md)
 - Backlogs de serviços em `backend/go/services/*/BACKLOG.md` e libs em `backend/go/libs/*/BACKLOG.md`
 

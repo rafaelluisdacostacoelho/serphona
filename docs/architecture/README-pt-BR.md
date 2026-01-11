@@ -21,3 +21,4 @@ Este diretório contém documentação de arquitetura, diagramas e documentos de
 - [Registros de Decisões de Arquitetura](../decisions/)
 - [Índice do Livro de Arquitetura](BOOK-INDEX-pt-BR.md)
 - [Diagramas de Arquitetura](DIAGRAMS-pt-BR.md)
+- [Sumário de Arquitetura](SUMMARY-pt-BR.md)
