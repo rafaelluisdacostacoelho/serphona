@@ -234,8 +234,9 @@ services:
   # Agent Orchestrator
   agent-orchestrator:
     build:
-      context: ./backend/go/services/agent-orchestrator
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./backend/go/services/agent-orchestrator/Dockerfile
+      network: host
     container_name: serphona-agent-orchestrator
     environment:
       SERVICE_NAME: agent-orchestrator
@@ -243,7 +244,8 @@ services:
       SERVICE_AUDIENCE: serphona-services
       SERVICE_AUTH_TOKEN: ""
       HTTP_PORT: 8080
-      REDIS_URL: redis://:serphona_dev@redis:6379/2
+      REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: serphona_dev
       KAFKA_BROKERS: kafka:29092
       TENANT_MANAGER_URL: http://tenant-manager:8080
       TOOLS_GATEWAY_URL: http://tools-gateway:8080
@@ -261,8 +263,9 @@ services:
   # Tools Gateway
   tools-gateway:
     build:
-      context: ./backend/go/services/tools-gateway
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./backend/go/services/tools-gateway/Dockerfile
+      network: host
     container_name: serphona-tools-gateway
     environment:
       SERVICE_NAME: tools-gateway
@@ -271,6 +274,8 @@ services:
       SERVICE_AUTH_TOKEN: ""
       TOOLS_GATEWAY_TOKEN: dev-tools-gw-token
       HTTP_PORT: 8080
+      HTTP_ADDR: ":8080"
+      DATABASE_URL: postgres://serphona:serphona_dev@postgres:5432/serphona?sslmode=disable
       REDIS_URL: redis://:serphona_dev@redis:6379/3
       KAFKA_BROKERS: kafka:29092
       LOG_LEVEL: debug
@@ -317,17 +322,21 @@ services:
   # Billing Service
   billing-service:
     build:
-      context: ./backend/go/services/billing-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./backend/go/services/billing-service/Dockerfile
+      network: host
     container_name: serphona-billing-service
     environment:
       SERVICE_NAME: billing-service
       SERVICE_INSTANCE: billing-service-1
       SERVICE_AUDIENCE: serphona-services
       SERVICE_AUTH_TOKEN: ""
-      HTTP_PORT: 8080
+      SERVER_PORT: 8080
       DATABASE_URL: postgres://bs_user:bs_pass@billing-service-postgres:5432/billing_service?sslmode=disable
       REDIS_URL: redis://:serphona_dev@redis:6379/5
+      STRIPE_SECRET_KEY: dev-stripe-key
+      STRIPE_WEBHOOK_SECRET: dev-stripe-webhook
+      CORS_ALLOWED_ORIGINS: "*"
       KAFKA_BROKERS: kafka:29092
       LOG_LEVEL: debug
     ports:

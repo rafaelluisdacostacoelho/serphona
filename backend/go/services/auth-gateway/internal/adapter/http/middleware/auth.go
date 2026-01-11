@@ -117,6 +117,11 @@ func CORS(allowedOrigins []string, allowCredentials bool) gin.HandlerFunc {
 
 	return func(c *gin.Context) {
 		origin := c.GetHeader("Origin")
+		// Allow internal/server-to-server calls (no Origin header), including health checks.
+		if origin == "" {
+			c.Next()
+			return
+		}
 		allowed := originAllowed(origin)
 
 		if allowed {

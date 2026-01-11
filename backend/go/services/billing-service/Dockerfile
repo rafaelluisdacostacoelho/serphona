@@ -2,22 +2,26 @@
 FROM golang:1.24-alpine AS builder
 
 # Install build dependencies
-RUN apk add --no-cache git make
+RUN apk add --no-cache git make ca-certificates tzdata
 
-# Set working directory
-WORKDIR /app
+# Set workspace to include shared libs
+WORKDIR /workspace
 
-# Copy go mod files
-COPY go.mod go.sum ./
+# Use public Go proxy to improve download reliability
+ENV GOPROXY=https://goproxy.io,direct
+
+# Copy shared Go libs and service code (expects build context at repo root)
+COPY backend/go/libs ./backend/go/libs
+COPY backend/go/services/billing-service ./backend/go/services/billing-service
+
+# Move into service module
+WORKDIR /workspace/backend/go/services/billing-service
 
 # Download dependencies
 RUN go mod download
 
-# Copy source code
-COPY . .
-
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o billing-service ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -o /workspace/bin/billing-service ./cmd/server
 
 # Final stage
 FROM alpine:latest
@@ -31,9 +35,10 @@ RUN addgroup -g 1000 app && \
 
 WORKDIR /app
 
-# Copy binary from builder
-COPY --from=builder /app/billing-service .
-COPY --from=builder /app/migrations ./migrations
+# Copy binary and assets from builder
+COPY --from=builder /workspace/bin/billing-service /app/billing-service
+COPY --from=builder /workspace/backend/go/services/billing-service/migrations /app/migrations
+COPY --from=builder /workspace/backend/go/services/billing-service/docs /app/docs
 
 # Change ownership
 RUN chown -R app:app /app
@@ -42,11 +47,11 @@ RUN chown -R app:app /app
 USER app
 
 # Expose port
-EXPOSE 8081
+EXPOSE 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8081/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
 
 # Run the application
 CMD ["./billing-service"]

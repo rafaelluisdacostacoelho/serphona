@@ -2,24 +2,28 @@
 FROM golang:1.24-alpine AS builder
 
 # Install build dependencies
-RUN apk add --no-cache git ca-certificates
+RUN apk add --no-cache git ca-certificates tzdata
 
-# Set working directory
-WORKDIR /build
+# Set workspace to include shared libs
+WORKDIR /workspace
 
-# Copy go mod files
-COPY go.mod go.sum ./
+# Use public Go proxy to improve download reliability
+ENV GOPROXY=https://goproxy.io,direct
+
+# Copy shared Go libs and service code (expects build context at repo root)
+COPY backend/go/libs ./backend/go/libs
+COPY backend/go/services/agent-orchestrator ./backend/go/services/agent-orchestrator
+
+# Move into service module
+WORKDIR /workspace/backend/go/services/agent-orchestrator
 
 # Download dependencies
 RUN go mod download
 
-# Copy source code
-COPY . .
-
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags="-w -s" \
-    -o /app/agent-orchestrator \
+    -o /workspace/bin/agent-orchestrator \
     ./cmd/server
 
 # Runtime stage
@@ -35,8 +39,10 @@ RUN addgroup -g 1000 appuser && \
 # Set working directory
 WORKDIR /app
 
-# Copy binary from builder
-COPY --from=builder /app/agent-orchestrator .
+# Copy binary and assets from builder
+COPY --from=builder /workspace/bin/agent-orchestrator /app/agent-orchestrator
+COPY --from=builder /workspace/backend/go/services/agent-orchestrator/docs /app/docs
+COPY --from=builder /workspace/backend/go/services/agent-orchestrator/migrations /app/migrations
 
 # Change ownership
 RUN chown -R appuser:appuser /app

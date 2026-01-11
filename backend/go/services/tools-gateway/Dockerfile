@@ -4,22 +4,27 @@ FROM golang:1.24-alpine AS builder
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates tzdata
 
-WORKDIR /build
+# Set workspace to include shared libs
+WORKDIR /workspace
 
-# Copy go mod files
-COPY go.mod go.sum ./
+# Use public Go proxy to improve download reliability
+ENV GOPROXY=https://goproxy.io,direct
+
+# Copy shared Go libs and service code (expects build context at repo root)
+COPY backend/go/libs ./backend/go/libs
+COPY backend/go/services/tools-gateway ./backend/go/services/tools-gateway
+
+# Move into service module
+WORKDIR /workspace/backend/go/services/tools-gateway
 
 # Download dependencies
 RUN go mod download
 
-# Copy source code
-COPY . .
-
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags="-w -s" \
-    -o tools-gateway \
-    ./cmd/api
+    -o /workspace/bin/tools-gateway \
+    ./cmd/server
 
 # Final stage
 FROM alpine:3.19
@@ -33,9 +38,10 @@ RUN addgroup -g 1000 appuser && \
 
 WORKDIR /app
 
-# Copy binary from builder
-COPY --from=builder /build/tools-gateway .
-COPY --from=builder /build/migrations ./migrations
+# Copy binary and assets from builder
+COPY --from=builder /workspace/bin/tools-gateway /app/tools-gateway
+COPY --from=builder /workspace/backend/go/services/tools-gateway/migrations /app/migrations
+COPY --from=builder /workspace/backend/go/services/tools-gateway/docs /app/docs
 
 # Change ownership
 RUN chown -R appuser:appuser /app

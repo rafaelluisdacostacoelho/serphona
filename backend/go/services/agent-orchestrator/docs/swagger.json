@@ -1,0 +1,13 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Agent Orchestrator API",
+    "version": "1.0.0",
+    "description": "Agent sessions and orchestration API"
+  },
+  "paths": {
+    "/health": {
+      "get": {"summary": "Health check", "responses": {"200": {"description": "OK"}}}
+    }
+  }
+}
