@@ -50,21 +50,21 @@ Provide the governed tool catalog and policy control-plane for Serphona. Tools M
 	- [x] Testes de migracoes/RLS; matriz de politica; resolucao com overrides; limites de schema; acesso a segredos; cache/ETag; contratos com gateway consumer
 	- [x] Static analysis (gosec), fuzz de DTOs de input, load smoke para read APIs
 
-- [ ] Docs and runbooks
-	- [ ] How-to: add/update/publish tool, politicas/quotas, habilitar tenant, rotacionar segredos, rollback
-	- [ ] Checklist de versionamento/breaking-change; notas de integracao MCP/gateway; dashboards/alertas e runbook de oncall
+- [x] Docs and runbooks
+	- [x] How-to: add/update/publish tool, politicas/quotas, habilitar tenant, rotacionar segredos, rollback
+	- [x] Checklist de versionamento/breaking-change; notas de integracao MCP/gateway; dashboards/alertas e runbook de oncall
 
 ## Config to surface
 - ISSUER/AUDIENCE/REQUIRED_SCOPES, TENANT_CLAIM, JWKS_URL/JWT_SECRET; POSTGRES_DSN + TLS/pool/migrations toggle; VAULT/KMS settings; CACHE_TTL/ETAG; RATE/QUOTA defaults; KAFKA/Webhook endpoints; TRACE/METRICS exporters; LOG level/format.
 
 ## Test coverage checklist
-- [ ] RLS/tenant isolation and migrations
-- [ ] Schema validation limits (depth/size/fields) and host/protocol allowlist
-- [ ] Policy allow/deny matrix and quotas
-- [ ] Catalog resolution with tenant overrides and ETag/cache
-- [ ] Secret access/rotation guards
-- [ ] Gateway/platform-mcp consumer contract
-- [ ] Metrics/tracing/audit emission
+- [x] RLS/tenant isolation and migrations
+- [x] Schema validation limits (depth/size/fields) and host/protocol allowlist
+- [x] Policy allow/deny matrix and quotas
+- [x] Catalog resolution with tenant overrides and ETag/cache
+- [x] Secret access/rotation guards
+- [x] Gateway/platform-mcp consumer contract
+- [x] Metrics/tracing/audit emission
 
 ## Next steps
 - Ship scaffold + data model + validation; implement policy engine and secrets; expose read API + change events for gateway/mcp; add observability and contract tests; document workflows.
