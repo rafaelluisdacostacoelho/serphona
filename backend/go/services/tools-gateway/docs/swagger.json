@@ -5,6 +5,16 @@
     "version": "1.0.0",
     "description": "Service that catalogs tenant tools, enforces execution policies, and proxies HTTP/GRPC calls with audit-friendly metadata."
   },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [ {"bearerAuth": []} ],
   "tags": [
     { "name": "System", "description": "Health and observability endpoints" },
     { "name": "Tools", "description": "CRUD and execution of registered tools" }
@@ -31,12 +41,43 @@
         "tags": ["Tools"],
         "summary": "List tools",
         "description": "Returns tools visible to the caller's tenant with pagination defaults.",
+        "security": [{"bearerAuth": []}],
         "responses": {"200": {"description": "Tool list"}}
       },
       "post": {
         "tags": ["Tools"],
         "summary": "Create tool",
         "description": "Registers a new tool definition (auth + scopes required).",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {"type": "string"},
+                  "description": {"type": "string"},
+                  "type": {"type": "string", "example": "http"},
+                  "endpoint": {"type": "string", "example": "https://api.example.com/do"},
+                  "method": {"type": "string", "example": "POST"},
+                  "allowed_hosts": {"type": "array", "items": {"type": "string"}},
+                  "schema": {"type": "object"}
+                },
+                "required": ["name", "type", "endpoint", "method"]
+              },
+              "example": {
+                "name": "translate",
+                "description": "Translate text",
+                "type": "http",
+                "endpoint": "https://api.example.com/translate",
+                "method": "POST",
+                "allowed_hosts": ["api.example.com"],
+                "schema": {"input": "text", "output": "text"}
+              }
+            }
+          }
+        },
         "responses": {"201": {"description": "Tool created"}}
       }
     },
@@ -46,6 +87,7 @@
         "summary": "Get tool",
         "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
         "description": "Fetches a tool by ID if the tenant has access.",
+        "security": [{"bearerAuth": []}],
         "responses": {"200": {"description": "Tool details"}}
       }
     },
@@ -55,6 +97,19 @@
         "summary": "Execute tool",
         "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
         "description": "Executes a tool using enforced allowlists for hosts/methods/headers and propagates service identity headers.",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Arbitrary payload forwarded to the tool endpoint"
+              },
+              "example": {"text": "Hello"}
+            }
+          }
+        },
         "responses": {"200": {"description": "Execution started"}}
       }
     }
