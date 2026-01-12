@@ -3,11 +3,132 @@
   "info": {
     "title": "Agent Orchestrator API",
     "version": "1.0.0",
-    "description": "Agent sessions and orchestration API"
+    "description": "Manages multi-turn agent sessions, message routing to LLMs, and tool orchestration with session state in Redis/Postgres."
   },
+  "tags": [
+    { "name": "System", "description": "Health/readiness/metrics" },
+    { "name": "Sessions", "description": "Conversation sessions and messages" },
+    { "name": "Agents", "description": "Agent lifecycle and activation" }
+  ],
   "paths": {
     "/health": {
-      "get": {"summary": "Health check", "responses": {"200": {"description": "OK"}}}
+      "get": {
+        "tags": ["System"],
+        "summary": "Health check",
+        "description": "Liveness probe; no auth required.",
+        "responses": {"200": {"description": "Service is alive"}}
+      }
+    },
+    "/ready": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Readiness check",
+        "description": "Confirms downstream readiness (Redis/DB) when configured.",
+        "responses": {"200": {"description": "Ready"}}
+      }
+    },
+    "/metrics": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Prometheus metrics",
+        "description": "Prometheus scrape endpoint.",
+        "responses": {"200": {"description": "Prometheus exposition format"}}
+      }
+    },
+    "/api/v1/sessions": {
+      "post": {
+        "tags": ["Sessions"],
+        "summary": "Create session",
+        "description": "Starts a new agent session with state persisted in Redis and optional DB mirror.",
+        "responses": {"201": {"description": "Session created"}}
+      }
+    },
+    "/api/v1/sessions/{id}": {
+      "get": {
+        "tags": ["Sessions"],
+        "summary": "Get session",
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "description": "Retrieves session metadata and last known status.",
+        "responses": {"200": {"description": "Session"}}
+      },
+      "delete": {
+        "tags": ["Sessions"],
+        "summary": "End session",
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "description": "Gracefully ends a session and clears cache entries.",
+        "responses": {"204": {"description": "Ended"}}
+      }
+    },
+    "/api/v1/sessions/{id}/messages": {
+      "post": {
+        "tags": ["Sessions"],
+        "summary": "Send message",
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "description": "Sends a user/agent message; the orchestrator routes to LLM/tools and returns the response.",
+        "responses": {"200": {"description": "Message processed"}}
+      },
+      "get": {
+        "tags": ["Sessions"],
+        "summary": "Get messages",
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "description": "Streams or lists messages exchanged in the session.",
+        "responses": {"200": {"description": "Messages"}}
+      }
+    },
+    "/api/v1/agents": {
+      "post": {
+        "tags": ["Agents"],
+        "summary": "Create agent",
+        "description": "Registers an agent profile (prompt/config) for later activation.",
+        "responses": {"201": {"description": "Agent created"}}
+      },
+      "get": {
+        "tags": ["Agents"],
+        "summary": "List agents",
+        "description": "Lists agents scoped to the tenant.",
+        "responses": {"200": {"description": "Agent list"}}
+      }
+    },
+    "/api/v1/agents/{id}": {
+      "get": {
+        "tags": ["Agents"],
+        "summary": "Get agent",
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "description": "Returns agent definition for inspection.",
+        "responses": {"200": {"description": "Agent"}}
+      },
+      "put": {
+        "tags": ["Agents"],
+        "summary": "Update agent",
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "description": "Updates prompt/config; may trigger versioning depending on impl.",
+        "responses": {"200": {"description": "Updated"}}
+      },
+      "delete": {
+        "tags": ["Agents"],
+        "summary": "Delete agent",
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "description": "Removes an agent; running sessions are unaffected unless enforced elsewhere.",
+        "responses": {"204": {"description": "Deleted"}}
+      }
+    },
+    "/api/v1/agents/{id}/activate": {
+      "post": {
+        "tags": ["Agents"],
+        "summary": "Activate agent",
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "description": "Marks the agent as active/usable for new sessions.",
+        "responses": {"200": {"description": "Activated"}}
+      }
+    },
+    "/api/v1/agents/{id}/deactivate": {
+      "post": {
+        "tags": ["Agents"],
+        "summary": "Deactivate agent",
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "description": "Suspends the agent for new sessions; existing sessions may continue depending on policy.",
+        "responses": {"200": {"description": "Deactivated"}}
+      }
     }
   }
 }

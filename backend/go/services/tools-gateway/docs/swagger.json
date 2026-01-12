@@ -3,13 +3,59 @@
   "info": {
     "title": "Tools Gateway API",
     "version": "1.0.0",
-    "description": "Tools registration and execution API"
+    "description": "Service that catalogs tenant tools, enforces execution policies, and proxies HTTP/GRPC calls with audit-friendly metadata."
   },
+  "tags": [
+    { "name": "System", "description": "Health and observability endpoints" },
+    { "name": "Tools", "description": "CRUD and execution of registered tools" }
+  ],
   "paths": {
     "/health": {
       "get": {
+        "tags": ["System"],
         "summary": "Health check",
-        "responses": {"200": {"description": "OK"}}
+        "description": "Liveness probe; no auth required.",
+        "responses": {"200": {"description": "Service is alive"}}
+      }
+    },
+    "/metrics": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Prometheus metrics",
+        "description": "Prometheus scrape endpoint (no auth).",
+        "responses": {"200": {"description": "Prometheus exposition format"}}
+      }
+    },
+    "/api/v1/tools": {
+      "get": {
+        "tags": ["Tools"],
+        "summary": "List tools",
+        "description": "Returns tools visible to the caller's tenant with pagination defaults.",
+        "responses": {"200": {"description": "Tool list"}}
+      },
+      "post": {
+        "tags": ["Tools"],
+        "summary": "Create tool",
+        "description": "Registers a new tool definition (auth + scopes required).",
+        "responses": {"201": {"description": "Tool created"}}
+      }
+    },
+    "/api/v1/tools/{id}": {
+      "get": {
+        "tags": ["Tools"],
+        "summary": "Get tool",
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "description": "Fetches a tool by ID if the tenant has access.",
+        "responses": {"200": {"description": "Tool details"}}
+      }
+    },
+    "/api/v1/tools/{id}/execute": {
+      "post": {
+        "tags": ["Tools"],
+        "summary": "Execute tool",
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "description": "Executes a tool using enforced allowlists for hosts/methods/headers and propagates service identity headers.",
+        "responses": {"200": {"description": "Execution started"}}
       }
     }
   }

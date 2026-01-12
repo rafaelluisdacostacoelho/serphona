@@ -3,11 +3,170 @@
   "info": {
     "title": "Billing Service API",
     "version": "1.0.0",
-    "description": "Billing and charges API"
+    "description": "Handles billing lifecycle: customers, subscriptions, invoices, wallet credits, Stripe checkout/portal, and usage reporting."
   },
+  "tags": [
+    { "name": "System", "description": "Health and observability" },
+    { "name": "Webhooks", "description": "Stripe webhooks" },
+    { "name": "Customers", "description": "Tenant customer linkage" },
+    { "name": "Subscriptions", "description": "Plan subscription lifecycle" },
+    { "name": "Invoices", "description": "Invoice retrieval" },
+    { "name": "Catalog", "description": "Plans and products" },
+    { "name": "Usage", "description": "Usage metering" },
+    { "name": "Wallet", "description": "Credit wallet operations" },
+    { "name": "Checkout", "description": "Stripe checkout and portal" }
+  ],
   "paths": {
     "/health": {
-      "get": {"summary": "Health check", "responses": {"200": {"description": "OK"}}}
+      "get": {
+        "tags": ["System"],
+        "summary": "Health check",
+        "description": "Liveness probe; no auth required.",
+        "responses": {"200": {"description": "Service is alive"}}
+      }
+    },
+    "/metrics": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Prometheus metrics",
+        "description": "Prometheus scrape endpoint.",
+        "responses": {"200": {"description": "Prometheus exposition format"}}
+      }
+    },
+    "/webhooks/stripe": {
+      "post": {
+        "tags": ["Webhooks"],
+        "summary": "Stripe webhook",
+        "description": "Consumes Stripe events (signing secret required).",
+        "responses": {"200": {"description": "Received"}}
+      }
+    },
+    "/api/v1/customers": {
+      "post": {
+        "tags": ["Customers"],
+        "summary": "Create customer",
+        "description": "Creates or links a Stripe customer to the tenant.",
+        "responses": {"201": {"description": "Customer created"}}
+      }
+    },
+    "/api/v1/customers/{id}": {
+      "get": {
+        "tags": ["Customers"],
+        "summary": "Get customer",
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "description": "Fetches customer details by Stripe/tenant linkage ID.",
+        "responses": {"200": {"description": "Customer"}}
+      }
+    },
+    "/api/v1/subscriptions": {
+      "get": {
+        "tags": ["Subscriptions"],
+        "summary": "List subscriptions",
+        "description": "Lists subscriptions for the tenant (pulls from DB/Stripe cache).",
+        "responses": {"200": {"description": "List"}}
+      },
+      "post": {
+        "tags": ["Subscriptions"],
+        "summary": "Create subscription",
+        "description": "Creates a subscription to a plan and syncs with Stripe.",
+        "responses": {"201": {"description": "Created"}}
+      }
+    },
+    "/api/v1/subscriptions/{id}": {
+      "get": {
+        "tags": ["Subscriptions"],
+        "summary": "Get subscription",
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "description": "Gets subscription details and status.",
+        "responses": {"200": {"description": "Subscription"}}
+      },
+      "put": {
+        "tags": ["Subscriptions"],
+        "summary": "Update subscription",
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "description": "Updates plan/quantity; propagates to Stripe.",
+        "responses": {"200": {"description": "Updated"}}
+      },
+      "delete": {
+        "tags": ["Subscriptions"],
+        "summary": "Cancel subscription",
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "description": "Cancels at period end (default) unless policy overrides.",
+        "responses": {"204": {"description": "Canceled"}}
+      }
+    },
+    "/api/v1/invoices": {
+      "get": {
+        "tags": ["Invoices"],
+        "summary": "List invoices",
+        "description": "Lists invoices for the tenant.",
+        "responses": {"200": {"description": "List"}}
+      }
+    },
+    "/api/v1/invoices/{id}": {
+      "get": {
+        "tags": ["Invoices"],
+        "summary": "Get invoice",
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "description": "Retrieves invoice details and payment status.",
+        "responses": {"200": {"description": "Invoice"}}
+      }
+    },
+    "/api/v1/plans": {
+      "get": {
+        "tags": ["Catalog"],
+        "summary": "List plans",
+        "description": "Returns pricing plans configured in the catalog.",
+        "responses": {"200": {"description": "Plans"}}
+      }
+    },
+    "/api/v1/products": {
+      "get": {
+        "tags": ["Catalog"],
+        "summary": "List products",
+        "description": "Lists products mapped to Stripe catalog entries.",
+        "responses": {"200": {"description": "Products"}}
+      }
+    },
+    "/api/v1/usage": {
+      "get": {
+        "tags": ["Usage"],
+        "summary": "Get usage",
+        "description": "Returns metered usage aggregated for the tenant.",
+        "responses": {"200": {"description": "Usage"}}
+      }
+    },
+    "/api/v1/wallet": {
+      "get": {
+        "tags": ["Wallet"],
+        "summary": "Get wallet",
+        "description": "Returns wallet balance and currency.",
+        "responses": {"200": {"description": "Wallet"}}
+      }
+    },
+    "/api/v1/wallet/topup": {
+      "post": {
+        "tags": ["Wallet"],
+        "summary": "Top up wallet",
+        "description": "Adds credits to the wallet (backed by Stripe payment).",
+        "responses": {"200": {"description": "Topped up"}}
+      }
+    },
+    "/api/v1/portal-session": {
+      "post": {
+        "tags": ["Checkout"],
+        "summary": "Create billing portal session",
+        "description": "Creates a Stripe Billing Portal session for self-service management.",
+        "responses": {"200": {"description": "Session"}}
+      }
+    },
+    "/api/v1/checkout-session": {
+      "post": {
+        "tags": ["Checkout"],
+        "summary": "Create checkout session",
+        "description": "Creates a Stripe Checkout session for purchasing a plan/top-up.",
+        "responses": {"200": {"description": "Session"}}
+      }
     }
   }
 }

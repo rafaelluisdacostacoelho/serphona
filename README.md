@@ -202,7 +202,7 @@ serphona/
 ## 🚀 Quick Start
 
 ### Pré-requisitos
-- Docker & Docker Compose
+- Docker 27+ com Docker Compose v2 (plugin `docker compose`)
 - Node.js 18+
 - Go 1.24+
 - Python 3.11+
@@ -216,7 +216,7 @@ git clone https://github.com/your-org/serphona.git
 cd serphona
 
 # Suba a infra local (Postgres, Kafka, Redis e serviços core)
-docker-compose -f docker-compose.yml up -d
+docker compose -f docker-compose.yml up -d
 
 # Frontend
 cd frontend/console
