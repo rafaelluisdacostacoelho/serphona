@@ -5,6 +5,16 @@
     "version": "1.0.0",
     "description": "Manages multi-turn agent sessions, message routing to LLMs, and tool orchestration with session state in Redis/Postgres."
   },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [ {"bearerAuth": []} ],
   "tags": [
     { "name": "System", "description": "Health/readiness/metrics" },
     { "name": "Sessions", "description": "Conversation sessions and messages" },
@@ -16,6 +26,7 @@
         "tags": ["System"],
         "summary": "Health check",
         "description": "Liveness probe; no auth required.",
+        "security": [],
         "responses": {"200": {"description": "Service is alive"}}
       }
     },
@@ -24,6 +35,7 @@
         "tags": ["System"],
         "summary": "Readiness check",
         "description": "Confirms downstream readiness (Redis/DB) when configured.",
+        "security": [],
         "responses": {"200": {"description": "Ready"}}
       }
     },
@@ -32,6 +44,7 @@
         "tags": ["System"],
         "summary": "Prometheus metrics",
         "description": "Prometheus scrape endpoint.",
+        "security": [],
         "responses": {"200": {"description": "Prometheus exposition format"}}
       }
     },
@@ -40,6 +53,29 @@
         "tags": ["Sessions"],
         "summary": "Create session",
         "description": "Starts a new agent session with state persisted in Redis and optional DB mirror.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tenant_id": {"type": "string", "format": "uuid"},
+                  "user_id": {"type": "string", "format": "uuid"},
+                  "channel_type": {"type": "string", "enum": ["voice", "text", "api"]},
+                  "channel_id": {"type": "string"}
+                },
+                "required": ["tenant_id", "user_id", "channel_type", "channel_id"]
+              },
+              "example": {
+                "tenant_id": "11111111-1111-1111-1111-111111111111",
+                "user_id": "22222222-2222-2222-2222-222222222222",
+                "channel_type": "text",
+                "channel_id": "web-chat-123"
+              }
+            }
+          }
+        },
         "responses": {"201": {"description": "Session created"}}
       }
     },
@@ -65,6 +101,25 @@
         "summary": "Send message",
         "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
         "description": "Sends a user/agent message; the orchestrator routes to LLM/tools and returns the response.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "content": {"type": "string"},
+                  "user_id": {"type": "string", "format": "uuid"}
+                },
+                "required": ["content", "user_id"]
+              },
+              "example": {
+                "content": "Hello, summarize this call.",
+                "user_id": "22222222-2222-2222-2222-222222222222"
+              }
+            }
+          }
+        },
         "responses": {"200": {"description": "Message processed"}}
       },
       "get": {
@@ -80,6 +135,41 @@
         "tags": ["Agents"],
         "summary": "Create agent",
         "description": "Registers an agent profile (prompt/config) for later activation.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tenant_id": {"type": "string", "format": "uuid"},
+                  "name": {"type": "string"},
+                  "display_name": {"type": "string"},
+                  "description": {"type": "string"},
+                  "system_prompt": {"type": "string"},
+                  "model": {"type": "string"},
+                  "temperature": {"type": "number", "format": "float"},
+                  "max_tokens": {"type": "integer"},
+                  "tools": {"type": "array", "items": {"type": "string"}},
+                  "is_active": {"type": "boolean"}
+                },
+                "required": ["tenant_id", "name", "display_name", "system_prompt", "model"]
+              },
+              "example": {
+                "tenant_id": "11111111-1111-1111-1111-111111111111",
+                "name": "support-agent",
+                "display_name": "Support Agent",
+                "description": "Handles customer support",
+                "system_prompt": "You are a helpful support agent.",
+                "model": "gpt-4.1",
+                "temperature": 0.3,
+                "max_tokens": 1024,
+                "tools": ["crm_lookup", "ticket_create"],
+                "is_active": true
+              }
+            }
+          }
+        },
         "responses": {"201": {"description": "Agent created"}}
       },
       "get": {
@@ -102,6 +192,34 @@
         "summary": "Update agent",
         "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
         "description": "Updates prompt/config; may trigger versioning depending on impl.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {"type": "string"},
+                  "display_name": {"type": "string"},
+                  "description": {"type": "string"},
+                  "system_prompt": {"type": "string"},
+                  "model": {"type": "string"},
+                  "temperature": {"type": "number", "format": "float"},
+                  "max_tokens": {"type": "integer"},
+                  "tools": {"type": "array", "items": {"type": "string"}},
+                  "is_active": {"type": "boolean"}
+                }
+              },
+              "example": {
+                "display_name": "Support Agent v2",
+                "system_prompt": "You are concise and action-oriented.",
+                "temperature": 0.2,
+                "tools": ["crm_lookup", "ticket_create", "billing_lookup"],
+                "is_active": true
+              }
+            }
+          }
+        },
         "responses": {"200": {"description": "Updated"}}
       },
       "delete": {
