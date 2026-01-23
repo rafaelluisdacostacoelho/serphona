@@ -20,6 +20,14 @@ func NewToolRepository(db *gorm.DB) repository.ToolRepository {
 	return &toolRepositoryImpl{db: db}
 }
 
+// accessibleScope restricts tools to public or enabled for the given tenant.
+func (r *toolRepositoryImpl) accessibleScope(query *gorm.DB, tenantID uuid.UUID) *gorm.DB {
+	return query.Where(
+		"(is_public = ? OR EXISTS (SELECT 1 FROM tenant_tools tt WHERE tt.tool_id = tools.id AND tt.tenant_id = ? AND tt.is_enabled = ?))",
+		true, tenantID, true,
+	)
+}
+
 // Create creates a new tool
 func (r *toolRepositoryImpl) Create(ctx context.Context, tool *entity.Tool) error {
 	return r.db.WithContext(ctx).Create(tool).Error
@@ -32,6 +40,19 @@ func (r *toolRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*entit
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf("tool not found: %w", err)
+		}
+		return nil, err
+	}
+	return &tool, nil
+}
+
+// FindAccessibleByID finds a tool visible to the given tenant (public or enabled).
+func (r *toolRepositoryImpl) FindAccessibleByID(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) (*entity.Tool, error) {
+	var tool entity.Tool
+	query := r.accessibleScope(r.db.WithContext(ctx).Model(&entity.Tool{}), tenantID).Where("id = ?", id)
+	if err := query.First(&tool).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("tool not found or not enabled for tenant: %w", err)
 		}
 		return nil, err
 	}
@@ -56,45 +77,29 @@ func (r *toolRepositoryImpl) FindAll(ctx context.Context, filters repository.Too
 	var tools []*entity.Tool
 	var total int64
 
-	query := r.db.WithContext(ctx).Model(&entity.Tool{})
+	query := applyToolFilters(r.db.WithContext(ctx).Model(&entity.Tool{}), filters)
 
-	// Apply filters
-	if filters.Category != "" {
-		query = query.Where("category = ?", filters.Category)
-	}
-
-	if filters.IsActive != nil {
-		query = query.Where("is_active = ?", *filters.IsActive)
-	}
-
-	if filters.IsPublic != nil {
-		query = query.Where("is_public = ?", *filters.IsPublic)
-	}
-
-	if filters.Search != "" {
-		searchPattern := "%" + filters.Search + "%"
-		query = query.Where(
-			"name ILIKE ? OR display_name ILIKE ? OR description ILIKE ?",
-			searchPattern, searchPattern, searchPattern,
-		)
-	}
-
-	// Get total count
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	// Apply pagination
-	if filters.Limit > 0 {
-		query = query.Limit(filters.Limit)
+	if err := query.Find(&tools).Error; err != nil {
+		return nil, 0, err
 	}
 
-	if filters.Offset > 0 {
-		query = query.Offset(filters.Offset)
-	}
+	return tools, total, nil
+}
 
-	// Order by created_at desc
-	query = query.Order("created_at DESC")
+// FindAllAccessible finds tools visible to the given tenant (public or enabled) with filters.
+func (r *toolRepositoryImpl) FindAllAccessible(ctx context.Context, tenantID uuid.UUID, filters repository.ToolFilters) ([]*entity.Tool, int64, error) {
+	var tools []*entity.Tool
+	var total int64
+
+	query := applyToolFilters(r.accessibleScope(r.db.WithContext(ctx).Model(&entity.Tool{}), tenantID), filters)
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
 
 	if err := query.Find(&tools).Error; err != nil {
 		return nil, 0, err
@@ -137,4 +142,37 @@ func (r *toolRepositoryImpl) FindByCategory(ctx context.Context, category string
 		return nil, err
 	}
 	return tools, nil
+}
+
+// applyToolFilters applies common filters and pagination ordering.
+func applyToolFilters(query *gorm.DB, filters repository.ToolFilters) *gorm.DB {
+	if filters.Category != "" {
+		query = query.Where("category = ?", filters.Category)
+	}
+
+	if filters.IsActive != nil {
+		query = query.Where("is_active = ?", *filters.IsActive)
+	}
+
+	if filters.IsPublic != nil {
+		query = query.Where("is_public = ?", *filters.IsPublic)
+	}
+
+	if filters.Search != "" {
+		searchPattern := "%" + filters.Search + "%"
+		query = query.Where(
+			"name ILIKE ? OR display_name ILIKE ? OR description ILIKE ?",
+			searchPattern, searchPattern, searchPattern,
+		)
+	}
+
+	if filters.Limit > 0 {
+		query = query.Limit(filters.Limit)
+	}
+
+	if filters.Offset > 0 {
+		query = query.Offset(filters.Offset)
+	}
+
+	return query.Order("created_at DESC")
 }

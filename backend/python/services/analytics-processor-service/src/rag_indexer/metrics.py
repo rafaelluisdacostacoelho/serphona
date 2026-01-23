@@ -7,6 +7,21 @@ FETCH_FAILED = Counter("rag_fetch_failed_total", "Fetch failed", ["scheme"])
 
 EMBED_ATTEMPTS = Counter("rag_embedding_attempts_total", "Embedding attempts", [])
 EMBED_FAILED = Counter("rag_embedding_failed_total", "Embedding failed", [])
+EMBED_TOKENS = Counter(
+	"rag_embedding_tokens_total",
+	"Embedding tokens processed",
+	["tenant_id", "namespace"],
+)
+EMBED_COST_USD = Counter(
+	"rag_embedding_cost_usd_total",
+	"Estimated embedding cost in USD",
+	["tenant_id", "namespace"],
+)
+EMBED_QUOTA_EXCEEDED = Counter(
+	"rag_embedding_quota_exceeded_total",
+	"Embedding quota exceeded events",
+	["tenant_id", "namespace", "kind"],
+)
 
 UPSERT_ATTEMPTS = Counter("rag_upsert_attempts_total", "Upsert attempts", [])
 UPSERT_FAILED = Counter("rag_upsert_failed_total", "Upsert failed", [])

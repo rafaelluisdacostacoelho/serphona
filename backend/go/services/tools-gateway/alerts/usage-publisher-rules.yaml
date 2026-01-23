@@ -1,0 +1,37 @@
+groups:
+  - name: tools-gateway-usage-publisher
+    interval: 30s
+    rules:
+      - alert: UsagePublisherRetrySpike
+        expr: |
+          sum by (sink) (rate(tools_gateway_usage_publish_attempts_total{outcome=~"retryable|transport_error"}[5m]))
+            /
+          sum by (sink) (rate(tools_gateway_usage_publish_attempts_total{outcome!="attempt"}[5m]))
+            > 0.2
+        for: 5m
+        labels:
+          severity: warning
+          service: tools-gateway
+        annotations:
+          summary: "Usage publisher high retry rate (sink: {{ $labels.sink }})"
+          description: "Retryable errors exceed 20% of publishes over 5m. Investigate downstream availability."
+
+      - alert: UsagePublisherBreakerOpen
+        expr: max_over_time(tools_gateway_usage_publish_breaker_state[2m]) == 1
+        for: 2m
+        labels:
+          severity: critical
+          service: tools-gateway
+        annotations:
+          summary: "Usage publisher circuit breaker open"
+          description: "Breaker is open for usage publishing sink/target {{ $labels.sink }}/{{ $labels.target }} for >2m."
+
+      - alert: UsagePublisherRateLimited
+        expr: sum by (sink, target) (rate(tools_gateway_usage_publish_attempts_total{outcome="rate_limited"}[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: tools-gateway
+        annotations:
+          summary: "Usage publisher receiving 429s"
+          description: "Rate-limited responses >0.1/s on sink/target {{ $labels.sink }}/{{ $labels.target }} over 5m."

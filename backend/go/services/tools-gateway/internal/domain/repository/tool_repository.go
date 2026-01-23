@@ -18,8 +18,14 @@ type ToolRepository interface {
 	// FindByName finds a tool by name
 	FindByName(ctx context.Context, name string) (*entity.Tool, error)
 
+	// FindAccessibleByID finds a tool by ID that is either public or enabled for the given tenant
+	FindAccessibleByID(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) (*entity.Tool, error)
+
 	// FindAll finds all tools with optional filters
 	FindAll(ctx context.Context, filters ToolFilters) ([]*entity.Tool, int64, error)
+
+	// FindAllAccessible finds all tools visible to a tenant (public or enabled) with optional filters
+	FindAllAccessible(ctx context.Context, tenantID uuid.UUID, filters ToolFilters) ([]*entity.Tool, int64, error)
 
 	// Update updates an existing tool
 	Update(ctx context.Context, tool *entity.Tool) error

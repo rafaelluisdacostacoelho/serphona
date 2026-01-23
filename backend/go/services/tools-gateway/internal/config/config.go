@@ -8,10 +8,12 @@ import (
 
 // Config holds runtime configuration for tools-gateway.
 type Config struct {
-	HTTPAddr string `envconfig:"HTTP_ADDR" default:":8085"`
+	HTTPAddr     string `envconfig:"HTTP_ADDR" default:":8085"`
+	MaxBodyBytes int    `envconfig:"HTTP_MAX_BODY_BYTES" default:"1048576"`
 
 	Auth      AuthConfig
 	Execution ExecutionConfig
+	Billing   BillingConfig
 }
 
 // AuthConfig maps platform-auth settings.
@@ -32,13 +34,31 @@ type AuthConfig struct {
 
 // ExecutionConfig governs outbound execution guardrails.
 type ExecutionConfig struct {
-	AllowedHosts    []string `envconfig:"EXEC_ALLOWED_HOSTS"`
-	MaxPayloadBytes int      `envconfig:"EXEC_MAX_PAYLOAD_BYTES" default:"1048576"`
-	AllowedMethods  []string `envconfig:"EXEC_ALLOWED_METHODS" default:"GET,POST,PUT,PATCH,DELETE"`
-	BlockedMethods  []string `envconfig:"EXEC_BLOCKED_METHODS"`
-	AllowedHeaders  []string `envconfig:"EXEC_ALLOWED_HEADERS"`
-	BlockedHeaders  []string `envconfig:"EXEC_BLOCKED_HEADERS"`
-	MaxQueryParams  int      `envconfig:"EXEC_MAX_QUERY_PARAMS" default:"25"`
+	AllowedHosts      []string `envconfig:"EXEC_ALLOWED_HOSTS"`
+	MaxPayloadBytes   int      `envconfig:"EXEC_MAX_PAYLOAD_BYTES" default:"1048576"`
+	MaxTimeoutSeconds int      `envconfig:"EXEC_MAX_TIMEOUT_SECONDS" default:"30"`
+	AllowedMethods    []string `envconfig:"EXEC_ALLOWED_METHODS" default:"GET,POST,PUT,PATCH,DELETE"`
+	BlockedMethods    []string `envconfig:"EXEC_BLOCKED_METHODS"`
+	AllowedHeaders    []string `envconfig:"EXEC_ALLOWED_HEADERS"`
+	BlockedHeaders    []string `envconfig:"EXEC_BLOCKED_HEADERS"`
+	MaxQueryParams    int      `envconfig:"EXEC_MAX_QUERY_PARAMS" default:"25"`
+}
+
+// BillingConfig controls usage event publishing to billing/analytics sinks.
+type BillingConfig struct {
+	UsageEndpoint   string        `envconfig:"USAGE_PUBLISH_ENDPOINT"`
+	Enabled         bool          `envconfig:"USAGE_PUBLISH_ENABLED" default:"true"`
+	AuthToken       string        `envconfig:"USAGE_PUBLISH_TOKEN"`
+	Timeout         time.Duration `envconfig:"USAGE_PUBLISH_TIMEOUT" default:"3s"`
+	RetryMax        uint          `envconfig:"USAGE_PUBLISH_RETRY_MAX" default:"3"`
+	RetryBackoff    time.Duration `envconfig:"USAGE_PUBLISH_RETRY_BACKOFF" default:"250ms"`
+	BreakerEnabled  bool          `envconfig:"USAGE_PUBLISH_BREAKER_ENABLED" default:"true"`
+	BreakerFailures uint          `envconfig:"USAGE_PUBLISH_BREAKER_FAILURES" default:"3"`
+	BreakerReset    time.Duration `envconfig:"USAGE_PUBLISH_BREAKER_RESET" default:"30s"`
+	KafkaEnabled    bool          `envconfig:"USAGE_PUBLISH_KAFKA_ENABLED" default:"false"`
+	KafkaBrokers    []string      `envconfig:"USAGE_PUBLISH_KAFKA_BROKERS" default:"localhost:9092"`
+	KafkaTopic      string        `envconfig:"USAGE_PUBLISH_KAFKA_TOPIC" default:"tools.usage"`
+	KafkaClientID   string        `envconfig:"USAGE_PUBLISH_KAFKA_CLIENT_ID" default:"tools-gateway"`
 }
 
 // Load parses environment variables into Config.

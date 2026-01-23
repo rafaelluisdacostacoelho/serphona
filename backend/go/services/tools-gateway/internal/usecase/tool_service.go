@@ -19,13 +19,13 @@ type ToolService interface {
 	CreateTool(ctx context.Context, tool *entity.Tool) error
 
 	// GetTool gets a tool by ID
-	GetTool(ctx context.Context, toolID uuid.UUID) (*entity.Tool, error)
+	GetTool(ctx context.Context, tenantID uuid.UUID, toolID uuid.UUID) (*entity.Tool, error)
 
 	// GetToolByName gets a tool by name
-	GetToolByName(ctx context.Context, name string) (*entity.Tool, error)
+	GetToolByName(ctx context.Context, tenantID uuid.UUID, name string) (*entity.Tool, error)
 
 	// ListTools lists all tools with filters
-	ListTools(ctx context.Context, filters repository.ToolFilters) ([]*entity.Tool, int64, error)
+	ListTools(ctx context.Context, tenantID uuid.UUID, filters repository.ToolFilters) ([]*entity.Tool, int64, error)
 
 	// UpdateTool updates a tool
 	UpdateTool(ctx context.Context, tool *entity.Tool) error
@@ -97,18 +97,22 @@ func (s *toolServiceImpl) CreateTool(ctx context.Context, tool *entity.Tool) err
 }
 
 // GetTool gets a tool by ID
-func (s *toolServiceImpl) GetTool(ctx context.Context, toolID uuid.UUID) (*entity.Tool, error) {
-	return s.toolRepo.FindByID(ctx, toolID)
+func (s *toolServiceImpl) GetTool(ctx context.Context, tenantID uuid.UUID, toolID uuid.UUID) (*entity.Tool, error) {
+	return s.toolRepo.FindAccessibleByID(ctx, tenantID, toolID)
 }
 
 // GetToolByName gets a tool by name
-func (s *toolServiceImpl) GetToolByName(ctx context.Context, name string) (*entity.Tool, error) {
-	return s.toolRepo.FindByName(ctx, name)
+func (s *toolServiceImpl) GetToolByName(ctx context.Context, tenantID uuid.UUID, name string) (*entity.Tool, error) {
+	tool, err := s.toolRepo.FindByName(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	return s.toolRepo.FindAccessibleByID(ctx, tenantID, tool.ID)
 }
 
 // ListTools lists all tools with filters
-func (s *toolServiceImpl) ListTools(ctx context.Context, filters repository.ToolFilters) ([]*entity.Tool, int64, error) {
-	return s.toolRepo.FindAll(ctx, filters)
+func (s *toolServiceImpl) ListTools(ctx context.Context, tenantID uuid.UUID, filters repository.ToolFilters) ([]*entity.Tool, int64, error) {
+	return s.toolRepo.FindAllAccessible(ctx, tenantID, filters)
 }
 
 // UpdateTool updates a tool

@@ -12,3 +12,9 @@ prometheusRule:
     failure: warning
     tenantMissing: warning
     latency: warning
+
+embeddingQuotaRule:
+  enabled: true
+  labels: {}
+  annotations: {}
+  severity: warning

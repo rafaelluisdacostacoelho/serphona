@@ -1,9 +1,11 @@
 from datetime import datetime
 from typing import Dict, List, Optional
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, ConfigDict
 
 
 class RAGIngestionRequested(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, str_strip_whitespace=True)
+
     tenant_id: str = Field(..., alias="tenant_id")
     namespace: str
     source: Optional[str] = None
@@ -17,6 +19,3 @@ class RAGIngestionRequested(BaseModel):
     metadata: Optional[Dict[str, str]] = None
     requested_at: datetime
 
-    class Config:
-        allow_population_by_field_name = True
-        anystr_strip_whitespace = True

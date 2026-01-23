@@ -7,6 +7,13 @@
 - Reuse shared invocation stack (guard, retry/circuit, cancel, output caps, rate limit, metrics/audit/tracing).
 - Keep response envelopes consistent with RESPONSE-ENVELOPE-CONTRACT.
 
+## Provider, fallback, and quotas
+- Default provider: OpenAI embeddings (text-embedding-3-large unless overridden by env var `EMBED_MODEL`).
+- Fallback chain: OpenAI → Azure OpenAI (if `AZURE_OPENAI_ENDPOINT` configured) → OSS local model (when `EMBED_PROVIDER=oss`).
+- Per-tenant quotas: daily embedding token budget and max TPS; enforce via `EMBED_TOKENS_PER_DAY` and `EMBED_TPS_PER_TENANT` in config/flags.
+- Cost awareness: record estimated token cost per request in metrics/audit (`embed_tokens`, `embed_cost_usd`) tagged by tenant_id/namespace.
+- Circuit breaker: fail closed to prevent runaway cost; log/audit denials with reason `quota_exceeded`.
+
 ## Minimal wiring (Go services)
 1) **Load registry**
 - File: use `registry.NewFileLoader(path, cacheTTL)`.

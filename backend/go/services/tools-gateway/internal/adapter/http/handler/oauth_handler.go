@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/response"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/adapter/http/dto"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/usecase"
@@ -26,31 +27,26 @@ func NewOAuthHandler(oauthService usecase.OAuthService) *OAuthHandler {
 // Authorize handles GET /api/v1/integrations/:id/oauth/authorize.
 func (h *OAuthHandler) Authorize(c *gin.Context) {
 	ctx := c.Request.Context()
-	integrationID, err := uuid.Parse(c.Param("id"))
+	claims, err := authmw.GetClaimsFromContext(c)
 	if err != nil {
-		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_ID", "invalid integration ID", nil)
+		response.WriteError(ctx, c.Writer, http.StatusUnauthorized, "UNAUTHORIZED", "claims not found in context", nil)
 		return
 	}
 
-	tenantVal, ok := c.Get("tenant_id")
-	if !ok {
-		response.WriteError(ctx, c.Writer, http.StatusUnauthorized, "UNAUTHORIZED", "tenant_id not found in context", nil)
-		return
-	}
-	tenantID, ok := tenantVal.(uuid.UUID)
-	if !ok {
+	tenantID, err := uuid.Parse(claims.TenantID)
+	if err != nil {
 		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_TENANT_ID", "tenant_id has invalid format", nil)
 		return
 	}
 
-	userVal, ok := c.Get("user_id")
-	if !ok {
-		response.WriteError(ctx, c.Writer, http.StatusUnauthorized, "UNAUTHORIZED", "user_id not found in context", nil)
+	userID, err := uuid.Parse(claims.UserID)
+	if err != nil {
+		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_USER_ID", "user_id has invalid format", nil)
 		return
 	}
-	userID, ok := userVal.(uuid.UUID)
-	if !ok {
-		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_USER_ID", "user_id has invalid format", nil)
+	integrationID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_ID", "invalid integration ID", nil)
 		return
 	}
 
@@ -111,13 +107,24 @@ func (h *OAuthHandler) Callback(c *gin.Context) {
 // RevokeToken handles POST /api/v1/oauth/tokens/:token_id/revoke.
 func (h *OAuthHandler) RevokeToken(c *gin.Context) {
 	ctx := c.Request.Context()
+	claims, err := authmw.GetClaimsFromContext(c)
+	if err != nil {
+		response.WriteError(ctx, c.Writer, http.StatusUnauthorized, "UNAUTHORIZED", "claims not found in context", nil)
+		return
+	}
+
+	tenantID, err := uuid.Parse(claims.TenantID)
+	if err != nil {
+		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_TENANT_ID", "tenant_id has invalid format", nil)
+		return
+	}
 	tokenID, err := uuid.Parse(c.Param("token_id"))
 	if err != nil {
 		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_ID", "invalid token ID", nil)
 		return
 	}
 
-	if err := h.oauthService.RevokeToken(ctx, tokenID); err != nil {
+	if err := h.oauthService.RevokeToken(ctx, tenantID, tokenID); err != nil {
 		response.WriteError(ctx, c.Writer, http.StatusInternalServerError, "REVOCATION_FAILED", err.Error(), nil)
 		return
 	}

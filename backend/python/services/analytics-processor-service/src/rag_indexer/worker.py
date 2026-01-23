@@ -204,52 +204,60 @@ class RAGWorker:
 
         if chunk_records:
             embed_breaker = self.breakers["embed"]
-            embeddings = None
+            enriched_records = []
+            grouped = {}
+            for rec in chunk_records:
+                key = (rec["tenant_id"], rec["namespace"])
+                grouped.setdefault(key, []).append(rec)
+
             if not embed_breaker.allow():
                 metrics.CIRCUIT_SKIPPED.labels(op="embed").inc()
                 for rec in chunk_records:
                     await self._send_dlq(rec, reason="circuit_open_embed")
             else:
-                metrics.EMBED_ATTEMPTS.inc()
-                try:
-                    start = time.perf_counter()
-                    embeddings = await self._retry_sync("embed", embed_texts, [c["content"] for c in chunk_records])
-                    metrics.EMBED_LATENCY.observe(time.perf_counter() - start)
-                    embed_breaker.record_success()
-                except EmbeddingError as exc:
-                    embed_breaker.record_failure()
-                    metrics.EMBED_FAILED.inc()
-                    log.error("embedding failed: %s", exc)
-                    for rec in chunk_records:
-                        await self._send_dlq(rec, reason="embed_failed")
-                except Exception as exc:
-                    embed_breaker.record_failure()
-                    metrics.EMBED_FAILED.inc()
-                    log.error("embedding unexpected failure: %s", exc)
-                    for rec in chunk_records:
-                        await self._send_dlq(rec, reason="embed_failed")
+                for (tenant_id, namespace), records in grouped.items():
+                    metrics.EMBED_ATTEMPTS.inc()
+                    try:
+                        start = time.perf_counter()
+                        embeddings = await self._retry_sync(
+                            "embed", embed_texts, tenant_id, namespace, [c["content"] for c in records]
+                        )
+                        metrics.EMBED_LATENCY.observe(time.perf_counter() - start)
+                        embed_breaker.record_success()
+                        for rec, emb in zip(records, embeddings):
+                            rec["embedding"] = emb
+                            enriched_records.append(rec)
+                    except EmbeddingError as exc:
+                        embed_breaker.record_failure()
+                        metrics.EMBED_FAILED.inc()
+                        log.error("embedding failed: %s", exc)
+                        for rec in records:
+                            await self._send_dlq(rec, reason="embed_failed")
+                    except Exception as exc:
+                        embed_breaker.record_failure()
+                        metrics.EMBED_FAILED.inc()
+                        log.error("embedding unexpected failure: %s", exc)
+                        for rec in records:
+                            await self._send_dlq(rec, reason="embed_failed")
 
-            if embeddings is not None:
-                for rec, emb in zip(chunk_records, embeddings):
-                    rec["embedding"] = emb
-
+            if enriched_records:
                 upsert_breaker = self.breakers["upsert"]
                 if not upsert_breaker.allow():
                     metrics.CIRCUIT_SKIPPED.labels(op="upsert").inc()
-                    for rec in chunk_records:
+                    for rec in enriched_records:
                         await self._send_dlq(rec, reason="circuit_open_upsert")
                 else:
                     metrics.UPSERT_ATTEMPTS.inc()
                     try:
                         start = time.perf_counter()
-                        await self._retry_async("upsert", self.repo.upsert_chunks, chunk_records)
+                        await self._retry_async("upsert", self.repo.upsert_chunks, enriched_records)
                         metrics.UPSERT_LATENCY.observe(time.perf_counter() - start)
                         upsert_breaker.record_success()
                     except Exception as exc:
                         upsert_breaker.record_failure()
                         metrics.UPSERT_FAILED.inc()
                         log.error("upsert failed: %s", exc)
-                        for rec in chunk_records:
+                        for rec in enriched_records:
                             await self._send_dlq(rec, reason="upsert_failed")
 
         # commit offsets: highest offset per partition
@@ -264,7 +272,9 @@ class RAGWorker:
     async def _send_dlq(self, payload, reason: str):
         if not self.dlq:
             return
-        if hasattr(payload, "dict"):
+        if hasattr(payload, "model_dump"):
+            data = payload.model_dump(by_alias=True)
+        elif hasattr(payload, "dict"):
             data = payload.dict(by_alias=True)
         elif isinstance(payload, dict):
             data = payload.copy()

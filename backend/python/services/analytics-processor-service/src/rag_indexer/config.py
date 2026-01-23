@@ -7,6 +7,10 @@ def _split_csv(value: str) -> List[str]:
     return [v.strip() for v in value.split(",") if v.strip()]
 
 
+def _get_env(name: str, fallback: str) -> str:
+    return os.getenv(name) or os.getenv(fallback, "")
+
+
 @dataclass
 class Settings:
     kafka_bootstrap: str = os.getenv("KAFKA_BOOTSTRAP", "kafka:9092")
@@ -30,11 +34,14 @@ class Settings:
     s3_secret_access_key: str = os.getenv("S3_SECRET_ACCESS_KEY", "")
     s3_insecure: bool = os.getenv("S3_INSECURE", "false").lower() in {"1", "true", "yes"}
 
-    embedding_provider: str = os.getenv("EMBEDDING_PROVIDER", "noop")
-    embedding_model: str = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
-    embedding_dim: int = int(os.getenv("EMBEDDING_DIM", "1536"))
-    embedding_api_key: str = os.getenv("EMBEDDING_API_KEY", "")
-    embedding_base_url: str = os.getenv("EMBEDDING_BASE_URL", "")
+    embedding_provider: str = _get_env("EMBED_PROVIDER", "EMBEDDING_PROVIDER") or "openai"
+    embedding_model: str = _get_env("EMBED_MODEL", "EMBEDDING_MODEL") or "text-embedding-3-large"
+    embedding_dim: int = int(os.getenv("EMBEDDING_DIM", os.getenv("EMBED_DIM", "3072")))
+    embedding_api_key: str = _get_env("EMBED_API_KEY", "EMBEDDING_API_KEY")
+    embedding_base_url: str = _get_env("EMBED_BASE_URL", "EMBEDDING_BASE_URL")
+    embedding_tokens_per_day: int = int(os.getenv("EMBED_TOKENS_PER_DAY", "200000"))
+    embedding_tps_per_tenant: int = int(os.getenv("EMBED_TPS_PER_TENANT", "5"))
+    embedding_cost_per_1k_usd: float = float(os.getenv("EMBED_COST_PER_1K_USD", "0.00013"))
 
     etag_cache_path: str = os.getenv("ETAG_CACHE_PATH", "")
     dlq_path: str = os.getenv("DLQ_PATH", "")

@@ -51,6 +51,45 @@ prometheusRule:
             summary: "HTTP latency p95 > 1s in tools-gateway"
             description: "p95 HTTP latency above 1s over 10m for tools-gateway."
 
+    - name: tools-gateway.usage
+      rules:
+        - alert: ToolsGatewayUsageRetrySpike
+          expr: |
+            sum(rate(tools_gateway_usage_publish_attempts_total{outcome=~"retryable|transport_error"}[5m])) by (sink) > 0.1
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Retry spike for usage publishing"
+            description: "Retryable publish errors are above 0.1 rps for sink {{ $labels.sink }}."
+
+        - alert: ToolsGatewayUsageBreakerOpen
+          expr: |
+            max_over_time(tools_gateway_usage_publish_breaker_state[5m]) > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Breaker open for usage publishing"
+            description: "Circuit breaker is open for sink {{ $labels.sink }} target {{ $labels.target }}."
+
+        - alert: ToolsGatewayUsageRateLimited
+          expr: |
+            sum(rate(tools_gateway_usage_publish_attempts_total{outcome="rate_limited"}[5m])) by (sink) > 0.05
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Usage publishing being rate limited"
+            description: "Rate-limited responses observed when publishing usage for sink {{ $labels.sink }}."
+
+grafanaDashboard:
+  enabled: true
+  folder: tools-gateway
+  labels:
+    grafana_dashboard: "1"
+  annotations: {}
+
 replicaCount: 2
 
 env:

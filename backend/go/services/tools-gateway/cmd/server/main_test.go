@@ -202,13 +202,13 @@ type stubToolService struct {
 }
 
 func (s *stubToolService) CreateTool(ctx context.Context, tool *entity.Tool) error { return nil }
-func (s *stubToolService) GetTool(ctx context.Context, toolID uuid.UUID) (*entity.Tool, error) {
+func (s *stubToolService) GetTool(ctx context.Context, tenantID uuid.UUID, toolID uuid.UUID) (*entity.Tool, error) {
 	return s.tools[0], nil
 }
-func (s *stubToolService) GetToolByName(ctx context.Context, name string) (*entity.Tool, error) {
+func (s *stubToolService) GetToolByName(ctx context.Context, tenantID uuid.UUID, name string) (*entity.Tool, error) {
 	return nil, nil
 }
-func (s *stubToolService) ListTools(ctx context.Context, filters repository.ToolFilters) ([]*entity.Tool, int64, error) {
+func (s *stubToolService) ListTools(ctx context.Context, tenantID uuid.UUID, filters repository.ToolFilters) ([]*entity.Tool, int64, error) {
 	return s.tools, s.total, s.listErr
 }
 func (s *stubToolService) UpdateTool(ctx context.Context, tool *entity.Tool) error { return nil }
@@ -250,7 +250,7 @@ func newTestRouter(t *testing.T) (*gin.Engine, string) {
 	middleware.SetMetricsRegisterer(reg)
 	t.Cleanup(func() { middleware.SetMetricsRegisterer(nil) })
 
-	return setupRouter(newToolHandler(), "tools-gateway"), token
+	return setupRouter(newToolHandler(), "tools-gateway", 1024*1024), token
 }
 
 func newTestToken(t *testing.T, scopes ...string) string {

@@ -41,6 +41,10 @@ func (r *stubToolRepo) FindByID(_ context.Context, id uuid.UUID) (*entity.Tool, 
 	return tool, nil
 }
 
+func (r *stubToolRepo) FindAccessibleByID(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) (*entity.Tool, error) {
+	return r.FindByID(ctx, id)
+}
+
 func (r *stubToolRepo) FindByName(_ context.Context, name string) (*entity.Tool, error) {
 	for _, tool := range r.tools {
 		if tool.Name == name {
@@ -56,6 +60,10 @@ func (r *stubToolRepo) FindAll(_ context.Context, _ repository.ToolFilters) ([]*
 		list = append(list, tool)
 	}
 	return list, int64(len(list)), nil
+}
+
+func (r *stubToolRepo) FindAllAccessible(ctx context.Context, tenantID uuid.UUID, filters repository.ToolFilters) ([]*entity.Tool, int64, error) {
+	return r.FindAll(ctx, filters)
 }
 
 func (r *stubToolRepo) Update(_ context.Context, tool *entity.Tool) error {

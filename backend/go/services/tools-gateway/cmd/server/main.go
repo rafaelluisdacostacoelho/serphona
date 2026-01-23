@@ -55,18 +55,49 @@ func main() {
 	serviceInstance := getEnv("SERVICE_INSTANCE", "tools-gateway-1")
 	serviceAudience := cfg.Auth.ServiceAudience
 	authmw.SetAuthMetricsService(serviceName)
-	httpClient := service.NewHTTPClient(30*time.Second, serviceName, serviceInstance, serviceAudience)
+	maxTimeout := time.Duration(cfg.Execution.MaxTimeoutSeconds)
+	if maxTimeout <= 0 {
+		maxTimeout = 30
+	}
+	httpClient := service.NewHTTPClient(maxTimeout*time.Second, serviceName, serviceInstance, serviceAudience)
 	grpcClient := service.NewGRPCClient(serviceName, serviceInstance, serviceAudience)
 	log.Printf("Service identity: %s/%s audience=%s", serviceName, serviceInstance, serviceAudience)
 
+	var usageSinks []service.UsagePublisher
+	if cfg.Billing.Enabled && cfg.Billing.UsageEndpoint != "" {
+		usageSinks = append(usageSinks, service.NewHTTPUsagePublisher(
+			cfg.Billing.UsageEndpoint,
+			cfg.Billing.AuthToken,
+			cfg.Billing.Timeout,
+			cfg.Billing.RetryMax,
+			cfg.Billing.RetryBackoff,
+			cfg.Billing.BreakerEnabled,
+			cfg.Billing.BreakerFailures,
+			cfg.Billing.BreakerReset,
+		))
+	}
+
+	if cfg.Billing.Enabled && cfg.Billing.KafkaEnabled {
+		usageSinks = append(usageSinks, service.NewKafkaUsagePublisher(
+			cfg.Billing.KafkaBrokers,
+			cfg.Billing.KafkaTopic,
+			cfg.Billing.KafkaClientID,
+			cfg.Billing.RetryMax,
+			cfg.Billing.RetryBackoff,
+		))
+	}
+
+	usagePublisher := service.NewMultiUsagePublisher(usageSinks...)
+
 	execPolicy := usecase.ExecutionPolicy{
-		AllowedHosts:    cfg.Execution.AllowedHosts,
-		MaxPayloadBytes: cfg.Execution.MaxPayloadBytes,
-		AllowedMethods:  cfg.Execution.AllowedMethods,
-		BlockedMethods:  cfg.Execution.BlockedMethods,
-		AllowedHeaders:  cfg.Execution.AllowedHeaders,
-		BlockedHeaders:  cfg.Execution.BlockedHeaders,
-		MaxQueryParams:  cfg.Execution.MaxQueryParams,
+		AllowedHosts:      cfg.Execution.AllowedHosts,
+		MaxPayloadBytes:   cfg.Execution.MaxPayloadBytes,
+		AllowedMethods:    cfg.Execution.AllowedMethods,
+		BlockedMethods:    cfg.Execution.BlockedMethods,
+		AllowedHeaders:    cfg.Execution.AllowedHeaders,
+		BlockedHeaders:    cfg.Execution.BlockedHeaders,
+		MaxQueryParams:    cfg.Execution.MaxQueryParams,
+		MaxTimeoutSeconds: cfg.Execution.MaxTimeoutSeconds,
 	}
 
 	toolService := usecase.NewToolService(toolRepo, validator, execPolicy)
@@ -77,13 +108,14 @@ func main() {
 		validator,
 		httpClient,
 		grpcClient,
+		usagePublisher,
 		execPolicy,
 	)
 
 	// Initialize handlers
 	toolHandler := handler.NewToolHandler(toolService, executorService)
 
-	router := setupRouter(toolHandler, serviceName)
+	router := setupRouter(toolHandler, serviceName, cfg.MaxBodyBytes)
 
 	srv := &http.Server{
 		Addr:         cfg.HTTPAddr,
@@ -136,12 +168,13 @@ func configureAuth(cfg *config.Config) {
 	}
 }
 
-func setupRouter(toolHandler *handler.ToolHandler, serviceName string) *gin.Engine {
+func setupRouter(toolHandler *handler.ToolHandler, serviceName string, maxBodyBytes int) *gin.Engine {
 	router := gin.Default()
 	authmw.SetMetricsRegisterer(middleware.MetricsRegisterer())
 	router.Use(middleware.RequestLogger(nil))
 	router.Use(middleware.Metrics(serviceName))
 	router.Use(middleware.AuthMetrics(serviceName))
+	router.Use(middleware.BodyLimit(maxBodyBytes))
 
 	// Swagger UI (UI under /swagger/index.html, spec served from /swagger-docs/doc.json to avoid wildcard conflicts)
 	router.GET("/swagger-docs/doc.json", func(c *gin.Context) {

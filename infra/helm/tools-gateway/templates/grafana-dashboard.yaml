@@ -1,0 +1,23 @@
+{{- if .Values.grafanaDashboard.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tools-gateway.fullname" . }}-grafana-dashboard
+  labels:
+    {{- include "tools-gateway.labels" . | nindent 4 }}
+    grafana_folder: "{{ .Values.grafanaDashboard.folder }}"
+    {{- range $key, $value := .Values.grafanaDashboard.labels }}
+    {{ $key }}: "{{ $value }}"
+    {{- end }}
+  annotations:
+    {{- if .Values.grafanaDashboard.annotations }}
+    {{- range $key, $value := .Values.grafanaDashboard.annotations }}
+    {{ $key }}: "{{ $value }}"
+    {{- end }}
+    {{- else }}
+    {}
+    {{- end }}
+data:
+  tools-gateway-usage.json: |
+    {{- .Files.Get "dashboards/tools-gateway-usage.json" | nindent 4 }}
+{{- end }}

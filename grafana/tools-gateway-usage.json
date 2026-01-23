@@ -1,0 +1,81 @@
+{
+  "id": null,
+  "title": "Tools Gateway - Usage Publishing",
+  "schemaVersion": 38,
+  "version": 1,
+  "tags": ["tools-gateway", "usage", "billing"],
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 0,
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Success vs Errors by Sink",
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "options": {
+        "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom"},
+        "tooltip": {"mode": "multi", "sort": "none"}
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(tools_gateway_usage_publish_attempts_total{outcome=\"success\"}[5m])) by (sink)",
+          "legendFormat": "{{sink}} success",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(tools_gateway_usage_publish_attempts_total{outcome=~\"retryable|transport_error\"}[5m])) by (sink)",
+          "legendFormat": "{{sink}} retryable",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(tools_gateway_usage_publish_attempts_total{outcome=~\"client_error|rate_limited\"}[5m])) by (sink)",
+          "legendFormat": "{{sink}} non-retryable",
+          "refId": "C"
+        },
+        {
+          "expr": "sum(rate(tools_gateway_usage_publish_attempts_total{outcome=\"breaker_open\"}[5m])) by (sink)",
+          "legendFormat": "{{sink}} breaker_open",
+          "refId": "D"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 0}
+    },
+    {
+      "type": "timeseries",
+      "title": "Retryable Error Rate by Target",
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "options": {
+        "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom"},
+        "tooltip": {"mode": "multi", "sort": "none"}
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(tools_gateway_usage_publish_attempts_total{outcome=~\"retryable|transport_error\"}[5m])) by (sink, target)",
+          "legendFormat": "{{sink}} {{target}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 8}
+    },
+    {
+      "type": "timeseries",
+      "title": "Breaker State",
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "fieldConfig": {"defaults": {"min": 0, "max": 1}, "overrides": []},
+      "options": {
+        "legend": {"showLegend": true, "displayMode": "list", "placement": "bottom"},
+        "tooltip": {"mode": "multi", "sort": "none"}
+      },
+      "targets": [
+        {
+          "expr": "max_over_time(tools_gateway_usage_publish_breaker_state[5m])",
+          "legendFormat": "{{sink}} {{target}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {"h": 6, "w": 24, "x": 0, "y": 16}
+    }
+  ]
+}

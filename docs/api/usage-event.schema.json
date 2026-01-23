@@ -1,0 +1,66 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Tools Gateway Usage Event",
+  "type": "object",
+  "required": [
+    "tenant_id",
+    "tool_id",
+    "user_id",
+    "credits",
+    "status",
+    "latency_ms",
+    "executed_at",
+    "sink"
+  ],
+  "properties": {
+    "tenant_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Tenant identifier (UUID)."
+    },
+    "tool_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Tool identifier (UUID)."
+    },
+    "user_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "User identifier (UUID)."
+    },
+    "credits": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Credits consumed by the execution."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["success", "error", "timeout", "rate_limited"],
+      "description": "Final status of the execution."
+    },
+    "latency_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Observed latency in milliseconds."
+    },
+    "executed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when execution completed (RFC 3339)."
+    },
+    "sink": {
+      "type": "string",
+      "enum": ["http", "kafka"],
+      "description": "Sink that accepted the event."
+    },
+    "target": {
+      "type": "string",
+      "description": "Target endpoint or Kafka topic for the sink."
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Optional metadata for billing/analytics extensions."
+    }
+  }
+}

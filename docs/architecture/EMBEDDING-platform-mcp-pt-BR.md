@@ -7,6 +7,13 @@
 - Reaproveitar a pilha compartilhada (guard, retry/circuit, cancel, output cap, rate limit, métricas/audit/tracing).
 - Manter envelopes de resposta alinhados ao RESPONSE-ENVELOPE-CONTRACT.
 
+## Provedor, fallback e cotas
+- Provedor padrão: OpenAI embeddings (text-embedding-3-large, salvo override via `EMBED_MODEL`).
+- Cadeia de fallback: OpenAI → Azure OpenAI (se `AZURE_OPENAI_ENDPOINT` configurado) → modelo OSS local (quando `EMBED_PROVIDER=oss`).
+- Cotas por tenant: limite diário de tokens de embedding e TPS máxima; aplicar via config/flags `EMBED_TOKENS_PER_DAY` e `EMBED_TPS_PER_TENANT`.
+- Consciência de custo: registrar custo estimado por requisição em métricas/audit (`embed_tokens`, `embed_cost_usd`) com tags tenant_id/namespace.
+- Circuit breaker: falhar fechado para evitar estouro de custo; log/audit com motivo `quota_exceeded`.
+
 ## Wiring mínimo (serviços Go)
 1) **Registry**
 - Arquivo: `registry.NewFileLoader(path, cacheTTL)`.

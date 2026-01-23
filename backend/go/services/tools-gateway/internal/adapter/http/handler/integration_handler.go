@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	authmw "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/response"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/adapter/http/dto"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/entity"
@@ -28,20 +29,20 @@ func NewIntegrationHandler(integrationService usecase.IntegrationService) *Integ
 // CreateIntegration handles POST /api/v1/integrations.
 func (h *IntegrationHandler) CreateIntegration(c *gin.Context) {
 	ctx := c.Request.Context()
+	claims, err := authmw.GetClaimsFromContext(c)
+	if err != nil {
+		response.WriteError(ctx, c.Writer, http.StatusUnauthorized, "UNAUTHORIZED", "claims not found in context", nil)
+		return
+	}
+
 	var req dto.CreateIntegrationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_REQUEST", "invalid JSON body", nil)
 		return
 	}
 
-	// Get tenant ID from context (set by auth middleware)
-	tenantID, exists := c.Get("tenant_id")
-	if !exists {
-		response.WriteError(ctx, c.Writer, http.StatusUnauthorized, "UNAUTHORIZED", "tenant_id not found in context", nil)
-		return
-	}
-	tenantUUID, ok := tenantID.(uuid.UUID)
-	if !ok {
+	tenantUUID, err := uuid.Parse(claims.TenantID)
+	if err != nil {
 		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_TENANT_ID", "tenant_id has invalid format", nil)
 		return
 	}
@@ -61,13 +62,25 @@ func (h *IntegrationHandler) CreateIntegration(c *gin.Context) {
 // GetIntegration handles GET /api/v1/integrations/:id.
 func (h *IntegrationHandler) GetIntegration(c *gin.Context) {
 	ctx := c.Request.Context()
+	claims, err := authmw.GetClaimsFromContext(c)
+	if err != nil {
+		response.WriteError(ctx, c.Writer, http.StatusUnauthorized, "UNAUTHORIZED", "claims not found in context", nil)
+		return
+	}
+
+	tenantID, err := uuid.Parse(claims.TenantID)
+	if err != nil {
+		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_TENANT_ID", "tenant_id has invalid format", nil)
+		return
+	}
+
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_ID", "invalid integration ID", nil)
 		return
 	}
 
-	integration, err := h.integrationService.GetIntegration(c.Request.Context(), id)
+	integration, err := h.integrationService.GetIntegration(c.Request.Context(), tenantID, id)
 	if err != nil {
 		response.WriteError(ctx, c.Writer, http.StatusNotFound, "NOT_FOUND", err.Error(), nil)
 		return
@@ -79,13 +92,14 @@ func (h *IntegrationHandler) GetIntegration(c *gin.Context) {
 // ListIntegrations handles GET /api/v1/integrations.
 func (h *IntegrationHandler) ListIntegrations(c *gin.Context) {
 	ctx := c.Request.Context()
-	tenantVal, ok := c.Get("tenant_id")
-	if !ok {
-		response.WriteError(ctx, c.Writer, http.StatusUnauthorized, "UNAUTHORIZED", "tenant_id not found in context", nil)
+	claims, err := authmw.GetClaimsFromContext(c)
+	if err != nil {
+		response.WriteError(ctx, c.Writer, http.StatusUnauthorized, "UNAUTHORIZED", "claims not found in context", nil)
 		return
 	}
-	tenantUUID, ok := tenantVal.(uuid.UUID)
-	if !ok {
+
+	tenantUUID, err := uuid.Parse(claims.TenantID)
+	if err != nil {
 		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_TENANT_ID", "tenant_id has invalid format", nil)
 		return
 	}
@@ -128,6 +142,18 @@ func (h *IntegrationHandler) ListIntegrations(c *gin.Context) {
 // UpdateIntegration handles PUT /api/v1/integrations/:id.
 func (h *IntegrationHandler) UpdateIntegration(c *gin.Context) {
 	ctx := c.Request.Context()
+	claims, err := authmw.GetClaimsFromContext(c)
+	if err != nil {
+		response.WriteError(ctx, c.Writer, http.StatusUnauthorized, "UNAUTHORIZED", "claims not found in context", nil)
+		return
+	}
+
+	tenantID, err := uuid.Parse(claims.TenantID)
+	if err != nil {
+		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_TENANT_ID", "tenant_id has invalid format", nil)
+		return
+	}
+
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_ID", "invalid integration ID", nil)
@@ -140,20 +166,9 @@ func (h *IntegrationHandler) UpdateIntegration(c *gin.Context) {
 		return
 	}
 
-	tenantVal, ok := c.Get("tenant_id")
-	if !ok {
-		response.WriteError(ctx, c.Writer, http.StatusUnauthorized, "UNAUTHORIZED", "tenant_id not found in context", nil)
-		return
-	}
-	tenantID, ok := tenantVal.(uuid.UUID)
-	if !ok {
-		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_TENANT_ID", "tenant_id has invalid format", nil)
-		return
-	}
-
 	integration := req.ToEntity(id, tenantID)
 
-	if err := h.integrationService.UpdateIntegration(c.Request.Context(), integration); err != nil {
+	if err := h.integrationService.UpdateIntegration(c.Request.Context(), tenantID, integration); err != nil {
 		response.WriteError(ctx, c.Writer, http.StatusInternalServerError, "UPDATE_FAILED", err.Error(), nil)
 		return
 	}
@@ -164,13 +179,24 @@ func (h *IntegrationHandler) UpdateIntegration(c *gin.Context) {
 // DeleteIntegration handles DELETE /api/v1/integrations/:id.
 func (h *IntegrationHandler) DeleteIntegration(c *gin.Context) {
 	ctx := c.Request.Context()
+	claims, err := authmw.GetClaimsFromContext(c)
+	if err != nil {
+		response.WriteError(ctx, c.Writer, http.StatusUnauthorized, "UNAUTHORIZED", "claims not found in context", nil)
+		return
+	}
+
+	tenantID, err := uuid.Parse(claims.TenantID)
+	if err != nil {
+		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_TENANT_ID", "tenant_id has invalid format", nil)
+		return
+	}
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_ID", "invalid integration ID", nil)
 		return
 	}
 
-	if err := h.integrationService.DeleteIntegration(c.Request.Context(), id); err != nil {
+	if err := h.integrationService.DeleteIntegration(c.Request.Context(), tenantID, id); err != nil {
 		response.WriteError(ctx, c.Writer, http.StatusInternalServerError, "DELETION_FAILED", err.Error(), nil)
 		return
 	}
@@ -181,13 +207,24 @@ func (h *IntegrationHandler) DeleteIntegration(c *gin.Context) {
 // ActivateIntegration handles POST /api/v1/integrations/:id/activate.
 func (h *IntegrationHandler) ActivateIntegration(c *gin.Context) {
 	ctx := c.Request.Context()
+	claims, err := authmw.GetClaimsFromContext(c)
+	if err != nil {
+		response.WriteError(ctx, c.Writer, http.StatusUnauthorized, "UNAUTHORIZED", "claims not found in context", nil)
+		return
+	}
+
+	tenantID, err := uuid.Parse(claims.TenantID)
+	if err != nil {
+		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_TENANT_ID", "tenant_id has invalid format", nil)
+		return
+	}
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_ID", "invalid integration ID", nil)
 		return
 	}
 
-	if err := h.integrationService.ActivateIntegration(c.Request.Context(), id); err != nil {
+	if err := h.integrationService.ActivateIntegration(c.Request.Context(), tenantID, id); err != nil {
 		response.WriteError(ctx, c.Writer, http.StatusInternalServerError, "ACTIVATION_FAILED", err.Error(), nil)
 		return
 	}
@@ -198,13 +235,24 @@ func (h *IntegrationHandler) ActivateIntegration(c *gin.Context) {
 // DeactivateIntegration handles POST /api/v1/integrations/:id/deactivate.
 func (h *IntegrationHandler) DeactivateIntegration(c *gin.Context) {
 	ctx := c.Request.Context()
+	claims, err := authmw.GetClaimsFromContext(c)
+	if err != nil {
+		response.WriteError(ctx, c.Writer, http.StatusUnauthorized, "UNAUTHORIZED", "claims not found in context", nil)
+		return
+	}
+
+	tenantID, err := uuid.Parse(claims.TenantID)
+	if err != nil {
+		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_TENANT_ID", "tenant_id has invalid format", nil)
+		return
+	}
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_ID", "invalid integration ID", nil)
 		return
 	}
 
-	if err := h.integrationService.DeactivateIntegration(c.Request.Context(), id); err != nil {
+	if err := h.integrationService.DeactivateIntegration(c.Request.Context(), tenantID, id); err != nil {
 		response.WriteError(ctx, c.Writer, http.StatusInternalServerError, "DEACTIVATION_FAILED", err.Error(), nil)
 		return
 	}

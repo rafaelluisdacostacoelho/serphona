@@ -429,6 +429,19 @@ RATE_LIMIT_REQUESTS_PER_MINUTE=100
 # Billing
 ENABLE_CREDIT_CONSUMPTION=true
 CREDIT_COST_PER_TOOL_CALL=1
+USAGE_PUBLISH_ENDPOINT=http://billing:8081/usage
+USAGE_PUBLISH_ENABLED=true
+USAGE_PUBLISH_TOKEN=changeme
+USAGE_PUBLISH_TIMEOUT=3s
+USAGE_PUBLISH_RETRY_MAX=3
+USAGE_PUBLISH_RETRY_BACKOFF=250ms
+USAGE_PUBLISH_BREAKER_ENABLED=true
+USAGE_PUBLISH_BREAKER_FAILURES=3
+USAGE_PUBLISH_BREAKER_RESET=30s
+USAGE_PUBLISH_KAFKA_ENABLED=false
+USAGE_PUBLISH_KAFKA_BROKERS=localhost:9092
+USAGE_PUBLISH_KAFKA_TOPIC=tools.usage
+USAGE_PUBLISH_KAFKA_CLIENT_ID=tools-gateway
 
 # Execução segura (validada também na criação/atualização de Tool)
 EXEC_ALLOWED_HOSTS=api.example.com,storage.example.com
@@ -451,6 +464,16 @@ EXEC_MAX_QUERY_PARAMS=25
 - `tool_credits_consumed_total{tenant_id, tool_id}`
 - `tool_rate_limit_hits_total{tenant_id}`
 - `tools_gateway_execution_blocked_total{reason,tool,tenant}` — bloqueios por host/método/header não permitido, payload acima do limite ou excesso de query params
+- `tools_gateway_credits_consumed_total{tenant,tool}` — créditos efetivamente cobrados por execução
+- `tools_gateway_rate_limit_hits_total{tenant,tool}` — bloqueios por rate limit aplicado
+- `tools_gateway_usage_publish_attempts_total{sink,target,outcome,status}` — publicaçōes de uso por sink (http/kafka), resultado e status HTTP
+- `tools_gateway_usage_publish_breaker_state{sink,target}` — estado do breaker (0 fechado, 1 aberto)
+
+Dashboard: grafana/tools-gateway-usage.json (sucesso/erro por sink, taxas de retry, breaker).
+
+Alerts (Prometheus): backend/go/services/tools-gateway/alerts/usage-publisher-rules.yaml (spike de retry, breaker aberto, 429).
+
+Contrato de evento (billing/analytics): docs/api/usage-event.schema.json — tópico Kafka `tools.usage` (quando habilitado) ou sink HTTP configurado.
 
 ### Logging
 

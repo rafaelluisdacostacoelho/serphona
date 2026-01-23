@@ -105,7 +105,7 @@ async def test_embed_failure_sends_dlq(tmp_path, monkeypatch):
     async def fetch_ok(*_args, **_kwargs):
         return "hello world", None
 
-    def embed_fail(_texts):
+    def embed_fail(_tenant, _ns, _texts):
         raise EmbeddingError("embed boom")
 
     monkeypatch.setattr("rag_indexer.worker.fetch_content", fetch_ok)

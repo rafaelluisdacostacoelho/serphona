@@ -41,3 +41,46 @@ func TestRetryableClientMissingInner(t *testing.T) {
 		t.Fatalf("expected ErrNoInnerClient, got %v", err)
 	}
 }
+
+type quotaFake struct{ called int }
+
+func (q *quotaFake) Embed(ctx context.Context, inputs []string) ([][]float32, error) {
+	q.called++
+	return [][]float32{{1}}, nil
+}
+
+func TestQuotaClientBlocksDailyTokens(t *testing.T) {
+	inner := &quotaFake{}
+	qc := &QuotaClient{Inner: inner, Config: QuotaConfig{TokensPerDay: 10, TPS: 10, Now: func() time.Time {
+		return time.Unix(0, 0)
+	}}}
+
+	ctx := WithEmbeddingQuotaScope(context.Background(), "t1", "ns")
+	if _, err := qc.Embed(ctx, []string{"aaaaaaaaaaaaaaaaaaaa"}); err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if _, err := qc.Embed(ctx, []string{"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}); !errors.Is(err, ErrQuotaExceeded) {
+		t.Fatalf("expected ErrQuotaExceeded, got %v", err)
+	}
+	if inner.called != 1 {
+		t.Fatalf("expected 1 inner call, got %d", inner.called)
+	}
+}
+
+func TestQuotaClientBlocksTps(t *testing.T) {
+	inner := &quotaFake{}
+	qc := &QuotaClient{Inner: inner, Config: QuotaConfig{TokensPerDay: 1000, TPS: 1, Now: func() time.Time {
+		return time.Unix(0, 0)
+	}}}
+
+	ctx := WithEmbeddingQuotaScope(context.Background(), "t1", "ns")
+	if _, err := qc.Embed(ctx, []string{"a"}); err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if _, err := qc.Embed(ctx, []string{"b"}); !errors.Is(err, ErrQuotaExceeded) {
+		t.Fatalf("expected ErrQuotaExceeded, got %v", err)
+	}
+	if inner.called != 1 {
+		t.Fatalf("expected 1 inner call, got %d", inner.called)
+	}
+}

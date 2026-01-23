@@ -16,7 +16,7 @@ type IntegrationService interface {
 	CreateIntegration(ctx context.Context, integration *entity.Integration) error
 
 	// GetIntegration retrieves an integration by ID.
-	GetIntegration(ctx context.Context, id uuid.UUID) (*entity.Integration, error)
+	GetIntegration(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) (*entity.Integration, error)
 
 	// GetIntegrationByProvider retrieves an integration by tenant and provider.
 	GetIntegrationByProvider(ctx context.Context, tenantID uuid.UUID, provider string) (*entity.Integration, error)
@@ -31,16 +31,16 @@ type IntegrationService interface {
 	ListActiveIntegrations(ctx context.Context, tenantID uuid.UUID) ([]*entity.Integration, error)
 
 	// UpdateIntegration updates an integration.
-	UpdateIntegration(ctx context.Context, integration *entity.Integration) error
+	UpdateIntegration(ctx context.Context, tenantID uuid.UUID, integration *entity.Integration) error
 
 	// DeleteIntegration deletes an integration.
-	DeleteIntegration(ctx context.Context, id uuid.UUID) error
+	DeleteIntegration(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) error
 
 	// ActivateIntegration activates an integration.
-	ActivateIntegration(ctx context.Context, id uuid.UUID) error
+	ActivateIntegration(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) error
 
 	// DeactivateIntegration deactivates an integration.
-	DeactivateIntegration(ctx context.Context, id uuid.UUID) error
+	DeactivateIntegration(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) error
 
 	// ValidateIntegration validates integration configuration.
 	ValidateIntegration(ctx context.Context, integration *entity.Integration) error
@@ -84,12 +84,17 @@ func (s *integrationServiceImpl) CreateIntegration(ctx context.Context, integrat
 	return nil
 }
 
-// GetIntegration retrieves an integration by ID.
-func (s *integrationServiceImpl) GetIntegration(ctx context.Context, id uuid.UUID) (*entity.Integration, error) {
+// GetIntegration retrieves an integration by ID, scoped to tenant.
+func (s *integrationServiceImpl) GetIntegration(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) (*entity.Integration, error) {
 	integration, err := s.integrationRepo.FindByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("integration not found: %w", err)
 	}
+
+	if integration.TenantID != tenantID {
+		return nil, fmt.Errorf("integration not found")
+	}
+
 	return integration, nil
 }
 
@@ -126,11 +131,15 @@ func (s *integrationServiceImpl) ListActiveIntegrations(ctx context.Context, ten
 }
 
 // UpdateIntegration updates an integration.
-func (s *integrationServiceImpl) UpdateIntegration(ctx context.Context, integration *entity.Integration) error {
-	// Check if integration exists
+func (s *integrationServiceImpl) UpdateIntegration(ctx context.Context, tenantID uuid.UUID, integration *entity.Integration) error {
+	// Check if integration exists and belongs to tenant
 	existing, err := s.integrationRepo.FindByID(ctx, integration.ID)
 	if err != nil {
 		return fmt.Errorf("integration not found: %w", err)
+	}
+
+	if existing.TenantID != tenantID {
+		return fmt.Errorf("integration not found")
 	}
 
 	// Validate updated integration
@@ -155,11 +164,15 @@ func (s *integrationServiceImpl) UpdateIntegration(ctx context.Context, integrat
 }
 
 // DeleteIntegration deletes an integration.
-func (s *integrationServiceImpl) DeleteIntegration(ctx context.Context, id uuid.UUID) error {
-	// Check if integration exists
-	_, err := s.integrationRepo.FindByID(ctx, id)
+func (s *integrationServiceImpl) DeleteIntegration(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) error {
+	// Check if integration exists and belongs to tenant
+	integration, err := s.integrationRepo.FindByID(ctx, id)
 	if err != nil {
 		return fmt.Errorf("integration not found: %w", err)
+	}
+
+	if integration.TenantID != tenantID {
+		return fmt.Errorf("integration not found")
 	}
 
 	// Revoke all OAuth tokens for this integration
@@ -176,10 +189,14 @@ func (s *integrationServiceImpl) DeleteIntegration(ctx context.Context, id uuid.
 }
 
 // ActivateIntegration activates an integration.
-func (s *integrationServiceImpl) ActivateIntegration(ctx context.Context, id uuid.UUID) error {
+func (s *integrationServiceImpl) ActivateIntegration(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) error {
 	integration, err := s.integrationRepo.FindByID(ctx, id)
 	if err != nil {
 		return fmt.Errorf("integration not found: %w", err)
+	}
+
+	if integration.TenantID != tenantID {
+		return fmt.Errorf("integration not found")
 	}
 
 	integration.IsActive = true
@@ -192,10 +209,14 @@ func (s *integrationServiceImpl) ActivateIntegration(ctx context.Context, id uui
 }
 
 // DeactivateIntegration deactivates an integration.
-func (s *integrationServiceImpl) DeactivateIntegration(ctx context.Context, id uuid.UUID) error {
+func (s *integrationServiceImpl) DeactivateIntegration(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) error {
 	integration, err := s.integrationRepo.FindByID(ctx, id)
 	if err != nil {
 		return fmt.Errorf("integration not found: %w", err)
+	}
+
+	if integration.TenantID != tenantID {
+		return fmt.Errorf("integration not found")
 	}
 
 	integration.IsActive = false

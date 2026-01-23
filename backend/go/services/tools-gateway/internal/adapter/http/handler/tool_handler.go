@@ -52,6 +52,17 @@ func (h *ToolHandler) CreateTool(c *gin.Context) {
 // ListTools handles GET /api/v1/tools
 func (h *ToolHandler) ListTools(c *gin.Context) {
 	ctx := c.Request.Context()
+	claims, err := authmw.GetClaimsFromContext(c)
+	if err != nil {
+		response.WriteError(ctx, c.Writer, http.StatusUnauthorized, "UNAUTHORIZED", "claims not found in context", nil)
+		return
+	}
+
+	tenantID, err := uuid.Parse(claims.TenantID)
+	if err != nil {
+		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_TENANT_ID", "tenant_id has invalid format", nil)
+		return
+	}
 	// Parse query parameters
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
@@ -72,7 +83,7 @@ func (h *ToolHandler) ListTools(c *gin.Context) {
 		Offset:   offset,
 	}
 
-	tools, total, err := h.toolService.ListTools(c.Request.Context(), filters)
+	tools, total, err := h.toolService.ListTools(c.Request.Context(), tenantID, filters)
 	if err != nil {
 		response.WriteError(ctx, c.Writer, http.StatusInternalServerError, "LIST_FAILED", err.Error(), nil)
 		return
@@ -94,6 +105,17 @@ func (h *ToolHandler) ListTools(c *gin.Context) {
 // GetTool handles GET /api/v1/tools/:id
 func (h *ToolHandler) GetTool(c *gin.Context) {
 	ctx := c.Request.Context()
+	claims, err := authmw.GetClaimsFromContext(c)
+	if err != nil {
+		response.WriteError(ctx, c.Writer, http.StatusUnauthorized, "UNAUTHORIZED", "claims not found in context", nil)
+		return
+	}
+
+	tenantID, err := uuid.Parse(claims.TenantID)
+	if err != nil {
+		response.WriteError(ctx, c.Writer, http.StatusBadRequest, "INVALID_TENANT_ID", "tenant_id has invalid format", nil)
+		return
+	}
 	idParam := c.Param("id")
 	toolID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -101,7 +123,7 @@ func (h *ToolHandler) GetTool(c *gin.Context) {
 		return
 	}
 
-	tool, err := h.toolService.GetTool(c.Request.Context(), toolID)
+	tool, err := h.toolService.GetTool(c.Request.Context(), tenantID, toolID)
 	if err != nil {
 		response.WriteError(ctx, c.Writer, http.StatusNotFound, "NOT_FOUND", "tool not found", nil)
 		return

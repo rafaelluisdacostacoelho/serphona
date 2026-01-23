@@ -58,6 +58,11 @@ func (s *tenantToolServiceImpl) ConfigureTool(ctx context.Context, tenantTool *e
 		return fmt.Errorf("tool not found: %w", err)
 	}
 
+	// Only allow self-service configuration for public tools
+	if !tool.IsPublic {
+		return fmt.Errorf("tool '%s' is not enabled for self-service", tool.Name)
+	}
+
 	// Check if tool is active
 	if !tool.IsActive {
 		return fmt.Errorf("cannot configure inactive tool '%s'", tool.Name)
@@ -103,6 +108,10 @@ func (s *tenantToolServiceImpl) EnableTool(ctx context.Context, tenantID, toolID
 	tool, err := s.toolRepo.FindByID(ctx, toolID)
 	if err != nil {
 		return fmt.Errorf("tool not found: %w", err)
+	}
+
+	if !tool.IsPublic {
+		return fmt.Errorf("tool '%s' is not enabled for self-service", tool.Name)
 	}
 
 	// Check if tool is active

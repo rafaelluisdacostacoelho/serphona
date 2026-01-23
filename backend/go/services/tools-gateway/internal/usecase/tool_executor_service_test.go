@@ -3,6 +3,9 @@ package usecase
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/google/uuid"
+	"golang.org/x/time/rate"
 )
 
 func TestEnforceMethodPolicyBlocksNotAllowed(t *testing.T) {
@@ -27,5 +30,19 @@ func TestEnforceQueryParamLimit(t *testing.T) {
 
 	if err := svc.enforceQueryParamLimit(map[string]interface{}{"a": 1, "b": 2}, "GET", "tool", "tenant"); err == nil {
 		t.Fatalf("expected query param limit to trigger")
+	}
+}
+
+func TestEnforceRateLimitBlocksAfterBurst(t *testing.T) {
+	svc := &toolExecutorServiceImpl{rateLimiters: make(map[string]*rate.Limiter)}
+	tenantID := uuid.New()
+	toolID := uuid.New()
+
+	if err := svc.enforceRateLimit(tenantID, toolID, 1, "tool"); err != nil {
+		t.Fatalf("expected first request within rate limit to pass, got %v", err)
+	}
+
+	if err := svc.enforceRateLimit(tenantID, toolID, 1, "tool"); err == nil {
+		t.Fatalf("expected second immediate request to be rate limited")
 	}
 }

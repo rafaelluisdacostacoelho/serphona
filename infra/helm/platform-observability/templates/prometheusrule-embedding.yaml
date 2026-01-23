@@ -1,0 +1,27 @@
+{{- if .Values.embeddingQuotaRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "platform-observability.fullname" . }}-embedding-quota
+  labels:
+    {{- include "platform-observability.labels" . | nindent 4 }}
+    {{- with .Values.embeddingQuotaRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.embeddingQuotaRule.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  groups:
+    - name: rag-embedding.quota
+      rules:
+        - alert: RAGEmbeddingQuotaExceeded
+          expr: increase(rag_embedding_quota_exceeded_total[5m]) > 0
+          for: 0m
+          labels:
+            severity: {{ .Values.embeddingQuotaRule.severity | quote }}
+          annotations:
+            summary: "Embedding quota exceeded"
+            description: "Tenant {{`{{`}} $labels.tenant_id {{`}}`}} namespace {{`{{`}} $labels.namespace {{`}}`}} exceeded embedding quota ({{`{{`}} $labels.kind {{`}}`}})."
+{{- end }}

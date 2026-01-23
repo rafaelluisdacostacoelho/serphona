@@ -35,7 +35,7 @@ type OAuthService interface {
 	RefreshTokenIfNeeded(ctx context.Context, token *entity.OAuthToken) (*entity.OAuthToken, error)
 
 	// RevokeToken revokes a token.
-	RevokeToken(ctx context.Context, tokenID uuid.UUID) error
+	RevokeToken(ctx context.Context, tenantID uuid.UUID, tokenID uuid.UUID) error
 }
 
 // oauthServiceImpl implements OAuthService.
@@ -72,6 +72,10 @@ func (s *oauthServiceImpl) InitiateAuthFlow(
 	integration, err := s.integrationRepo.FindByID(ctx, integrationID)
 	if err != nil {
 		return "", fmt.Errorf("integration not found: %w", err)
+	}
+
+	if integration.TenantID != tenantID {
+		return "", fmt.Errorf("integration not found")
 	}
 
 	// Validate integration
@@ -181,6 +185,10 @@ func (s *oauthServiceImpl) RefreshTokenIfNeeded(ctx context.Context, token *enti
 		return nil, fmt.Errorf("integration not found: %w", err)
 	}
 
+	if integration.TenantID != token.TenantID {
+		return nil, fmt.Errorf("integration not found")
+	}
+
 	// Refresh token
 	newToken, err := s.oauth2Service.RefreshAccessToken(ctx, integration, token)
 	if err != nil {
@@ -206,17 +214,25 @@ func (s *oauthServiceImpl) RefreshTokenIfNeeded(ctx context.Context, token *enti
 }
 
 // RevokeToken revokes a token.
-func (s *oauthServiceImpl) RevokeToken(ctx context.Context, tokenID uuid.UUID) error {
+func (s *oauthServiceImpl) RevokeToken(ctx context.Context, tenantID uuid.UUID, tokenID uuid.UUID) error {
 	// Get token
 	token, err := s.tokenRepo.FindByID(ctx, tokenID)
 	if err != nil {
 		return fmt.Errorf("token not found: %w", err)
 	}
 
+	if token.TenantID != tenantID {
+		return fmt.Errorf("token not found")
+	}
+
 	// Get integration
 	integration, err := s.integrationRepo.FindByID(ctx, token.IntegrationID)
 	if err != nil {
 		return fmt.Errorf("integration not found: %w", err)
+	}
+
+	if integration.TenantID != tenantID {
+		return fmt.Errorf("integration not found")
 	}
 
 	// Revoke token at provider (if supported)
