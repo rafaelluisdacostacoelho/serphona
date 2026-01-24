@@ -1,84 +1,84 @@
 package service
 
 import (
-    "context"
-    "encoding/json"
-    "fmt"
-    "log"
-    "time"
+	"context"
+	"encoding/json"
+	"fmt"
+	"log"
+	"time"
 
-    retry "github.com/avast/retry-go/v4"
-    "github.com/segmentio/kafka-go"
+	retry "github.com/avast/retry-go/v4"
+	"github.com/segmentio/kafka-go"
 
-    "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/events"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/events"
 )
 
 // IngestionPublisher publishes rag.ingestion.requested events.
 type IngestionPublisher interface {
-    PublishIngestion(ctx context.Context, evt events.RAGIngestionRequestedEvent) error
-    Close() error
+	PublishIngestion(ctx context.Context, evt events.RAGIngestionRequestedEvent) error
+	Close() error
 }
 
 type kafkaIngestionWriter interface {
-    WriteMessages(ctx context.Context, msgs ...kafka.Message) error
-    Close() error
+	WriteMessages(ctx context.Context, msgs ...kafka.Message) error
+	Close() error
 }
 
 // KafkaRAGIngestionPublisher sends RAG ingestion events to Kafka.
 type KafkaRAGIngestionPublisher struct {
-    writer   kafkaIngestionWriter
-    backoff  time.Duration
-    retryMax uint
-    topic    string
+	writer   kafkaIngestionWriter
+	backoff  time.Duration
+	retryMax uint
+	topic    string
 }
 
 // NewKafkaRAGIngestionPublisher builds a Kafka publisher for rag.ingestion.requested.
 func NewKafkaRAGIngestionPublisher(brokers []string, topic, clientID string, retryMax uint, backoff time.Duration) IngestionPublisher {
-    if len(brokers) == 0 || topic == "" {
-        return NewNoopIngestionPublisher()
-    }
-    w := &kafka.Writer{
-        Addr:     kafka.TCP(brokers...),
-        Topic:    topic,
-        Balancer: &kafka.LeastBytes{},
-        Async:    false,
-        Transport: &kafka.Transport{
-            ClientID: clientID,
-        },
-    }
-    return &KafkaRAGIngestionPublisher{writer: w, backoff: backoff, retryMax: retryMax, topic: topic}
+	if len(brokers) == 0 || topic == "" {
+		return NewNoopIngestionPublisher()
+	}
+	w := &kafka.Writer{
+		Addr:     kafka.TCP(brokers...),
+		Topic:    topic,
+		Balancer: &kafka.LeastBytes{},
+		Async:    false,
+		Transport: &kafka.Transport{
+			ClientID: clientID,
+		},
+	}
+	return &KafkaRAGIngestionPublisher{writer: w, backoff: backoff, retryMax: retryMax, topic: topic}
 }
 
 // PublishIngestion sends the event.
 func (p *KafkaRAGIngestionPublisher) PublishIngestion(ctx context.Context, evt events.RAGIngestionRequestedEvent) error {
-    if p == nil || p.writer == nil {
-        return nil
-    }
-    payload, err := json.Marshal(evt)
-    if err != nil {
-        return fmt.Errorf("marshal ingestion event: %w", err)
-    }
-    return retry.Do(
-        func() error {
-            err := p.writer.WriteMessages(ctx, kafka.Message{Value: payload})
-            if err != nil {
-                log.Printf("rag_ingest_publish sink=kafka topic=%s outcome=retryable err=%v", p.topic, err)
-                return err
-            }
-            return nil
-        },
-        retry.Attempts(p.retryMax),
-        retry.Delay(p.backoff),
-        retry.Context(ctx),
-    )
+	if p == nil || p.writer == nil {
+		return nil
+	}
+	payload, err := json.Marshal(evt)
+	if err != nil {
+		return fmt.Errorf("marshal ingestion event: %w", err)
+	}
+	return retry.Do(
+		func() error {
+			err := p.writer.WriteMessages(ctx, kafka.Message{Value: payload})
+			if err != nil {
+				log.Printf("rag_ingest_publish sink=kafka topic=%s outcome=retryable err=%v", p.topic, err)
+				return err
+			}
+			return nil
+		},
+		retry.Attempts(p.retryMax),
+		retry.Delay(p.backoff),
+		retry.Context(ctx),
+	)
 }
 
 // Close closes the writer if any.
 func (p *KafkaRAGIngestionPublisher) Close() error {
-    if p != nil && p.writer != nil {
-        return p.writer.Close()
-    }
-    return nil
+	if p != nil && p.writer != nil {
+		return p.writer.Close()
+	}
+	return nil
 }
 
 // NoopIngestionPublisher drops events.
@@ -89,7 +89,7 @@ func NewNoopIngestionPublisher() IngestionPublisher { return &NoopIngestionPubli
 
 // PublishIngestion drops events.
 func (n *NoopIngestionPublisher) PublishIngestion(_ context.Context, _ events.RAGIngestionRequestedEvent) error {
-    return nil
+	return nil
 }
 
 // Close is noop.
