@@ -34,17 +34,17 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- define "auth-gateway.env" -}}
 {{- range $name, $val := .Values.env }}
 - name: {{ $name }}
-	{{- if kindIs "map" $val }}
-		{{- if hasKey $val "valueFrom" }}
-	valueFrom:
-		{{- toYaml $val.valueFrom | nindent 4 }}
-		{{- else if hasKey $val "value" }}
-	value: {{ $val.value | quote }}
-		{{- else }}
-	value: {{ $val | quote }}
-		{{- end }}
-	{{- else }}
-	value: {{ $val | quote }}
-	{{- end }}
+    {{- if kindIs "map" $val }}
+        {{- if hasKey $val "valueFrom" }}
+    valueFrom:
+{{- toYaml $val.valueFrom | nindent 6 }}
+        {{- else if hasKey $val "value" }}
+    value: {{ $val.value | quote }}
+        {{- else }}
+    value: {{ $val | quote }}
+        {{- end }}
+    {{- else }}
+    value: {{ $val | quote }}
+    {{- end }}
 {{- end }}
 {{- end -}}

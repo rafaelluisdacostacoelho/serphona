@@ -1,0 +1,76 @@
+{
+  "info": {
+    "name": "Serphona Local Kind",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Colecao para testar servicos no kind (auth-gateway, tenant-manager, billing-service, tools-gateway)."
+  },
+  "variable": [
+    {"key": "baseAuth", "value": "http://localhost:18080"},
+    {"key": "baseTenant", "value": "http://localhost:18081"},
+    {"key": "baseBilling", "value": "http://localhost:18082"},
+    {"key": "baseTools", "value": "http://localhost:18085"},
+    {"key": "bearer", "value": "PASTE_JWT_HERE"}
+  ],
+  "item": [
+    {
+      "name": "auth-gateway /health",
+      "request": {
+        "method": "GET",
+        "url": {"raw": "{{baseAuth}}/health", "host": ["{{baseAuth}}"], "path": ["health"]}
+      }
+    },
+    {
+      "name": "auth-gateway swagger.json",
+      "request": {
+        "method": "GET",
+        "url": {"raw": "{{baseAuth}}/swagger/doc.json", "host": ["{{baseAuth}}"], "path": ["swagger","doc.json"]}
+      }
+    },
+    {
+      "name": "tenant-manager /health",
+      "request": {
+        "method": "GET",
+        "url": {"raw": "{{baseTenant}}/health", "host": ["{{baseTenant}}"], "path": ["health"]}
+      }
+    },
+    {
+      "name": "billing-service /health",
+      "request": {
+        "method": "GET",
+        "url": {"raw": "{{baseBilling}}/health", "host": ["{{baseBilling}}"], "path": ["health"]}
+      }
+    },
+    {
+      "name": "tools-gateway /health",
+      "request": {
+        "method": "GET",
+        "url": {"raw": "{{baseTools}}/health", "host": ["{{baseTools}}"], "path": ["health"]}
+      }
+    },
+    {
+      "name": "tools-gateway /api/v1/tools",
+      "request": {
+        "method": "GET",
+        "header": [
+          {"key": "Authorization", "value": "Bearer {{bearer}}", "type": "text"}
+        ],
+        "url": {"raw": "{{baseTools}}/api/v1/tools", "host": ["{{baseTools}}"], "path": ["api","v1","tools"]}
+      }
+    },
+    {
+      "name": "tools-gateway /api/v1/rag/ingestions/rest",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Authorization", "value": "Bearer {{bearer}}", "type": "text"},
+          {"key": "Content-Type", "value": "application/json", "type": "text"}
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"tenantId\": \"<tenant-uuid>\",\n  \"source\": \"manual\",\n  \"payload\": {\"text\": \"hello\"}\n}"
+        },
+        "url": {"raw": "{{baseTools}}/api/v1/rag/ingestions/rest", "host": ["{{baseTools}}"], "path": ["api","v1","rag","ingestions","rest"]}
+      }
+    }
+  ]
+}

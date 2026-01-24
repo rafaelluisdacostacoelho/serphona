@@ -35,10 +35,88 @@ spec:
               containerPort: {{ .Values.service.port }}
               protocol: TCP
           env:
-            {{- include "auth-gateway.env" . | nindent 12 }}
-            {{- with .Values.extraEnv }}
+            - name: CORS_ALLOWED_ORIGINS
+              value: {{ .Values.env.CORS_ALLOWED_ORIGINS | quote }}
+            - name: CORS_ALLOW_CREDENTIALS
+              value: {{ .Values.env.CORS_ALLOW_CREDENTIALS | quote }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: auth-gateway-db
+                  key: url
+            - name: ENV
+              value: {{ .Values.env.ENV | quote }}
+            - name: JWT_ACCESS_TOKEN_DURATION
+              value: {{ .Values.env.JWT_ACCESS_TOKEN_DURATION | quote }}
+            - name: JWT_REFRESH_TOKEN_DURATION
+              value: {{ .Values.env.JWT_REFRESH_TOKEN_DURATION | quote }}
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: auth-gateway-auth
+                  key: jwtSecret
+            - name: OAUTH_APPLE_CLIENT_ID
+              value: {{ .Values.env.OAUTH_APPLE_CLIENT_ID | quote }}
+            - name: OAUTH_APPLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: auth-gateway-oauth
+                  key: appleClientSecret
+            - name: OAUTH_APPLE_ENABLED
+              value: {{ .Values.env.OAUTH_APPLE_ENABLED | quote }}
+            - name: OAUTH_APPLE_REDIRECT_URL
+              value: {{ .Values.env.OAUTH_APPLE_REDIRECT_URL | quote }}
+            - name: OAUTH_GOOGLE_CLIENT_ID
+              value: {{ .Values.env.OAUTH_GOOGLE_CLIENT_ID | quote }}
+            - name: OAUTH_GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: auth-gateway-oauth
+                  key: googleClientSecret
+            - name: OAUTH_GOOGLE_ENABLED
+              value: {{ .Values.env.OAUTH_GOOGLE_ENABLED | quote }}
+            - name: OAUTH_GOOGLE_REDIRECT_URL
+              value: {{ .Values.env.OAUTH_GOOGLE_REDIRECT_URL | quote }}
+            - name: OAUTH_MICROSOFT_CLIENT_ID
+              value: {{ .Values.env.OAUTH_MICROSOFT_CLIENT_ID | quote }}
+            - name: OAUTH_MICROSOFT_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: auth-gateway-oauth
+                  key: microsoftClientSecret
+            - name: OAUTH_MICROSOFT_ENABLED
+              value: {{ .Values.env.OAUTH_MICROSOFT_ENABLED | quote }}
+            - name: OAUTH_MICROSOFT_REDIRECT_URL
+              value: {{ .Values.env.OAUTH_MICROSOFT_REDIRECT_URL | quote }}
+            - name: REDIS_HOST
+              value: {{ .Values.env.REDIS_HOST | quote }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: auth-gateway-redis
+                  key: password
+            - name: REDIS_PORT
+              value: {{ .Values.env.REDIS_PORT | quote }}
+            - name: SERVER_HOST
+              value: {{ .Values.env.SERVER_HOST | quote }}
+            - name: SERVER_PORT
+              value: {{ .Values.env.SERVER_PORT | quote }}
+            - name: SERVICE_AUDIENCE
+              value: {{ .Values.env.SERVICE_AUDIENCE | quote }}
+            - name: SERVICE_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: auth-gateway-auth
+                  key: serviceAuthToken
+            - name: SERVICE_INSTANCE
+              value: {{ .Values.env.SERVICE_INSTANCE | quote }}
+            - name: SERVICE_NAME
+              value: {{ .Values.env.SERVICE_NAME | quote }}
+            - name: TENANT_MANAGER_URL
+              value: {{ .Values.env.TENANT_MANAGER_URL | quote }}
+{{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
-            {{- end }}
+{{- end }}
           {{- with .Values.extraEnvFrom }}
           envFrom:
             {{- toYaml . | nindent 12 }}
