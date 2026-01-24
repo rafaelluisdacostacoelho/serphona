@@ -4,6 +4,8 @@ FETCH_ATTEMPTS = Counter("rag_fetch_attempts_total", "Fetch attempts", ["scheme"
 FETCH_SUCCEEDED = Counter("rag_fetch_succeeded_total", "Fetch succeeded", ["scheme"])
 FETCH_NOT_MODIFIED = Counter("rag_fetch_not_modified_total", "Fetch 304/NotModified", ["scheme"])
 FETCH_FAILED = Counter("rag_fetch_failed_total", "Fetch failed", ["scheme"])
+REST_FETCH_ATTEMPTS = Counter("rag_rest_fetch_attempts_total", "REST/GraphQL fetch attempts", ["kind"])
+REST_FETCH_FAILED = Counter("rag_rest_fetch_failed_total", "REST/GraphQL fetch failed", ["kind", "reason"])
 
 EMBED_ATTEMPTS = Counter("rag_embedding_attempts_total", "Embedding attempts", [])
 EMBED_FAILED = Counter("rag_embedding_failed_total", "Embedding failed", [])
@@ -34,6 +36,7 @@ CIRCUIT_SKIPPED = Counter("rag_circuit_skipped_total", "Calls skipped due to ope
 DLQ_WRITTEN = Counter("rag_dlq_written_total", "Messages written to DLQ", ["reason"])
 
 FETCH_LATENCY = Histogram("rag_fetch_latency_seconds", "Fetch latency", ["scheme"])
+REST_FETCH_LATENCY = Histogram("rag_rest_fetch_latency_seconds", "REST/GraphQL fetch latency", ["kind"])
 EMBED_LATENCY = Histogram("rag_embed_latency_seconds", "Embedding latency", [])
 UPSERT_LATENCY = Histogram("rag_upsert_latency_seconds", "Upsert latency", [])
 CHUNK_SIZE = Histogram("rag_chunk_size_chars", "Chunk size in characters", buckets=(200, 400, 800, 1200, 2000, 4000, float("inf")))

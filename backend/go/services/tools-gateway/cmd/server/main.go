@@ -114,8 +114,10 @@ func main() {
 
 	// Initialize handlers
 	toolHandler := handler.NewToolHandler(toolService, executorService)
+	ragPublisher := buildRAGIngestionPublisher(cfg)
+	ragHandler := handler.NewRAGIngestionHandler(ragPublisher)
 
-	router := setupRouter(toolHandler, serviceName, cfg.MaxBodyBytes)
+	router := setupRouter(toolHandler, ragHandler, serviceName, cfg.MaxBodyBytes)
 
 	srv := &http.Server{
 		Addr:         cfg.HTTPAddr,
@@ -150,7 +152,6 @@ func initDB() (*gorm.DB, error) {
 	dsn := getEnv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/serphona_tools?sslmode=disable")
 	return gorm.Open(postgres.Open(dsn), &gorm.Config{})
 }
-
 func configureAuth(cfg *config.Config) {
 	authjwt.SetValidationConfig(authjwt.ValidationConfig{
 		AllowedAlgs:    cfg.Auth.AllowedAlgs,
@@ -168,7 +169,7 @@ func configureAuth(cfg *config.Config) {
 	}
 }
 
-func setupRouter(toolHandler *handler.ToolHandler, serviceName string, maxBodyBytes int) *gin.Engine {
+func setupRouter(toolHandler *handler.ToolHandler, ragHandler *handler.RAGIngestionHandler, serviceName string, maxBodyBytes int) *gin.Engine {
 	router := gin.Default()
 	authmw.SetMetricsRegisterer(middleware.MetricsRegisterer())
 	router.Use(middleware.RequestLogger(nil))
@@ -201,9 +202,34 @@ func setupRouter(toolHandler *handler.ToolHandler, serviceName string, maxBodyBy
 			tools.GET("/:id", authmw.RequireScopes("tools:read"), toolHandler.GetTool)
 			tools.POST("/:id/execute", authmw.RequireScopes("tools:execute"), toolHandler.ExecuteTool)
 		}
+
+		// RAG ingestion trigger (authenticated)
+		rag := v1.Group("/rag")
+		rag.Use(authmw.RequireAuth())
+		{
+			rag.POST("/ingestions/rest", authmw.RequireScopes("tools:write"), ragHandler.Create)
+		}
 	}
 
 	return router
+}
+
+func buildRAGIngestionPublisher(cfg *config.Config) service.IngestionPublisher {
+	if !cfg.RAGIngest.Enabled {
+		return service.NewNoopIngestionPublisher()
+	}
+
+	if cfg.RAGIngest.KafkaEnabled {
+		return service.NewKafkaRAGIngestionPublisher(
+			cfg.RAGIngest.KafkaBrokers,
+			cfg.RAGIngest.KafkaTopic,
+			cfg.RAGIngest.KafkaClient,
+			cfg.RAGIngest.RetryMax,
+			cfg.RAGIngest.RetryBackoff,
+		)
+	}
+
+	return service.NewNoopIngestionPublisher()
 }
 
 func getEnv(key, fallback string) string {

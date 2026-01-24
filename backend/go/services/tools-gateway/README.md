@@ -110,6 +110,15 @@ Content-Type: application/json
 > ℹ️ Regras de segurança: `base_url` deve usar `https` e seu host precisa estar presente em `EXEC_ALLOWED_HOSTS` (configurado via env). Pedidos que violem essa regra são recusados já na criação/atualização da ferramenta e também em tempo de execução.
 > ⚠️ Execuções GET respeitam `EXEC_MAX_QUERY_PARAMS`; métodos e headers obedecem allow/deny lists (`EXEC_ALLOWED_METHODS`/`EXEC_BLOCKED_METHODS`, `EXEC_ALLOWED_HEADERS`/`EXEC_BLOCKED_HEADERS`).
 
+### Template: ingestors REST/GraphQL (billing/audit)
+- Crie uma tool `rag_ingest_rest` (category `ingestion`) apontando para o endpoint de ingestão (ex: `POST https://rag-gateway/api/v1/ingestions/rest`).
+- Input schema sugerido (campos mapeiam para `metadata` consumido pelo worker):
+  - `uri` (string, required) — origem REST/GraphQL.
+  - `rest_paginate` (boolean, default true), `rest_page_param` (string, default `page`), `rest_page_start` (integer, default 1), `rest_page_size` (integer), `rest_max_pages` (integer, default 5), `rest_params`/`rest_headers` (object).
+  - Para GraphQL: `graphql_query` (string, required), `graphql_variables` (object), `graphql_headers` (object).
+  - `tenant_id` e `namespace` obrigatórios para billing/audit; o handler deve propagar para o evento `rag.ingestion.requested`.
+- Configure `credit_cost` conforme política de billing por ingestão; o log/audit continua automático via middleware.
+
 #### Listar Ferramentas
 
 ```bash

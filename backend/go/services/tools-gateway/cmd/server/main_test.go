@@ -20,6 +20,7 @@ import (
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/adapter/http/middleware"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/entity"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/repository"
+	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/domain/service"
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/services/tools-gateway/internal/usecase"
 )
 
@@ -195,6 +196,10 @@ func newToolHandler() *handler.ToolHandler {
 	}, &stubExecutorService{})
 }
 
+func newRAGHandler() *handler.RAGIngestionHandler {
+	return handler.NewRAGIngestionHandler(service.NewNoopIngestionPublisher())
+}
+
 type stubToolService struct {
 	tools   []*entity.Tool
 	total   int64
@@ -250,7 +255,7 @@ func newTestRouter(t *testing.T) (*gin.Engine, string) {
 	middleware.SetMetricsRegisterer(reg)
 	t.Cleanup(func() { middleware.SetMetricsRegisterer(nil) })
 
-	return setupRouter(newToolHandler(), "tools-gateway", 1024*1024), token
+	return setupRouter(newToolHandler(), newRAGHandler(), "tools-gateway", 1024*1024), token
 }
 
 func newTestToken(t *testing.T, scopes ...string) string {

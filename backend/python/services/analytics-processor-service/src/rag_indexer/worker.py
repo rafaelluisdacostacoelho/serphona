@@ -148,7 +148,7 @@ class RAGWorker:
                     etag_hint = evt.etag or self.etag_cache.get(evt.uri)
                     metrics.FETCH_ATTEMPTS.labels(scheme=scheme).inc()
                     start = time.perf_counter()
-                    content, new_etag = await self._retry_async("fetch", fetch_content, evt.uri, etag_hint)
+                    content, new_etag = await self._retry_async("fetch", fetch_content, evt.uri, etag_hint, evt.metadata)
                     metrics.FETCH_LATENCY.labels(scheme=scheme).observe(time.perf_counter() - start)
                     breaker.record_success()
                     if new_etag:
