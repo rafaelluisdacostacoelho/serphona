@@ -44,7 +44,6 @@ type JWTConfig struct {
 type OAuthConfig struct {
 	Google    OAuthProviderConfig
 	Microsoft OAuthProviderConfig
-	Apple     OAuthProviderConfig
 }
 
 // OAuthProviderConfig holds OAuth provider configuration
@@ -109,12 +108,6 @@ func Load() (*Config, error) {
 				ClientSecret: getEnv("OAUTH_MICROSOFT_CLIENT_SECRET", ""),
 				RedirectURL:  getEnv("OAUTH_MICROSOFT_REDIRECT_URL", "http://localhost:8080/api/v1/auth/oauth/microsoft/callback"),
 				Enabled:      getEnv("OAUTH_MICROSOFT_ENABLED", "false") == "true",
-			},
-			Apple: OAuthProviderConfig{
-				ClientID:     getEnv("OAUTH_APPLE_CLIENT_ID", ""),
-				ClientSecret: getEnv("OAUTH_APPLE_CLIENT_SECRET", ""),
-				RedirectURL:  getEnv("OAUTH_APPLE_REDIRECT_URL", "http://localhost:8080/api/v1/auth/oauth/apple/callback"),
-				Enabled:      getEnv("OAUTH_APPLE_ENABLED", "false") == "true",
 			},
 		},
 		Redis: RedisConfig{

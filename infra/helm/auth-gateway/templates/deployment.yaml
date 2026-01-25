@@ -55,17 +55,6 @@ spec:
                 secretKeyRef:
                   name: auth-gateway-auth
                   key: jwtSecret
-            - name: OAUTH_APPLE_CLIENT_ID
-              value: {{ .Values.env.OAUTH_APPLE_CLIENT_ID | quote }}
-            - name: OAUTH_APPLE_CLIENT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: auth-gateway-oauth
-                  key: appleClientSecret
-            - name: OAUTH_APPLE_ENABLED
-              value: {{ .Values.env.OAUTH_APPLE_ENABLED | quote }}
-            - name: OAUTH_APPLE_REDIRECT_URL
-              value: {{ .Values.env.OAUTH_APPLE_REDIRECT_URL | quote }}
             - name: OAUTH_GOOGLE_CLIENT_ID
               value: {{ .Values.env.OAUTH_GOOGLE_CLIENT_ID | quote }}
             - name: OAUTH_GOOGLE_CLIENT_SECRET

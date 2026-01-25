@@ -118,7 +118,7 @@
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "OAuth provider (google, microsoft, apple)",
+                        "description": "OAuth provider (google, microsoft)",
                         "name": "provider",
                         "in": "path",
                         "required": true

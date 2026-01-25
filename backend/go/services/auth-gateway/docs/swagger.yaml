@@ -158,7 +158,7 @@ paths:
   /auth/oauth/{provider}:
     get:
       parameters:
-      - description: OAuth provider (google, microsoft, apple)
+      - description: OAuth provider (google, microsoft)
         in: path
         name: provider
         required: true

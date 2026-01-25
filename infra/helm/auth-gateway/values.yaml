@@ -92,15 +92,6 @@ env:
   OAUTH_MICROSOFT_REDIRECT_URL: "https://auth.serphona.com/api/v1/auth/oauth/microsoft/callback"
   OAUTH_MICROSOFT_ENABLED: "false"
 
-  OAUTH_APPLE_CLIENT_ID: ""
-  OAUTH_APPLE_CLIENT_SECRET:
-    valueFrom:
-      secretKeyRef:
-        name: auth-gateway-oauth
-        key: appleClientSecret
-  OAUTH_APPLE_REDIRECT_URL: "https://auth.serphona.com/api/v1/auth/oauth/apple/callback"
-  OAUTH_APPLE_ENABLED: "false"
-
   REDIS_HOST: "redis"
   REDIS_PORT: "6379"
   REDIS_PASSWORD:

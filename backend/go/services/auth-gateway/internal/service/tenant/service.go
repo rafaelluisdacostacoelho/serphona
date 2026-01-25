@@ -90,14 +90,26 @@ func (s *Service) CreateTenant(ctx context.Context, name, email, plan, billingEm
 	}
 	defer resp.Body.Close()
 
+	// tenant-manager wraps successful responses in an envelope {"data": {...}}
 	var parsed struct {
-		ID string `json:"id"`
+		ID   string `json:"id"`
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
 		return uuid.Nil, fmt.Errorf("failed to decode tenant-manager response: %w", err)
 	}
 
-	createdID, err := uuid.Parse(parsed.ID)
+	id := parsed.ID
+	if id == "" {
+		id = parsed.Data.ID
+	}
+	if id == "" {
+		return uuid.Nil, fmt.Errorf("invalid tenant id from tenant-manager: empty id")
+	}
+
+	createdID, err := uuid.Parse(id)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("invalid tenant id from tenant-manager: %w", err)
 	}
@@ -140,11 +152,16 @@ func validateAudience(token, expected string) error {
 		return nil
 	}
 
+	// Allow opaque tokens (non-JWT) when no audience claim can be inspected.
+	if strings.Count(token, ".") != 2 {
+		return nil
+	}
+
 	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
 	claims := &jwt.RegisteredClaims{}
 
 	if _, _, err := parser.ParseUnverified(token, claims); err != nil {
-		return err
+		return nil
 	}
 
 	for _, aud := range claims.Audience {

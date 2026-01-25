@@ -214,7 +214,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 // GetOAuthURL generates OAuth authorization URL
 // @Summary Get OAuth authorization URL
 // @Tags OAuth
-// @Param provider path string true "OAuth provider (google, microsoft, apple)"
+// @Param provider path string true "OAuth provider (google, microsoft)"
 // @Produce json
 // @Success 200 {object} auth.OAuthURLResponse
 // @Failure 400 {object} ErrorResponse

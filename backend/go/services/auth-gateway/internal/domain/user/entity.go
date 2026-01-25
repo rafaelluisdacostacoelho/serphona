@@ -14,7 +14,7 @@ type User struct {
 	Name       string    `gorm:"not null"`
 	Role       string    `gorm:"not null;default:'user'"` // admin, user, viewer
 	TenantID   uuid.UUID `gorm:"type:uuid;not null;index"`
-	Provider   string    `gorm:"default:'local'"` // local, google, apple, microsoft
+	Provider   string    `gorm:"default:'local'"` // local, google, microsoft
 	ProviderID string    `gorm:"uniqueIndex:idx_provider_id,where:provider != 'local'"`
 	Verified   bool      `gorm:"default:false"`
 	Active     bool      `gorm:"default:true"`

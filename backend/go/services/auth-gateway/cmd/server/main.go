@@ -200,23 +200,6 @@ func registerOAuthProviders(authUC *auth.UseCase, cfg config.OAuthConfig, logger
 		}
 	}
 
-	// Apple OAuth
-	if cfg.Apple.Enabled && cfg.Apple.ClientID != "" {
-		appleProvider, err := oauth.NewAppleProvider(
-			cfg.Apple.ClientID,
-			"", // teamID
-			"", // keyID
-			"", // privateKey
-			cfg.Apple.RedirectURL,
-		)
-		if err != nil {
-			logger.Error("Failed to initialize Apple OAuth", zap.Error(err))
-		} else {
-			authUC.RegisterOAuthProvider("apple", appleProvider)
-			logger.Info("Apple OAuth provider registered")
-		}
-	}
-
 	return nil
 }
 
