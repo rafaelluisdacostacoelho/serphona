@@ -226,6 +226,9 @@ func buildRAGIngestionPublisher(cfg *config.Config) service.IngestionPublisher {
 			cfg.RAGIngest.KafkaClient,
 			cfg.RAGIngest.RetryMax,
 			cfg.RAGIngest.RetryBackoff,
+			cfg.RAGIngest.KafkaSASLMechanism,
+			cfg.RAGIngest.KafkaSASLUsername,
+			cfg.RAGIngest.KafkaSASLPassword,
 		)
 	}
 

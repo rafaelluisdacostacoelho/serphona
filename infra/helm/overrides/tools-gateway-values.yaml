@@ -9,12 +9,36 @@ env:
   SERVICE_NAME: tools-gateway
   SERVICE_INSTANCE: tools-gateway-1
   SERVICE_AUDIENCE: serphona-services # TODO: set to actual audience
+  HTTP_ADDR: ":8080"
+
+  DATABASE_URL:
+    valueFrom:
+      secretKeyRef:
+        name: tools-gateway-db
+        key: url
+  REDIS_URL:
+    valueFrom:
+      secretKeyRef:
+        name: tools-gateway-secrets
+        key: redis-url
+
+  # RAG ingestion Kafka (SASL/PLAIN)
+  RAG_INGEST_KAFKA_ENABLED: false
+  RAG_INGEST_KAFKA_BROKERS: kafka:9092
+  RAG_INGEST_KAFKA_SASL_MECHANISM: plain
+  RAG_INGEST_KAFKA_SASL_USERNAME: user1
+  RAG_INGEST_KAFKA_SASL_PASSWORD:
+    valueFrom:
+      secretKeyRef:
+        name: kafka-user-passwords
+        key: client-passwords
   # Auth/JWKS (produção): preferir validação com chave pública
-  JWT_VALIDATION_JWKS_URL: https://auth.example.com/.well-known/jwks.json
-  JWT_VALIDATION_ISSUER: https://auth.example.com/
+  JWT_VALIDATION_JWKS_URL: ""
+  JWT_VALIDATION_ISSUER: serphona
   JWT_VALIDATION_AUDIENCE: serphona-services
-  JWT_ALLOWED_ALGS: RS256
+  JWT_ALLOWED_ALGS: HS256
   JWT_JWKS_CACHE_TTL: 5m
+  TENANT_CLAIM: tenantId
 
   # Fallback local/dev (não usar em prod):
   JWT_SECRET:
@@ -46,3 +70,10 @@ resources:
 service:
   type: ClusterIP
   port: 8080
+
+# Inject secrets for DB/Redis
+extraEnvFrom:
+  - secretRef:
+      name: tools-gateway-db
+  - secretRef:
+      name: tools-gateway-secrets

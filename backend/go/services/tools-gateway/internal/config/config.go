@@ -64,13 +64,16 @@ type BillingConfig struct {
 
 // RAGIngestConfig controls publishing rag.ingestion.requested events.
 type RAGIngestConfig struct {
-	Enabled      bool          `envconfig:"RAG_INGEST_ENABLED" default:"true"`
-	KafkaEnabled bool          `envconfig:"RAG_INGEST_KAFKA_ENABLED" default:"true"`
-	KafkaBrokers []string      `envconfig:"RAG_INGEST_KAFKA_BROKERS" default:"localhost:9092"`
-	KafkaTopic   string        `envconfig:"RAG_INGEST_KAFKA_TOPIC" default:"rag.ingestion.requested"`
-	KafkaClient  string        `envconfig:"RAG_INGEST_KAFKA_CLIENT_ID" default:"tools-gateway"`
-	RetryMax     uint          `envconfig:"RAG_INGEST_RETRY_MAX" default:"3"`
-	RetryBackoff time.Duration `envconfig:"RAG_INGEST_RETRY_BACKOFF" default:"250ms"`
+	Enabled            bool          `envconfig:"RAG_INGEST_ENABLED" default:"true"`
+	KafkaEnabled       bool          `envconfig:"RAG_INGEST_KAFKA_ENABLED" default:"true"`
+	KafkaBrokers       []string      `envconfig:"RAG_INGEST_KAFKA_BROKERS" default:"localhost:9092"`
+	KafkaTopic         string        `envconfig:"RAG_INGEST_KAFKA_TOPIC" default:"rag.ingestion.requested"`
+	KafkaClient        string        `envconfig:"RAG_INGEST_KAFKA_CLIENT_ID" default:"tools-gateway"`
+	KafkaSASLMechanism string        `envconfig:"RAG_INGEST_KAFKA_SASL_MECHANISM"`
+	KafkaSASLUsername  string        `envconfig:"RAG_INGEST_KAFKA_SASL_USERNAME"`
+	KafkaSASLPassword  string        `envconfig:"RAG_INGEST_KAFKA_SASL_PASSWORD"`
+	RetryMax           uint          `envconfig:"RAG_INGEST_RETRY_MAX" default:"3"`
+	RetryBackoff       time.Duration `envconfig:"RAG_INGEST_RETRY_BACKOFF" default:"250ms"`
 }
 
 // Load parses environment variables into Config.

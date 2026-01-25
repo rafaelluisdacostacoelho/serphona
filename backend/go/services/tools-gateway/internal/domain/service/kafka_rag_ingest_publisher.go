@@ -9,6 +9,7 @@ import (
 
 	retry "github.com/avast/retry-go/v4"
 	"github.com/segmentio/kafka-go"
+	"github.com/segmentio/kafka-go/sasl/plain"
 
 	"github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-events/events"
 )
@@ -33,18 +34,25 @@ type KafkaRAGIngestionPublisher struct {
 }
 
 // NewKafkaRAGIngestionPublisher builds a Kafka publisher for rag.ingestion.requested.
-func NewKafkaRAGIngestionPublisher(brokers []string, topic, clientID string, retryMax uint, backoff time.Duration) IngestionPublisher {
+func NewKafkaRAGIngestionPublisher(brokers []string, topic, clientID string, retryMax uint, backoff time.Duration, saslMechanism, saslUsername, saslPassword string) IngestionPublisher {
 	if len(brokers) == 0 || topic == "" {
 		return NewNoopIngestionPublisher()
 	}
+	transport := &kafka.Transport{ClientID: clientID}
+	if saslMechanism != "" && saslUsername != "" && saslPassword != "" {
+		switch saslMechanism {
+		case "plain", "PLAIN":
+			transport.SASL = plain.Mechanism{Username: saslUsername, Password: saslPassword}
+		default:
+			log.Printf("rag_ingest_publish unsupported_sasl mechanism=%s", saslMechanism)
+		}
+	}
 	w := &kafka.Writer{
-		Addr:     kafka.TCP(brokers...),
-		Topic:    topic,
-		Balancer: &kafka.LeastBytes{},
-		Async:    false,
-		Transport: &kafka.Transport{
-			ClientID: clientID,
-		},
+		Addr:      kafka.TCP(brokers...),
+		Topic:     topic,
+		Balancer:  &kafka.LeastBytes{},
+		Async:     false,
+		Transport: transport,
 	}
 	return &KafkaRAGIngestionPublisher{writer: w, backoff: backoff, retryMax: retryMax, topic: topic}
 }

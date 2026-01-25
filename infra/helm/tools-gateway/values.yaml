@@ -97,6 +97,17 @@ env:
   SERVICE_INSTANCE: tools-gateway-1
   SERVICE_AUDIENCE: serphona-services
 
+  # RAG ingestion Kafka (SASL/PLAIN against in-cluster Kafka)
+  RAG_INGEST_KAFKA_ENABLED: true
+  RAG_INGEST_KAFKA_BROKERS: kafka:9092
+  RAG_INGEST_KAFKA_SASL_MECHANISM: plain
+  RAG_INGEST_KAFKA_SASL_USERNAME: user1
+  RAG_INGEST_KAFKA_SASL_PASSWORD:
+    valueFrom:
+      secretKeyRef:
+        name: kafka-user-passwords
+        key: client-passwords
+
   # Auth/JWKS (produção)
   JWT_VALIDATION_JWKS_URL: ""
   JWT_VALIDATION_ISSUER: ""
