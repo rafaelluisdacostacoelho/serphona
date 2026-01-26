@@ -8,13 +8,6 @@
   "templating": {
     "list": [
       {
-        "name": "DS_TEMPO",
-        "type": "datasource",
-        "query": "tempo",
-        "label": "Tempo",
-        "current": { "text": "Tempo", "value": "Tempo" }
-      },
-      {
         "name": "DS_LOKI",
         "type": "datasource",
         "query": "loki",
@@ -23,35 +16,45 @@
       },
       {
         "name": "service",
-        "type": "textbox",
-        "label": "service.name",
-        "query": "",
-        "current": { "text": "", "value": "" }
+        "type": "custom",
+        "label": "service",
+        "query": ".+,.*",
+        "options": [
+          { "text": ".+", "value": ".+" },
+          { "text": ".*", "value": ".*" }
+        ],
+        "current": { "text": ".+", "value": ".+" }
       },
       {
         "name": "tenant",
-        "type": "textbox",
-        "label": "tenant_id",
-        "query": "",
-        "current": { "text": "", "value": "" }
+        "type": "custom",
+        "label": "tenant",
+        "query": ".+,.*",
+        "options": [
+          { "text": ".+", "value": ".+" },
+          { "text": ".*", "value": ".*" }
+        ],
+        "current": { "text": ".+", "value": ".+" }
       }
     ]
   },
   "panels": [
     {
       "id": 10,
-      "type": "table",
-      "title": "Recent traces (TraceQL)",
-      "datasource": { "type": "tempo", "uid": "${DS_TEMPO}" },
+      "type": "logs",
+      "title": "Recent logs (by service/tenant)",
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
       "targets": [
         {
           "refId": "A",
-          "queryType": "traceql",
-          "query": "{ service.name = \"$service\" } | tenant_id = '$tenant' | limit 50"
+          "expr": "{app=~\"$service\", tenant=~\"$tenant\"}",
+          "queryType": "range"
         }
       ],
       "options": {
-        "showHeader": true
+        "showTime": true,
+        "showLabels": true,
+        "wrapLogMessage": true
       },
       "gridPos": { "h": 10, "w": 24, "x": 0, "y": 0 }
     },
@@ -63,7 +66,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{tenant=\"$tenant\"} |= \"observability\"",
+          "expr": "{tenant=~\"$tenant\"}",
           "queryType": "range"
         }
       ],
