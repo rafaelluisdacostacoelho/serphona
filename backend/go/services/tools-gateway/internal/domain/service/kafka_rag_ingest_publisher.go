@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"time"
 
 	retry "github.com/avast/retry-go/v4"
@@ -42,7 +43,16 @@ func NewKafkaRAGIngestionPublisher(brokers []string, topic, clientID string, ret
 	if saslMechanism != "" && saslUsername != "" && saslPassword != "" {
 		switch saslMechanism {
 		case "plain", "PLAIN":
-			transport.SASL = plain.Mechanism{Username: saslUsername, Password: saslPassword}
+			mech := plain.Mechanism{Username: saslUsername, Password: saslPassword}
+			transport.SASL = mech
+			dialer := &kafka.Dialer{ClientID: clientID, SASLMechanism: mech}
+			transport.Dial = func(ctx context.Context, network, address string) (net.Conn, error) {
+				conn, err := dialer.DialContext(ctx, network, address)
+				if err != nil {
+					return nil, err
+				}
+				return net.Conn(conn), nil
+			}
 		default:
 			log.Printf("rag_ingest_publish unsupported_sasl mechanism=%s", saslMechanism)
 		}

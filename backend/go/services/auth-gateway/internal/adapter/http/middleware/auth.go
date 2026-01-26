@@ -58,13 +58,33 @@ func (m *AuthMiddleware) Authenticate() gin.HandlerFunc {
 			return
 		}
 
+		userID, err := uuid.Parse(claims.UserID)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"message": "Invalid token claims",
+				"code":    "UNAUTHORIZED",
+			})
+			c.Abort()
+			return
+		}
+
+		tenantID, err := uuid.Parse(claims.TenantID)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"message": "Invalid token claims",
+				"code":    "UNAUTHORIZED",
+			})
+			c.Abort()
+			return
+		}
+
 		// Set user info in context
-		c.Set("userID", claims.UserID)
+		c.Set("userID", userID)
 		c.Set("email", claims.Email)
-		c.Set("tenantID", claims.TenantID)
+		c.Set("tenantID", tenantID)
 		c.Set("role", claims.Role)
 
-		if claims.TenantID == uuid.Nil {
+		if tenantID == uuid.Nil {
 			observability.RecordTenantMissing(c.FullPath())
 		}
 

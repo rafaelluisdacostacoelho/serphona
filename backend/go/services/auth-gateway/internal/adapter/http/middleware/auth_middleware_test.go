@@ -19,9 +19,9 @@ type mockJWTService struct {
 func (m *mockJWTService) ValidateAccessToken(tokenString string) (*jwt.Claims, error) {
 	if tokenString == "valid-token" {
 		return &jwt.Claims{
-			UserID:   uuid.New(),
+			UserID:   uuid.New().String(),
 			Email:    "test@example.com",
-			TenantID: m.fixedTenantID,
+			TenantID: m.fixedTenantID.String(),
 			Role:     "user",
 		}, nil
 	}
@@ -32,7 +32,7 @@ func (m *mockJWTService) ValidateRefreshToken(tokenString string) (uuid.UUID, er
 	return uuid.Nil, nil
 }
 
-func (m *mockJWTService) GenerateAccessToken(userID, tenantID uuid.UUID, email, role string) (string, error) {
+func (m *mockJWTService) GenerateAccessToken(userID, tenantID uuid.UUID, email, name, role string) (string, error) {
 	return "", nil
 }
 

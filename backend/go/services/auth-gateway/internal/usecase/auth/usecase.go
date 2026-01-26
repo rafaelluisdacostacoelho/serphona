@@ -100,14 +100,15 @@ func (uc *UseCase) Register(ctx context.Context, req RegisterRequest) (*AuthResp
 
 	// Create user
 	newUser := &user.User{
-		Email:    req.Email,
-		Password: string(hashedPassword),
-		Name:     req.Name,
-		TenantID: tenantID,
-		Role:     "user",
-		Provider: "local",
-		Verified: false,
-		Active:   true,
+		Email:      req.Email,
+		Password:   string(hashedPassword),
+		Name:       req.Name,
+		TenantID:   tenantID,
+		Role:       "user",
+		Provider:   "local",
+		ProviderID: uuid.NewString(),
+		Verified:   false,
+		Active:     true,
 	}
 
 	if err := uc.userRepo.Create(ctx, newUser); err != nil {
@@ -304,7 +305,7 @@ func (uc *UseCase) HandleOAuthCallback(ctx context.Context, req OAuthCallbackReq
 // generateAuthResponse creates an auth response with tokens
 func (uc *UseCase) generateAuthResponse(ctx context.Context, u *user.User) (*AuthResponse, error) {
 	// Generate access token
-	accessToken, err := uc.jwtService.GenerateAccessToken(u.ID, u.TenantID, u.Email, u.Role)
+	accessToken, err := uc.jwtService.GenerateAccessToken(u.ID, u.TenantID, u.Email, u.Name, u.Role)
 	if err != nil {
 		return nil, err
 	}

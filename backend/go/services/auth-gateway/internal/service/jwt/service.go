@@ -6,6 +6,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	platformauth "github.com/rafaelluisdacostacoelho/serphona/backend/go/libs/platform-auth/types"
 )
 
 var (
@@ -13,14 +14,8 @@ var (
 	ErrExpiredToken = errors.New("token has expired")
 )
 
-// Claims represents JWT custom claims
-type Claims struct {
-	UserID   uuid.UUID `json:"user_id"`
-	Email    string    `json:"email"`
-	TenantID uuid.UUID `json:"tenant_id"`
-	Role     string    `json:"role"`
-	jwt.RegisteredClaims
-}
+// Claims is an alias to the platform-auth claims to keep compatibility with downstream middleware.
+type Claims = platformauth.Claims
 
 // Service handles JWT token generation and validation
 type Service struct {
@@ -38,18 +33,30 @@ func NewService(secretKey string, accessTokenDuration, refreshTokenDuration time
 	}
 }
 
-// GenerateAccessToken generates a new access token
-func (s *Service) GenerateAccessToken(userID, tenantID uuid.UUID, email, role string) (string, error) {
+// defaultScopes returns coarse-grained scopes based on role; keeps ingestion/tool flows unblocked in dev.
+func defaultScopes(role string) []string {
+	scopes := []string{"tools:read", "tools:write", "tools:execute"}
+	if role == "admin" || role == "superadmin" {
+		return append(scopes, "admin:read", "admin:write")
+	}
+	return scopes
+}
+
+// GenerateAccessToken generates a new access token using platform-auth compatible claims.
+func (s *Service) GenerateAccessToken(userID, tenantID uuid.UUID, email, name, role string) (string, error) {
 	claims := Claims{
-		UserID:   userID,
+		UserID:   userID.String(),
 		Email:    email,
-		TenantID: tenantID,
+		Name:     name,
 		Role:     role,
+		TenantID: tenantID.String(),
+		Scopes:   defaultScopes(role),
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(s.accessTokenDuration)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
-			Issuer:    "serphona-auth",
+			Issuer:    "serphona",
+			Audience:  []string{"serphona-services"},
 		},
 	}
 
@@ -128,7 +135,7 @@ func (s *Service) ValidateRefreshToken(tokenString string) (uuid.UUID, error) {
 type JWTService interface {
 	ValidateAccessToken(tokenString string) (*Claims, error)
 	ValidateRefreshToken(tokenString string) (uuid.UUID, error)
-	GenerateAccessToken(userID, tenantID uuid.UUID, email, role string) (string, error)
+	GenerateAccessToken(userID, tenantID uuid.UUID, email, name, role string) (string, error)
 	GenerateRefreshToken(userID uuid.UUID) (string, error)
 }
 
