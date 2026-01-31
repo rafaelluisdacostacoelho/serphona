@@ -13,6 +13,7 @@ type Config struct {
 	HTTP        HTTPConfig
 	GRPC        GRPCConfig
 	Metrics     MetricsConfig
+	Tracing     TracingConfig
 	Auth        AuthConfig
 	Pprof       PprofConfig
 }
@@ -44,6 +45,14 @@ type GRPCConfig struct {
 type MetricsConfig struct {
 	Enabled bool   `envconfig:"METRICS_ENABLED" default:"true"`
 	Path    string `envconfig:"METRICS_PATH" default:"/metrics"`
+}
+
+// TracingConfig controls OpenTelemetry exporter settings.
+type TracingConfig struct {
+	Enabled    bool    `envconfig:"TRACING_ENABLED" default:"true"`
+	Endpoint   string  `envconfig:"TRACING_ENDPOINT" default:"localhost:4317"`
+	Insecure   bool    `envconfig:"TRACING_INSECURE" default:"true"`
+	SampleRate float64 `envconfig:"TRACING_SAMPLER" default:"1.0"`
 }
 
 // PprofConfig toggles pprof handlers.
